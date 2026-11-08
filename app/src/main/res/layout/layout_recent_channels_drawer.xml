@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Recent Channels: the quick-switcher drawer over live TV (ui/player/RecentChannelsDrawer).
+     It slides up from the bottom with the last channels watched, newest first, and leaves most of
+     the picture showing. Left / Right move between the cards, OK tunes, Back or Down closes. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/recent_drawer_bg"
+    android:clickable="true"
+    android:focusable="false"
+    android:orientation="vertical"
+    android:paddingTop="10dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <View
+            android:id="@+id/recentAccent"
+            android:layout_width="3dp"
+            android:layout_height="14dp"
+            android:layout_marginEnd="8dp"
+            android:background="#008CFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.14"
+            android:text="@string/recent_channels_title"
+            android:textColor="#B8C7E0"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvRecentChannels"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="false"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp" />
+
+</LinearLayout>

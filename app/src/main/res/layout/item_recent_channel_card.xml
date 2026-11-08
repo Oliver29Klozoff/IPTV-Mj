@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One Recent Channels card: logo (or initials), name, the show on now, and the provider's name
+     for an extra provider. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="150dp"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="6dp"
+    android:background="@drawable/recent_card_bg"
+    android:clickable="true"
+    android:focusable="true"
+    android:minHeight="84dp"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/recent_logo_bg">
+
+            <TextView
+                android:id="@+id/tvRecentInitials"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:gravity="center"
+                android:textColor="#DCE6F5"
+                android:textSize="15sp" />
+
+            <ImageView
+                android:id="@+id/ivRecentLogo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:padding="3dp"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tvRecentName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/barlow_semibold"
+            android:maxLines="2"
+            android:textColor="#9FB0CC"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvRecentNow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#7F90AD"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvRecentProvider"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/recent_badge_bg"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:maxWidth="128dp"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="1dp"
+        android:textColor="#DCE6F5"
+        android:textSize="11sp"
+        android:visibility="gone" />
+</LinearLayout>
