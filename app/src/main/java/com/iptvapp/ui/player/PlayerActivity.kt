@@ -7079,6 +7079,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         channelSwitchJob?.cancel()
         // Any other change of channel overtakes a Recent Channels pick still loading its list.
         if (!fromRecentsPick) recentsZapJob?.cancel()
+        // The drawer lists channels around the one playing: a change of channel closes it.
+        if (::recents.isInitialized) recents.close()
         channelSwitchJob = lifecycleScope.launch {
             try {
                 // Off preserves Channel Change Speed; Turbo Tune coalesces rapid presses. This
@@ -7156,6 +7158,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         channelSwitchJob?.cancel()
         // Any other change of channel overtakes a Recent Channels pick still loading its list.
         if (!fromRecentsPick) recentsZapJob?.cancel()
+        if (::recents.isInitialized) recents.close()
         channelSwitchJob = lifecycleScope.launch {
             try {
                 val debounceMs = TurboTune.debounceMs(prefs.turboTuneNow(), prefs.channelZapDebounceMs.first())
@@ -7222,6 +7225,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvChannelTitle.text = ch.name
         channelSwitchJob?.cancel()
         recentsZapJob?.cancel()
+        if (::recents.isInitialized) recents.close()
         channelSwitchJob = lifecycleScope.launch {
             // Same debounce as playChannel, so holding the button settles on one load.
             val debounceMs = TurboTune.debounceMs(prefs.turboTuneNow(), prefs.channelZapDebounceMs.first())
@@ -7264,6 +7268,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         showTuneSelection(targetTitle, null)
         channelSwitchJob?.cancel()
         recentsZapJob?.cancel()
+        if (::recents.isInitialized) recents.close()
         channelSwitchJob = lifecycleScope.launch {
             val url = try {
                 TurboTune.resolveLatest {
@@ -7561,7 +7566,13 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     val now = android.os.SystemClock.uptimeMillis()
                     if (now - lastRecallPressMs < 400 && ::recents.isInitialized && recentKey() != null) {
                         lastRecallPressMs = 0L
-                        recents.open()
+                        // The first press's channel change may still be going: open once it has
+                        // landed, so the drawer lists the channels around the one now playing.
+                        val pending = channelSwitchJob
+                        lifecycleScope.launch {
+                            pending?.join()
+                            if (!isOverlayVisible) recents.open()
+                        }
                     } else {
                         lastRecallPressMs = now
                         recallLastChannel()
