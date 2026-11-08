@@ -7298,6 +7298,9 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 if (idx >= 0) mergedCurrentIndex = idx
             }
             loadStream(url)
+            // The channel came back from another list (a Recent Channels pick went elsewhere in
+            // between): CH +/- follows it in its own list again, as when the player opened with it.
+            restoreZapListAfterRecall(targetServerIndex, targetStreamId)
             noteRecentChannelById(targetServerIndex, targetStreamId)
             notifyPartyChannelChange()
             reportLiveChannelForHandoff()
@@ -7868,6 +7871,36 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             }
         })
         binding.btnRecents.setOnClickListener { if (quickPeekAvailable()) recents.toggle() }
+    }
+
+    /**
+     * After LAST: when the channel it went back to isn't in the CH +/- list (a Recent Channels
+     * pick replaced it in between), loads that channel's list again, as onCreate would. Changing
+     * channel or stopping meanwhile cancels it (recentsZapJob).
+     */
+    private fun restoreZapListAfterRecall(server: Int, id: Int) {
+        val inList = if (server == -1) channels.any { it.streamId == currentZapStreamId }
+        else mergedChannels.any { it.serverIndex == server && it.streamId == id }
+        if (inList) return
+        recentsZapJob?.cancel()
+        recentsZapJob = lifecycleScope.launch {
+            try {
+                if (server == -1) {
+                    val all = repository.getAllChannels().first()
+                    if (serverIndex != -1 || currentZapStreamId == -1) return@launch
+                    val idx = all.indexOfFirst { it.streamId == currentZapStreamId }
+                    if (idx >= 0) { channels = all; currentIndex = idx }
+                } else {
+                    val current = repository.getMergedChannelByIndexAndId(server, id) ?: return@launch
+                    val list = repository.getMergedChannelsByCategory(server, current.categoryId).first()
+                    if (serverIndex != server || mergedStreamId != id) return@launch
+                    val idx = list.indexOfFirst { it.serverIndex == server && it.streamId == id }
+                    if (idx >= 0) { mergedChannels = list; mergedCurrentIndex = idx }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
     }
 
     /** Live TV started playing [channel]: it goes to the front of Recent Channels (saved on the device). */
