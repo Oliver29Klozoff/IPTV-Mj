@@ -48,5 +48,11 @@ class QuickBarInputTest {
         assertFalse(QuickBarInput.isEdgeSwipe(20f, 100f, 200f, 600f, 1000f, 100f))
     }
 
+    @Test fun replayOnTapOpensQuickPeekHoldRewinds() {
+        assertEquals(QuickBarInput.LeftRelease.OPEN_QUICK_PEEK, QuickBarInput.leftRelease(longPressed = false, quickPeekAvailable = true))
+        assertEquals(QuickBarInput.LeftRelease.NOTHING, QuickBarInput.leftRelease(longPressed = true, quickPeekAvailable = true))
+        assertEquals(QuickBarInput.LeftRelease.REPLAY, QuickBarInput.leftRelease(longPressed = false, quickPeekAvailable = false))
+    }
+
     @Test fun noWidthNoSwipe() = assertFalse(QuickBarInput.isEdgeSwipe(0f, 0f, 500f, 0f, 0f, 10f))
 }

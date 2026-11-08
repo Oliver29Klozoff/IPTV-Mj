@@ -7532,9 +7532,21 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             liveSkipPendingMs = 0L
             val wasLong = liveSkipLong
             liveSkipLong = false
-            if (!wasLong && !isVod && !isOverlayVisible && timeshiftControlsOpen()) {
-                seekTimeshiftBy(delta)
-                showOverlay()
+            if (!isVod && !isOverlayVisible && timeshiftControlsOpen()) {
+                // With replay on, a tap of Left opens Quick Peek and a hold went back 30 s
+                // (onKeyLongPress); without Quick Peek here, a tap still goes back 10 s.
+                val action = if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    com.iptvapp.util.QuickBarInput.leftRelease(
+                        longPressed = wasLong,
+                        quickPeekAvailable = ::quickPeek.isInitialized && !quickPeek.isOpen && quickPeekAvailable(),
+                    )
+                } else if (wasLong) com.iptvapp.util.QuickBarInput.LeftRelease.NOTHING
+                else com.iptvapp.util.QuickBarInput.LeftRelease.REPLAY
+                when (action) {
+                    com.iptvapp.util.QuickBarInput.LeftRelease.OPEN_QUICK_PEEK -> quickPeek.open()
+                    com.iptvapp.util.QuickBarInput.LeftRelease.REPLAY -> { seekTimeshiftBy(delta); showOverlay() }
+                    com.iptvapp.util.QuickBarInput.LeftRelease.NOTHING -> Unit
+                }
             }
             return true
         }

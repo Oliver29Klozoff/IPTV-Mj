@@ -13,7 +13,10 @@ object QuickBarInput {
         MOVE_FOCUS,
         /** A movie or episode: Left skips back. */
         VOD_SKIP,
-        /** Live TV with replay controls: Left goes back 10 seconds (held, 30). */
+        /**
+         * Live TV with replay controls: decided when the key comes up ([leftRelease]). A tap opens
+         * Quick Peek; a hold goes back 30 seconds.
+         */
         TIMESHIFT_REPLAY,
         /** Bare live TV: Left opens Quick Peek. */
         OPEN_QUICK_PEEK,
@@ -37,6 +40,18 @@ object QuickBarInput {
         timeshiftControlsOpen -> if (repeatCount == 0) LeftAction.TIMESHIFT_REPLAY else LeftAction.IGNORE
         repeatCount == 0 && quickPeekAvailable -> LeftAction.OPEN_QUICK_PEEK
         else -> LeftAction.IGNORE
+    }
+
+    enum class LeftRelease { OPEN_QUICK_PEEK, REPLAY, NOTHING }
+
+    /**
+     * Left let go on live TV with replay controls. A hold already went back 30 seconds; a tap
+     * opens Quick Peek, or goes back 10 seconds where there is no Quick Peek (or it is open).
+     */
+    fun leftRelease(longPressed: Boolean, quickPeekAvailable: Boolean): LeftRelease = when {
+        longPressed -> LeftRelease.NOTHING
+        quickPeekAvailable -> LeftRelease.OPEN_QUICK_PEEK
+        else -> LeftRelease.REPLAY
     }
 
     /** The left-hand part of the screen a swipe has to start in, as a fraction of its width. */
