@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TV home: the single-row slot under the mini player (activity_tv_home's tvRvHome). Holds
+         the tallest row whole, a poster row (246dp, TvHomeRowSlotTest), with room for the focused
+         card to grow; the mini player takes the rest of the column. TVs are 540dp tall at any
+         resolution, so the same split holds on 720p, 1080p and 4K panels. -->
+    <dimen name="tv_home_row_slot">254dp</dimen>
+</resources>

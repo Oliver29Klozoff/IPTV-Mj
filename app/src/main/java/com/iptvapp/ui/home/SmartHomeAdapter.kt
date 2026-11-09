@@ -62,8 +62,22 @@ class SmartHomeAdapter(
         else RowHolder(ItemHomeRowBinding.inflate(inflater, parent, false))
     }
 
+    /**
+     * Each row's height in pixels, or 0 for its own height. The TV home sets it to its single-row
+     * slot, so one row fills the space under the player and the next one is never half in view.
+     */
+    var rowHeightPx = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            @Suppress("NotifyDataSetChanged")
+            notifyDataSetChanged()
+        }
+
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val row = getItem(position)
+        val wanted = if (rowHeightPx > 0) rowHeightPx else ViewGroup.LayoutParams.WRAP_CONTENT
+        holder.itemView.layoutParams?.let { lp -> if (lp.height != wanted) { lp.height = wanted; holder.itemView.layoutParams = lp } }
         if (holder !is RowHolder) return
         holder.b.tvHomeRowTitle.text = row.title
         holder.b.tvHomeRowTitle.contentDescription = "${row.title}, row"

@@ -2006,9 +2006,100 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             refocusCustomize = true
             HomeCustomizeActivity.open(this, tv = true)
         })
-        binding.tvRvHome.adapter = homeAdapter
-        binding.tvRvHome.itemAnimator = null
+        val rv = binding.tvRvHome
+        // One row at a time: the row above and below are laid out too (off screen), so Up / Down
+        // can focus them straight away and the list slides to them.
+        rv.layoutManager = object : androidx.recyclerview.widget.LinearLayoutManager(this) {
+            override fun calculateExtraLayoutSpace(state: androidx.recyclerview.widget.RecyclerView.State, extra: IntArray) {
+                extra[0] = rv.height
+                extra[1] = rv.height
+            }
+        }
+        rv.adapter = homeAdapter
+        rv.itemAnimator = null
+        // Each row fills the slot exactly (activity_tv_home's tv_home_row_slot).
+        rv.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
+            val slot = bottom - top - rv.paddingTop - rv.paddingBottom
+            if (slot > 0 && homeAdapter.rowHeightPx != slot) rv.post { homeAdapter.rowHeightPx = slot }
+        }
+        // Whichever row takes focus slides to the top of the slot, whole.
+        rv.viewTreeObserver.addOnGlobalFocusChangeListener { _, now ->
+            if (now == null || !homeShowing || rv.visibility != View.VISIBLE) return@addOnGlobalFocusChangeListener
+            val row = rv.findContainingItemView(now) ?: return@addOnGlobalFocusChangeListener
+            val position = rv.getChildAdapterPosition(row)
+            if (position != androidx.recyclerview.widget.RecyclerView.NO_POSITION) snapHomeRow(position)
+        }
         binding.btnTvHome.setOnClickListener { showHome() }
+    }
+
+    /** Slides row [position] to the top of the single-row slot, unless it is already there. */
+    private fun snapHomeRow(position: Int) {
+        val rv = binding.tvRvHome
+        val lm = rv.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
+        val view = lm.findViewByPosition(position)
+        if (view != null && lm.getDecoratedTop(view) == rv.paddingTop) return
+        val scroller = object : androidx.recyclerview.widget.LinearSmoothScroller(this) {
+            override fun getVerticalSnapPreference() = SNAP_TO_START
+        }
+        scroller.targetPosition = position
+        lm.startSmoothScroll(scroller)
+    }
+
+    /** The row showing in the slot now (0 when there is none). */
+    private fun shownHomeRow(): Int {
+        val lm = binding.tvRvHome.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return 0
+        val whole = lm.findFirstCompletelyVisibleItemPosition()
+        if (whole != androidx.recyclerview.widget.RecyclerView.NO_POSITION) return whole
+        return lm.findFirstVisibleItemPosition().coerceAtLeast(0)
+    }
+
+    /**
+     * Focuses row [position]: the card nearest [nearX] (screen x) so Up / Down keep their place
+     * across rows, else an empty row's hint, else Customize Home. False when it isn't laid out.
+     */
+    private fun focusHomeRow(position: Int, nearX: Int? = null): Boolean {
+        val rowView = binding.tvRvHome.findViewHolderForAdapterPosition(position)?.itemView ?: return false
+        val cards = rowView.findViewById<androidx.recyclerview.widget.RecyclerView>(com.iptvapp.R.id.rvHomeRowCards)
+        if (cards != null && cards.visibility == View.VISIBLE && cards.childCount > 0) {
+            val children = (0 until cards.childCount).map { cards.getChildAt(it) }
+            val pick = if (nearX == null) {
+                children.minByOrNull { cards.getChildAdapterPosition(it).let { p -> if (p < 0) Int.MAX_VALUE else p } }
+            } else {
+                val loc = IntArray(2)
+                children.minByOrNull { child ->
+                    child.getLocationOnScreen(loc)
+                    kotlin.math.abs(loc[0] + child.width / 2 - nearX)
+                }
+            }
+            if (pick?.requestFocus() == true) return true
+        }
+        rowView.findViewById<View>(com.iptvapp.R.id.tvHomeRowEmpty)?.takeIf { it.visibility == View.VISIBLE }
+            ?.let { if (it.requestFocus()) return true }
+        return rowView.findViewById<View>(com.iptvapp.R.id.btnHomeCustomize)?.requestFocus() == true
+    }
+
+    /** Up / Down in the rows: one row at a time; Up from the first goes to the live channel. */
+    private fun moveHomeRow(down: Boolean): Boolean {
+        val rv = binding.tvRvHome
+        val focused = currentFocus ?: return false
+        val rowView = rv.findContainingItemView(focused) ?: return false
+        val from = rv.getChildAdapterPosition(rowView)
+        if (from == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return false
+        val to = if (down) from + 1 else from - 1
+        if (to < 0) {
+            binding.tvMiniPlayerContainer.requestFocus()
+            return true
+        }
+        // Past the last row (Customize Home): stay put.
+        if (to >= homeAdapter.itemCount) return true
+        val loc = IntArray(2)
+        focused.getLocationOnScreen(loc)
+        val centerX = loc[0] + focused.width / 2
+        if (focusHomeRow(to, centerX)) return true
+        // Not laid out yet: bring it into the slot, then focus it.
+        (rv.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)?.scrollToPositionWithOffset(to, 0)
+        rv.post { if (homeShowing && !focusHomeRow(to, centerX)) focused.requestFocus() }
+        return true
     }
 
     private fun showHome() {
@@ -2093,12 +2184,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      * or Customize Home when every row is hidden. False when there is nothing yet.
      */
     private fun focusHomeRows(): Boolean {
-        val firstRow = binding.tvRvHome.getChildAt(0) ?: return false
-        val cards = firstRow.findViewById<androidx.recyclerview.widget.RecyclerView>(com.iptvapp.R.id.rvHomeRowCards)
-        if (cards != null && cards.visibility == View.VISIBLE && cards.getChildAt(0)?.requestFocus() == true) return true
-        firstRow.findViewById<View>(com.iptvapp.R.id.tvHomeRowEmpty)?.takeIf { it.visibility == View.VISIBLE }
-            ?.let { if (it.requestFocus()) return true }
-        return firstRow.findViewById<View>(com.iptvapp.R.id.btnHomeCustomize)?.requestFocus() == true
+        // The row in the slot now (rows above and below are laid out off screen too).
+        if (homeAdapter.itemCount == 0) return false
+        return focusHomeRow(shownHomeRow())
     }
 
     /**
@@ -2115,6 +2203,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 resetIdleExpandTimer()
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_BACK -> { binding.btnTvHome.requestFocus(); return true }
+                    // One row at a time through the slot; Up from the first row: the live channel.
+                    KeyEvent.KEYCODE_DPAD_UP -> if (moveHomeRow(down = false)) return true
+                    KeyEvent.KEYCODE_DPAD_DOWN -> if (moveHomeRow(down = true)) return true
                     KeyEvent.KEYCODE_DPAD_LEFT -> {
                         val focused = currentFocus
                         val cards = focused?.parent as? androidx.recyclerview.widget.RecyclerView

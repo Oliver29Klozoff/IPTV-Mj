@@ -1044,7 +1044,8 @@
                 android:layout_height="wrap_content"
                 android:background="@color/rack_surface"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp">
 
                 <TextView
                     android:id="@+id/tvTvChannelName"
@@ -1054,34 +1055,37 @@
                     android:maxLines="1"
                     android:text="No channel selected"
                     android:textColor="@color/rack_text"
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
 
+                <!-- Two lines at most, so the picture keeps the height (it was four). -->
                 <TextView
                     android:id="@+id/tvTvEpg"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="2dp"
                     android:ellipsize="end"
-                    android:maxLines="4"
+                    android:maxLines="2"
                     android:textColor="@color/rack_text_secondary"
-                    android:textSize="14sp" />
+                    android:textSize="13sp" />
 
             </LinearLayout>
 
         </LinearLayout>
 
-        <!-- SMART HOME ROWS (v7.33) — under the live channel while Home is showing; the player
-             above keeps a smaller share of the column. Filled by TvHomeActivity.showHome. -->
+        <!-- SMART HOME ROWS (v7.33) — under the live channel while Home is showing. One row at a
+             time: a fixed slot that holds the tallest row whole (@dimen/tv_home_row_slot), each
+             row filling it, so Down / Up slide the next row into place (TvHomeActivity's Smart
+             Home section). The player above takes the rest of the column. -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/tvRvHome"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="@dimen/tv_home_row_slot"
             android:background="@color/rack_bg"
             android:clipToPadding="false"
             android:descendantFocusability="afterDescendants"
-            android:paddingBottom="16dp"
+            android:overScrollMode="never"
+            android:scrollbars="none"
             android:visibility="gone"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
