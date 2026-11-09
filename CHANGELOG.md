@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.85 - 2026-11-09
+- **Fixed**: On a phone held upright, tabs switched off in Settings (Providers, Movies, Series, Watching)
+  still showed in the tab strip. They are hidden now, as they already were in landscape.
+
 ## v7.84 - 2026-11-09
 - **Changed**: TV home. Movie and series posters are bigger again. Their title no longer sits under
   them; the poster you're on shows its title next to the row's name instead. The live picture keeps its size.
