@@ -29,13 +29,15 @@ class SmartHomeAdapter(
     private val onLongClick: (HomeRow, HomeCard) -> Unit = { _, _ -> },
     /** Picture size for the cards: 1 on the phone; the TV home uses [TV_CARD_SCALE] so its row fits under a bigger player. */
     private val cardScale: Float = 1f,
+    /** Poster size on its own: the TV home shrinks posters more ([TV_POSTER_SCALE]) so a poster row is no taller than a channel row. */
+    private val posterScale: Float = cardScale,
 ) : ListAdapter<HomeRow, RecyclerView.ViewHolder>(RowDiff) {
 
     // Each row keeps its own scroll position while the list refreshes.
     private val pool = RecyclerView.RecycledViewPool()
 
     inner class RowHolder(val b: ItemHomeRowBinding) : RecyclerView.ViewHolder(b.root) {
-        val cards = CardAdapter(onClick, cardScale) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
+        val cards = CardAdapter(onClick, cardScale, posterScale) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
             b.rvHomeRowCards.layoutManager = LinearLayoutManager(b.root.context, LinearLayoutManager.HORIZONTAL, false)
             b.rvHomeRowCards.adapter = it
             b.rvHomeRowCards.setRecycledViewPool(pool)
@@ -96,6 +98,7 @@ class SmartHomeAdapter(
     class CardAdapter(
         private val onClick: (HomeCard) -> Unit,
         private val scale: Float = 1f,
+        private val posterScale: Float = scale,
         private val onLongClick: (HomeCard) -> Unit = {},
     ) :
         ListAdapter<HomeCard, CardAdapter.CardHolder>(CardDiff) {
@@ -132,6 +135,7 @@ class SmartHomeAdapter(
                 HomeLayout.Style.COMPACT -> 104 to 58
             }
             val logoLike = cardStyle != HomeLayout.Style.POSTER
+            val scale = if (cardStyle == HomeLayout.Style.POSTER) posterScale else scale
             b.homeCardImageFrame.layoutParams = b.homeCardImageFrame.layoutParams.apply {
                 width = (imageWidth * scale * d).toInt()
                 height = (imageHeight * scale * d).toInt()
@@ -209,6 +213,8 @@ class SmartHomeAdapter(
     companion object {
         /** The TV home's card pictures, a little smaller than the phone's (TvHomeRowSlotTest). */
         const val TV_CARD_SCALE = 0.8f
+        /** The TV home's posters: small enough that a poster row fits the channel-row slot (TvHomeRowSlotTest). */
+        const val TV_POSTER_SCALE = 0.47f
         private const val TYPE_ROW = 0
         private const val TYPE_CUSTOMIZE = 1
     }
