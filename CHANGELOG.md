@@ -1,5 +1,9 @@
 # IPTV App - Changelog
 
+## v7.83 - 2026-11-08
+- **Changed**: TV home. The live picture is bigger again, with much less empty space under the row of cards.
+  Movie and series posters on the TV home are smaller so every row fits. The phone is unchanged.
+
 ## v7.82 - 2026-11-08
 - **Changed**: TV home. The live picture is bigger, with one row of cards under it. Press Down or Up to
   move to the next row; it slides into place. Press Up from the first row to go to the live picture.

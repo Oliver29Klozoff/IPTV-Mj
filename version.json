@@ -1,7 +1,7 @@
 {
-  "versionCode": 620,
-  "versionName": "7.82",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.82/MKTV.apk",
-  "apkSha256": "e56939c020c205a2bb9049631f4d04c18e917ce76f5b1583fadc27ada03658f7",
-  "changelog": "TV home: a bigger live picture with one row of cards under it. Down and Up move row by row."
+  "versionCode": 621,
+  "versionName": "7.83",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.83/MKTV.apk",
+  "apkSha256": "43985d8a012751673dfefb92ae9e6f53d763b2cf475714f0a869ddff987393ca",
+  "changelog": "TV home: an even bigger live picture. Posters are smaller so every row fits under it."
 }
