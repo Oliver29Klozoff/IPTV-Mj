@@ -2014,6 +2014,8 @@ class HomeActivity : AppCompatActivity() {
         // mode buttons, channel rows' show-progress bar and the status strip's dot all follow the
         // accent too.
         binding.tabLayout.setTabTextColors(getColor(R.color.rack_text_muted), colorInt)
+        // setTabTextColors redraws every tab, and Material shows each one again while doing it.
+        reapplyHiddenTabs()
         binding.syncProgressBar?.progressTintList = csl
         setProvidersModeButtonHighlight()
         if (::channelAdapter.isInitialized) channelAdapter.setAccent(colorInt, gradientEndColorInt)
@@ -5320,12 +5322,12 @@ class HomeActivity : AppCompatActivity() {
     /** Settings → Show Providers tab (off by default); the tab and its sidebar button are hidden while off. */
     private var providersTabShown = false
 
-    private fun applyTabVisibility(index: Int, show: Boolean) {
-        val tabView = binding.tabLayout.getTabAt(index)?.view ?: return
-        tabView.visibility = if (show) View.VISIBLE else View.GONE
-        tabView.layoutParams?.width = if (show) android.view.ViewGroup.LayoutParams.WRAP_CONTENT else 0
-        binding.tabLayout.requestLayout()
-    }
+    /** Tabs switched off in Settings (Movies, Series, Watching, Providers): see HiddenTabs. */
+    private val hiddenTabs by lazy { com.iptvapp.ui.home.HiddenTabs(binding.tabLayout) }
+
+    private fun applyTabVisibility(index: Int, show: Boolean) = hiddenTabs.set(index, show)
+
+    private fun reapplyHiddenTabs() = hiddenTabs.reapply()
 
     private fun observeTabVisibility() {
         lifecycleScope.launch {
