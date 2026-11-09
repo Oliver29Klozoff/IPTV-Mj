@@ -1284,6 +1284,7 @@ class HomeViewModel @Inject constructor(
     val showMovies = prefs.showMovies
     val showSeries = prefs.showSeries
     val showWatching = prefs.showWatching
+    val showProviders = prefs.showProviders
     val externalPlayer = prefs.externalPlayer
     val preWarmOnFocus = prefs.preWarmOnFocus
 

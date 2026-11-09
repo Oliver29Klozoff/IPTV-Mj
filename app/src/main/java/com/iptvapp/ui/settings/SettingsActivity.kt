@@ -299,6 +299,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Show Movies Tab", 1, null, R.id.cbShowMovies),
             SettingSearchEntry("Show Series Tab", 1, null, R.id.cbShowSeries),
             SettingSearchEntry("Show Watching Tab", 1, null, R.id.cbShowWatching),
+            SettingSearchEntry("Show Providers Tab", 1, null, R.id.cbShowProviders),
             SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
             SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
             SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
@@ -709,6 +710,11 @@ class SettingsActivity : AppCompatActivity() {
         binding.cbShowWatching.setOnCheckedChangeListener { _, isChecked ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setShowWatching(isChecked) }
+        }
+
+        binding.cbShowProviders.setOnCheckedChangeListener { _, isChecked ->
+            if (isLoadingSettings) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setShowProviders(isChecked) }
         }
 
         binding.rowAutoClearContinueWatching.setOnClickListener { showAutoClearContinueWatchingDialog() }
@@ -3013,6 +3019,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
                 binding.cbShowSeries.isChecked = prefs.showSeries.first()
                 binding.cbShowWatching.isChecked = prefs.showWatching.first()
+                binding.cbShowProviders.isChecked = prefs.showProviders.first()
                 binding.tvAutoClearContinueWatchingValue.text = autoClearContinueWatchingLabel(prefs.autoClearContinueWatchingDays.first())
                 when (prefs.externalPlayer.first()) {
                     "vlc"      -> binding.rbPlayerVlc.isChecked = true
@@ -4714,6 +4721,7 @@ class SettingsActivity : AppCompatActivity() {
             put("showMovies", prefs.showMovies.first())
             put("showSeries", prefs.showSeries.first())
             put("showWatching", prefs.showWatching.first())
+            put("showProviders", prefs.showProviders.first())
             // Display/playback/misc toggles — previously missing from every backup entirely,
             // so restoring onto a new device silently reset all of these to defaults instead of
             // "get back to exactly how I had it." No security reason to exclude any of these
@@ -5022,6 +5030,7 @@ class SettingsActivity : AppCompatActivity() {
         if (json.has("showMovies")) prefs.setShowMovies(json.optBoolean("showMovies", true))
         if (json.has("showSeries")) prefs.setShowSeries(json.optBoolean("showSeries", true))
         if (json.has("showWatching")) prefs.setShowWatching(json.optBoolean("showWatching", true))
+        if (json.has("showProviders")) prefs.setShowProviders(json.optBoolean("showProviders", false))
         json.optString("accentColor", "").takeIf { it.isNotEmpty() }?.let { start ->
             val end = json.optString("accentColorEnd", "")
             if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)

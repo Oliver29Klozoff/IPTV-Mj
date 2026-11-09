@@ -31,19 +31,35 @@ class SmartHomeAdapter(
     private val cardScale: Float = 1f,
     /** Poster size on its own: the TV home shrinks posters more ([TV_POSTER_SCALE]) so a poster row is no taller than a channel row. */
     private val posterScale: Float = cardScale,
+    /**
+     * The TV home: posters show no text under them (so they fit its one-row slot at a bigger size).
+     * The focused poster's title and line show next to its row's name instead.
+     */
+    private val hidePosterText: Boolean = false,
 ) : ListAdapter<HomeRow, RecyclerView.ViewHolder>(RowDiff) {
 
     // Each row keeps its own scroll position while the list refreshes.
     private val pool = RecyclerView.RecycledViewPool()
 
     inner class RowHolder(val b: ItemHomeRowBinding) : RecyclerView.ViewHolder(b.root) {
-        val cards = CardAdapter(onClick, cardScale, posterScale) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
+        val cards = CardAdapter(
+            onClick, cardScale, posterScale,
+            onLongClick = { card -> currentRow()?.let { onLongClick(it, card) } },
+            hidePosterText = hidePosterText,
+            onTextlessFocus = { text -> showFocused(text) },
+        ).also {
             b.rvHomeRowCards.layoutManager = LinearLayoutManager(b.root.context, LinearLayoutManager.HORIZONTAL, false)
             b.rvHomeRowCards.adapter = it
             b.rvHomeRowCards.setRecycledViewPool(pool)
         }
 
         private fun currentRow() = bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let { getItem(it) }
+
+        /** The focused poster's title and line beside the row name; null clears it. */
+        fun showFocused(text: String?) {
+            b.tvHomeRowFocus.text = text?.let { "  ·  $it" }
+            b.tvHomeRowFocus.visibility = if (text == null) View.GONE else View.VISIBLE
+        }
 
         init {
             // A touch screen: holding a row's title opens Customize Home, as the last row does.
@@ -83,6 +99,8 @@ class SmartHomeAdapter(
         val wanted = if (rowHeightPx > 0) rowHeightPx else ViewGroup.LayoutParams.WRAP_CONTENT
         holder.itemView.layoutParams?.let { lp -> if (lp.height != wanted) { lp.height = wanted; holder.itemView.layoutParams = lp } }
         if (holder !is RowHolder) return
+        // A recycled row keeps no other row's poster title; a row refreshed under focus keeps its own.
+        if (!holder.itemView.hasFocus()) holder.showFocused(null)
         holder.b.tvHomeRowTitle.text = row.title
         holder.b.tvHomeRowTitle.contentDescription = "${row.title}, row"
         holder.cards.style = row.style
@@ -100,6 +118,9 @@ class SmartHomeAdapter(
         private val scale: Float = 1f,
         private val posterScale: Float = scale,
         private val onLongClick: (HomeCard) -> Unit = {},
+        /** Posters with no title or line under them; [onTextlessFocus] gets that text while one has focus, null when it loses it. */
+        private val hidePosterText: Boolean = false,
+        private val onTextlessFocus: (String?) -> Unit = {},
     ) :
         ListAdapter<HomeCard, CardAdapter.CardHolder>(CardDiff) {
 
@@ -151,9 +172,10 @@ class SmartHomeAdapter(
             }
             // Small tiles: the name only.
             if (cardStyle == HomeLayout.Style.COMPACT) b.tvHomeCardLine.visibility = View.GONE
-            // A little lift under the D-pad, like the movie posters.
-            b.root.setOnFocusChangeListener { v, focused ->
-                v.animate().scaleX(if (focused) 1.06f else 1f).scaleY(if (focused) 1.06f else 1f).setDuration(120).start()
+            val textless = hidePosterText && cardStyle == HomeLayout.Style.POSTER
+            if (textless) {
+                b.tvHomeCardTitle.visibility = View.GONE
+                b.tvHomeCardLine.visibility = View.GONE
             }
             return CardHolder(b)
         }
@@ -162,12 +184,7 @@ class SmartHomeAdapter(
             val card = getItem(position)
             val hit = card.hit
             val context = holder.b.root.context
-            val title = if (hit is SearchHit.Episode) hit.series.title else hit.title
-            val line = card.line?.takeIf { it.isNotBlank() } ?: when {
-                hit is SearchHit.Program && hit.kind == SearchHit.Kind.ON_NOW -> hit.channelName
-                hit is SearchHit.Channel -> hit.provider.orEmpty()
-                else -> SearchHitUi.detailOf(context, hit)
-            }
+            val (title, line) = titleAndLine(context, card)
             holder.b.tvHomeCardTitle.text = title
             holder.b.tvHomeCardLine.text = line
             val next = card.nextTitle?.takeIf { it.isNotBlank() }?.let { t ->
@@ -197,6 +214,16 @@ class SmartHomeAdapter(
                 .into(holder.b.ivHomeCard)
             holder.b.root.setOnClickListener { onClick(card) }
             holder.b.root.setOnLongClickListener { onLongClick(card); true }
+            // Set here, not when the card is made: the rows share their cards (one pool), so a
+            // card can move to another row and must tell that row's header.
+            val textless = hidePosterText && style == HomeLayout.Style.POSTER
+            holder.b.root.setOnFocusChangeListener { v, focused ->
+                // A little lift under the D-pad, like the movie posters.
+                v.animate().scaleX(if (focused) 1.06f else 1f).scaleY(if (focused) 1.06f else 1f).setDuration(120).start()
+                if (textless) onTextlessFocus(if (focused) headerText(v.context, card) else null)
+            }
+            // Refreshed under focus: the row's header follows.
+            if (textless && holder.b.root.isFocused) onTextlessFocus(headerText(context, card))
         }
     }
 
@@ -213,9 +240,27 @@ class SmartHomeAdapter(
     companion object {
         /** The TV home's card pictures, a little smaller than the phone's (TvHomeRowSlotTest). */
         const val TV_CARD_SCALE = 0.8f
-        /** The TV home's posters: small enough that a poster row fits the channel-row slot (TvHomeRowSlotTest). */
-        const val TV_POSTER_SCALE = 0.47f
+        /** The TV home's posters (no text under them there): as big as still fits the channel-row slot (TvHomeRowSlotTest). */
+        const val TV_POSTER_SCALE = 0.95f
         private const val TYPE_ROW = 0
         private const val TYPE_CUSTOMIZE = 1
+
+        /** A card's title (the series for an episode) and the line under it. */
+        private fun titleAndLine(context: android.content.Context, card: HomeCard): Pair<String, String> {
+            val hit = card.hit
+            val title = if (hit is SearchHit.Episode) hit.series.title else hit.title
+            val line = card.line?.takeIf { it.isNotBlank() } ?: when {
+                hit is SearchHit.Program && hit.kind == SearchHit.Kind.ON_NOW -> hit.channelName
+                hit is SearchHit.Channel -> hit.provider.orEmpty()
+                else -> SearchHitUi.detailOf(context, hit)
+            }
+            return title to line
+        }
+
+        /** What a textless poster shows beside its row's name: "Title  ·  line". */
+        private fun headerText(context: android.content.Context, card: HomeCard): String {
+            val (title, line) = titleAndLine(context, card)
+            return listOf(title, line).filter { it.isNotBlank() }.joinToString("  ·  ")
+        }
     }
 }
