@@ -1074,7 +1074,7 @@
         </LinearLayout>
 
         <!-- SMART HOME ROWS (v7.33) — under the live channel while Home is showing. One row at a
-             time: a fixed slot that holds the tallest row whole (@dimen/tv_home_row_slot), each
+             time: a fixed slot that holds any row whole (@dimen/tv_home_row_slot), each
              row filling it, so Down / Up slide the next row into place (TvHomeActivity's Smart
              Home section). The player above takes the rest of the column. -->
         <androidx.recyclerview.widget.RecyclerView

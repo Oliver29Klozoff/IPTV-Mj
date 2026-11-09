@@ -2000,7 +2000,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, onLongClick = { row, card ->
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, onLongClick = { row, card ->
             TopFavoritesMenu.showForCard(this, prefs, tv = true, row, card) { if (homeShowing) refreshHome() }
         }, onCustomize = {
             refocusCustomize = true
