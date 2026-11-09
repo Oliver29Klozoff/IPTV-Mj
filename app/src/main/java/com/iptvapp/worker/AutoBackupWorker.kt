@@ -47,6 +47,7 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("showMovies", prefs.showMovies.first())
                 put("showSeries", prefs.showSeries.first())
                 put("showWatching", prefs.showWatching.first())
+                put("showProviders", prefs.showProviders.first())
                 // Same display/playback/misc toggles buildBackupJson (SettingsActivity.kt) now
                 // includes — previously missing here too.
                 put("accentColor", prefs.accentColor.first())

@@ -1965,6 +1965,23 @@
                                 android:checked="true" />
                         </LinearLayout>
                         <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Show Providers tab (all your providers in one place, for more than one)" />
+                            <CheckBox
+                                android:id="@+id/cbShowProviders"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checked="false" />
+                        </LinearLayout>
+                        <LinearLayout
                             android:id="@+id/rowAutoClearContinueWatching"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"

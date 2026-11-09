@@ -35,7 +35,7 @@ class TvHomeRowSlotTest {
         )
         val row = if (customize) HomeRow(kind = null, cards = emptyList(), customize = true)
         else HomeRow(kind = null, cards = List(6) { card }, id = id, title = "A row", style = style)
-        val adapter = SmartHomeAdapter(onClick = {}, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE)
+        val adapter = SmartHomeAdapter(onClick = {}, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, hidePosterText = true)
         adapter.submitList(listOf(row))
         shadowOf(Looper.getMainLooper()).idle()
         val parent = FrameLayout(context)
@@ -63,6 +63,59 @@ class TvHomeRowSlotTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val slot = context.resources.getDimension(R.dimen.tv_home_row_slot) / context.resources.displayMetrics.density
         heights.forEach { (name, h) -> assertTrue("$name row is $h dp, the slot is $slot dp", h <= slot) }
+    }
+
+    @Test
+    fun aFocusedTvPosterShowsItsTitleBesideTheRowName() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.setTheme(R.style.Theme_IptvApp)
+        val card = HomeCard(SearchHit.Channel(null, null, "Provider"), line = "S2 E3")
+        val row = HomeRow(kind = null, cards = listOf(card), id = "custom", title = "Continue Watching", style = HomeLayout.Style.POSTER)
+        val adapter = SmartHomeAdapter(onClick = {}, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, hidePosterText = true)
+        adapter.submitList(listOf(row))
+        shadowOf(Looper.getMainLooper()).idle()
+        val holder = adapter.onCreateViewHolder(FrameLayout(context), adapter.getItemViewType(0)) as SmartHomeAdapter.RowHolder
+        adapter.onBindViewHolder(holder, 0)
+        shadowOf(Looper.getMainLooper()).idle()
+        val d = context.resources.displayMetrics.density
+        holder.itemView.measure(
+            View.MeasureSpec.makeMeasureSpec((700 * d).toInt(), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        holder.itemView.layout(0, 0, holder.itemView.measuredWidth, holder.itemView.measuredHeight)
+        val cardView = holder.b.rvHomeRowCards.getChildAt(0)
+        val cardTitle = cardView.findViewById<View>(R.id.tvHomeCardTitle)
+        org.junit.Assert.assertEquals(View.GONE, cardTitle.visibility)
+        org.junit.Assert.assertEquals(View.GONE, holder.b.tvHomeRowFocus.visibility)
+        cardView.onFocusChangeListener.onFocusChange(cardView, true)
+        org.junit.Assert.assertEquals(View.VISIBLE, holder.b.tvHomeRowFocus.visibility)
+        assertTrue(holder.b.tvHomeRowFocus.text.toString(), holder.b.tvHomeRowFocus.text.contains("S2 E3"))
+        cardView.onFocusChangeListener.onFocusChange(cardView, false)
+        org.junit.Assert.assertEquals(View.GONE, holder.b.tvHomeRowFocus.visibility)
+    }
+
+    @Test
+    fun phonePostersKeepTheirText() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.setTheme(R.style.Theme_IptvApp)
+        val card = HomeCard(SearchHit.Channel(null, null, "Provider"), line = "S2 E3")
+        val row = HomeRow(kind = null, cards = listOf(card), id = "custom", title = "Continue Watching", style = HomeLayout.Style.POSTER)
+        val adapter = SmartHomeAdapter(onClick = {})
+        adapter.submitList(listOf(row))
+        shadowOf(Looper.getMainLooper()).idle()
+        val holder = adapter.onCreateViewHolder(FrameLayout(context), adapter.getItemViewType(0)) as SmartHomeAdapter.RowHolder
+        adapter.onBindViewHolder(holder, 0)
+        shadowOf(Looper.getMainLooper()).idle()
+        val d = context.resources.displayMetrics.density
+        holder.itemView.measure(
+            View.MeasureSpec.makeMeasureSpec((700 * d).toInt(), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        holder.itemView.layout(0, 0, holder.itemView.measuredWidth, holder.itemView.measuredHeight)
+        val cardView = holder.b.rvHomeRowCards.getChildAt(0)
+        org.junit.Assert.assertEquals(View.VISIBLE, cardView.findViewById<View>(R.id.tvHomeCardTitle).visibility)
+        cardView.onFocusChangeListener.onFocusChange(cardView, true)
+        org.junit.Assert.assertEquals(View.GONE, holder.b.tvHomeRowFocus.visibility)
     }
 
     @Test

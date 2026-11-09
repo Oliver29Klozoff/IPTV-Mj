@@ -2000,7 +2000,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, onLongClick = { row, card ->
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, hidePosterText = true, onLongClick = { row, card ->
             TopFavoritesMenu.showForCard(this, prefs, tv = true, row, card) { if (homeShowing) refreshHome() }
         }, onCustomize = {
             refocusCustomize = true
@@ -4521,6 +4521,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     viewModel.showSeries.collect { show ->
                         binding.btnTvSeries.visibility = if (show) View.VISIBLE else View.GONE
                         if (!show && currentSection == Section.SERIES) selectSection(Section.LIVE)
+                    }
+                }
+                launch {
+                    // Settings, off by default: the merged Providers screen is for more than one provider.
+                    viewModel.showProviders.collect { show ->
+                        binding.btnTvProviders.visibility = if (show) View.VISIBLE else View.GONE
+                        if (!show && currentSection == Section.PROVIDERS) selectSection(Section.LIVE)
                     }
                 }
             }

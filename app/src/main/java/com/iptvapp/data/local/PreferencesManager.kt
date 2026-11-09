@@ -237,6 +237,8 @@ class PreferencesManager @Inject constructor(
         val SHOW_MOVIES = booleanPreferencesKey("show_movies")
         val SHOW_SERIES = booleanPreferencesKey("show_series")
         val SHOW_WATCHING = booleanPreferencesKey("show_watching")
+        // Off by default: the Providers screen merges several providers, and most people have one.
+        val SHOW_PROVIDERS = booleanPreferencesKey("show_providers")
         val FAVORITE_LIVE_CATEGORY_IDS = stringSetPreferencesKey("favorite_live_category_ids")
         // Keyed "$serverIndex:$categoryId" — plain categoryId isn't unique across servers,
         // two different providers can reuse the same category id string.
@@ -940,10 +942,12 @@ class PreferencesManager @Inject constructor(
         val showMovies: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_MOVIES] ?: true }
     val showSeries: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_SERIES] ?: true }
     val showWatching: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_WATCHING] ?: true }
+    val showProviders: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_PROVIDERS] ?: false }
 
     suspend fun setShowMovies(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_MOVIES] = enabled } }
     suspend fun setShowSeries(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_SERIES] = enabled } }
     suspend fun setShowWatching(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_WATCHING] = enabled } }
+    suspend fun setShowProviders(enabled: Boolean) { context.dataStore.edit { it[Keys.SHOW_PROVIDERS] = enabled } }
 
     // "internal" | "vlc" | "mxplayer" | "system"
     val externalPlayer: Flow<String> = context.dataStore.data.map { it[Keys.EXTERNAL_PLAYER] ?: "internal" }

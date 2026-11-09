@@ -805,6 +805,8 @@ class HomeActivity : AppCompatActivity() {
             // to the tab. TabLayout.select() is a no-op (doesn't fire onTabSelected) if that tab
             // was already selected before opening fullscreen — call showAllProviders() directly
             // in that case.
+            // The Providers tab switched off in Settings: the channel plays on where you were.
+            if (!providersTabShown) return@registerForActivityResult
             providersTabVisitedSinceTabSwitch = false
             if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) {
                 showAllProviders()
@@ -1698,6 +1700,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun revealRemindedMerged(channel: com.iptvapp.data.local.entities.MergedChannelEntity) {
         if (miniPlayerExpandedFullScreen) collapseMiniPlayerFromFullScreen()
+        if (!providersTabShown) return
         providersTabVisitedSinceTabSwitch = false
         if (binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) showAllProviders()
         else binding.tabLayout.getTabAt(TAB_PROVIDERS)?.select()
@@ -5314,6 +5317,9 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /** Settings → Show Providers tab (off by default); the tab and its sidebar button are hidden while off. */
+    private var providersTabShown = false
+
     private fun applyTabVisibility(index: Int, show: Boolean) {
         val tabView = binding.tabLayout.getTabAt(index)?.view ?: return
         tabView.visibility = if (show) View.VISIBLE else View.GONE
@@ -5343,6 +5349,16 @@ class HomeActivity : AppCompatActivity() {
                     viewModel.showWatching.collect { show: Boolean ->
                         applyTabVisibility(TAB_HISTORY, show)
                         binding.root.findViewById<android.widget.Button?>(R.id.landBtnWatching)?.visibility = if (show) View.VISIBLE else View.GONE
+                    }
+                }
+                launch {
+                    // Settings, off by default: the merged Providers tab is for more than one provider.
+                    viewModel.showProviders.collect { show: Boolean ->
+                        providersTabShown = show
+                        applyTabVisibility(TAB_PROVIDERS, show)
+                        // Landscape: the button and its refresh icon share one row; both go.
+                        (binding.root.findViewById<android.widget.Button?>(R.id.landBtnProviders)?.parent as? View)?.visibility = if (show) View.VISIBLE else View.GONE
+                        if (!show && binding.tabLayout.selectedTabPosition == TAB_PROVIDERS) binding.tabLayout.getTabAt(TAB_LIVE)?.select()
                     }
                 }
             }

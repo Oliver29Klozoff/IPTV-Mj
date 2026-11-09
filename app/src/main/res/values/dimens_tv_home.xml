@@ -2,8 +2,8 @@
 <resources>
     <!-- TV home: the single-row slot under the mini player (activity_tv_home's tvRvHome). Holds
          the tallest row whole: a channel row with its next-show line, and a poster row, whose
-         posters the TV home shrinks to the same height (SmartHomeAdapter.TV_CARD_SCALE and
-         TV_POSTER_SCALE; TvHomeRowSlotTest). The mini player takes the rest of the column. TVs
+         posters show no text under them on the TV home so they can be big (SmartHomeAdapter
+         TV_CARD_SCALE, TV_POSTER_SCALE and hidePosterText; TvHomeRowSlotTest). The mini player takes the rest of the column. TVs
          are 540dp tall at any resolution, so the same split holds on 720p, 1080p and 4K panels. -->
     <dimen name="tv_home_row_slot">174dp</dimen>
 </resources>
