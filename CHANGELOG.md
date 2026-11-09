@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.82 - 2026-11-08
+- **Changed**: TV home. The live picture is bigger, with one row of cards under it. Press Down or Up to
+  move to the next row; it slides into place. Press Up from the first row to go to the live picture.
+  Cards on the TV home are a little smaller. The phone is unchanged.
+
 ## v7.81 - 2026-11-08
 - **New**: Recent Channels. During live TV, tap the new Recents button (the clock with an arrow) or hold
   OK on the remote. A strip slides up with the last 5 channels you watched, with what's on now. Pick

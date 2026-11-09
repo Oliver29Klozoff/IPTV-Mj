@@ -1,7 +1,7 @@
 {
-  "versionCode": 619,
-  "versionName": "7.81",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.81/MKTV.apk",
-  "apkSha256": "827fc60bbf63490be6fd0590461974e413b85bd4e7db7d16d6f8e9e83495ca83",
-  "changelog": "Recent Channels: tap the new Recents button during live TV (or hold OK on the remote) to jump back to one of the last 5 channels you watched."
+  "versionCode": 620,
+  "versionName": "7.82",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.82/MKTV.apk",
+  "apkSha256": "e56939c020c205a2bb9049631f4d04c18e917ce76f5b1583fadc27ada03658f7",
+  "changelog": "TV home: a bigger live picture with one row of cards under it. Down and Up move row by row."
 }
