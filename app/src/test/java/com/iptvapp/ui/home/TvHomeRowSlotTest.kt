@@ -35,7 +35,7 @@ class TvHomeRowSlotTest {
         )
         val row = if (customize) HomeRow(kind = null, cards = emptyList(), customize = true)
         else HomeRow(kind = null, cards = List(6) { card }, id = id, title = "A row", style = style)
-        val adapter = SmartHomeAdapter(onClick = {})
+        val adapter = SmartHomeAdapter(onClick = {}, cardScale = SmartHomeAdapter.TV_CARD_SCALE)
         adapter.submitList(listOf(row))
         shadowOf(Looper.getMainLooper()).idle()
         val parent = FrameLayout(context)
@@ -99,7 +99,7 @@ class TvHomeRowSlotTest {
         val video = b.tvMiniPlayerContainer.height / d
         val footer = b.tvMiniPlayerFooter.height / d
         println("TV home column: video $video dp, footer $footer dp, row slot $slot dp")
-        org.junit.Assert.assertEquals(254f, slot, 1f)
-        assertTrue("video $video dp", video >= 200f)
+        org.junit.Assert.assertEquals(226f, slot, 1f)
+        assertTrue("video $video dp", video >= 230f)
     }
 }

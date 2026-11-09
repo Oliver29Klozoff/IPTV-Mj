@@ -27,13 +27,15 @@ class SmartHomeAdapter(
     private val onClick: (HomeCard) -> Unit,
     private val onCustomize: () -> Unit = {},
     private val onLongClick: (HomeRow, HomeCard) -> Unit = { _, _ -> },
+    /** Picture size for the cards: 1 on the phone; the TV home uses [TV_CARD_SCALE] so its row fits under a bigger player. */
+    private val cardScale: Float = 1f,
 ) : ListAdapter<HomeRow, RecyclerView.ViewHolder>(RowDiff) {
 
     // Each row keeps its own scroll position while the list refreshes.
     private val pool = RecyclerView.RecycledViewPool()
 
     inner class RowHolder(val b: ItemHomeRowBinding) : RecyclerView.ViewHolder(b.root) {
-        val cards = CardAdapter(onClick) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
+        val cards = CardAdapter(onClick, cardScale) { card -> currentRow()?.let { onLongClick(it, card) } }.also {
             b.rvHomeRowCards.layoutManager = LinearLayoutManager(b.root.context, LinearLayoutManager.HORIZONTAL, false)
             b.rvHomeRowCards.adapter = it
             b.rvHomeRowCards.setRecycledViewPool(pool)
@@ -91,7 +93,11 @@ class SmartHomeAdapter(
         holder.b.tvHomeRowEmpty.contentDescription = "${row.title}: ${row.emptyText.orEmpty()}"
     }
 
-    class CardAdapter(private val onClick: (HomeCard) -> Unit, private val onLongClick: (HomeCard) -> Unit = {}) :
+    class CardAdapter(
+        private val onClick: (HomeCard) -> Unit,
+        private val scale: Float = 1f,
+        private val onLongClick: (HomeCard) -> Unit = {},
+    ) :
         ListAdapter<HomeCard, CardAdapter.CardHolder>(CardDiff) {
 
         /** Cards keep a line for the channel's next show (blank when the guide has none), so the row lines up. */
@@ -127,12 +133,12 @@ class SmartHomeAdapter(
             }
             val logoLike = cardStyle != HomeLayout.Style.POSTER
             b.homeCardImageFrame.layoutParams = b.homeCardImageFrame.layoutParams.apply {
-                width = (imageWidth * d).toInt()
-                height = (imageHeight * d).toInt()
+                width = (imageWidth * scale * d).toInt()
+                height = (imageHeight * scale * d).toInt()
             }
             // A horizontal row measures this card with no width bound. The title is match_parent
             // inside a wrap_content root, so pin the card to the picture plus its own padding.
-            b.root.layoutParams.width = (imageWidth * d).toInt() + b.root.paddingLeft + b.root.paddingRight
+            b.root.layoutParams.width = (imageWidth * scale * d).toInt() + b.root.paddingLeft + b.root.paddingRight
             // Channel logos are shown whole on a dark card; posters fill theirs.
             b.ivHomeCard.scaleType = if (logoLike) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER_CROP
             if (logoLike) {
@@ -200,8 +206,10 @@ class SmartHomeAdapter(
         override fun areContentsTheSame(a: HomeCard, b: HomeCard) = a == b
     }
 
-    private companion object {
-        const val TYPE_ROW = 0
-        const val TYPE_CUSTOMIZE = 1
+    companion object {
+        /** The TV home's card pictures, a little smaller than the phone's (TvHomeRowSlotTest). */
+        const val TV_CARD_SCALE = 0.8f
+        private const val TYPE_ROW = 0
+        private const val TYPE_CUSTOMIZE = 1
     }
 }
