@@ -1,7 +1,7 @@
 {
-  "versionCode": 621,
-  "versionName": "7.83",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.83/MKTV.apk",
-  "apkSha256": "43985d8a012751673dfefb92ae9e6f53d763b2cf475714f0a869ddff987393ca",
-  "changelog": "TV home: an even bigger live picture. Posters are smaller so every row fits under it."
+  "versionCode": 622,
+  "versionName": "7.84",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.84/MKTV.apk",
+  "apkSha256": "1dbc04dd2061749d9133b515e4fabaf217a6592ada5753a8035b203ab635a188",
+  "changelog": "TV home: bigger movie and series posters. New Settings switch to show the Providers tab (off by default)."
 }

@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.84 - 2026-11-09
+- **Changed**: TV home. Movie and series posters are bigger again. Their title no longer sits under
+  them; the poster you're on shows its title next to the row's name instead. The live picture keeps its size.
+- **New**: Settings → Display → Show Providers tab. The Providers tab (all your providers in one place) is
+  now hidden unless you turn this on. Turn it on if you use more than one provider.
+
 ## v7.83 - 2026-11-08
 - **Changed**: TV home. The live picture is bigger again, with much less empty space under the row of cards.
   Movie and series posters on the TV home are smaller so every row fits. The phone is unchanged.
