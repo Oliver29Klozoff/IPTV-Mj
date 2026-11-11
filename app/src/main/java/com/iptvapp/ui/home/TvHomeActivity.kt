@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.iptvapp.util.focusFirstItemWhenLaidOut
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
@@ -3414,7 +3415,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // the EditText's own actionSearch IME action (see tvBtnMoviesFsSearch's own kdoc).
         binding.tvBtnMoviesFsSearch.setOnClickListener { commitMoviesFsSearchNow() }
         binding.tvBtnMoviesFsSort.setOnClickListener { showTvVodSortDialog() }
-        binding.tvEtMoviesFsSearch.setOnEditorActionListener { _, _, _ -> commitMoviesFsSearchNow(); true }
+        binding.tvEtMoviesFsSearch.setOnEditorActionListener { _, _, _ ->
+            submitFromKeyboard(binding.tvEtMoviesFsSearch)
+            commitMoviesFsSearchNow(); true
+        }
         binding.tvEtMoviesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -3453,6 +3457,29 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 }
             }
         })
+    }
+
+    /**
+     * Set by a Movies/Series keyboard Search key: the first poster takes the remote once the
+     * filtered grid is shown (the filter runs in the background, so it isn't there yet).
+     */
+    private var focusFirstPoster = false
+
+    /**
+     * The keyboard's Search key in the Movies/Series search box. Fire TV's keyboard covers the
+     * whole screen and stays up after a search unless it is closed, so close it here and send
+     * the remote to the first poster once the results are in.
+     */
+    private fun submitFromKeyboard(box: View) {
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(box.windowToken, 0)
+        focusFirstPoster = true
+    }
+
+    private fun focusFirstPosterIfAsked(grid: RecyclerView) {
+        if (!focusFirstPoster || grid.visibility != View.VISIBLE) return
+        focusFirstPoster = false
+        grid.focusFirstItemWhenLaidOut()
     }
 
     // Bypasses the debounce and applies whatever's currently typed immediately — used by both
@@ -3580,7 +3607,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     }
                     tiles
                 }
-                tvVodPosterAdapter.submitList(tiles)
+                tvVodPosterAdapter.submitList(tiles) { focusFirstPosterIfAsked(binding.tvRvMoviesFsGrid) }
                 return@launch
             }
             val sorted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -3605,7 +3632,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     else recommendedFiltered.filter { genreMap?.get(it.categoryId) == genre }
                 if (becauseYouWatched) genreFiltered else viewModel.applyVodSort(genreFiltered)
             }
-            tvVodPosterAdapter.submitList(sorted)
+            tvVodPosterAdapter.submitList(sorted) { focusFirstPosterIfAsked(binding.tvRvMoviesFsGrid) }
         }
     }
 
@@ -3735,7 +3762,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         binding.tvBtnSeriesFsSearch.setOnClickListener { commitSeriesFsSearchNow() }
         binding.tvBtnSeriesFsSort.setOnClickListener { showTvSeriesSortDialog() }
-        binding.tvEtSeriesFsSearch.setOnEditorActionListener { _, _, _ -> commitSeriesFsSearchNow(); true }
+        binding.tvEtSeriesFsSearch.setOnEditorActionListener { _, _, _ ->
+            submitFromKeyboard(binding.tvEtSeriesFsSearch)
+            commitSeriesFsSearchNow(); true
+        }
         binding.tvEtSeriesFsSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -3808,7 +3838,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     else genreFiltered.filter { it.name.contains(query, ignoreCase = true) }
                 if (becauseYouWatched) searchFiltered else viewModel.applySeriesSort(searchFiltered)
             }
-            tvSeriesPosterAdapter.submitList(sorted)
+            tvSeriesPosterAdapter.submitList(sorted) { focusFirstPosterIfAsked(binding.tvRvSeriesFsGrid) }
         }
     }
 
@@ -3987,6 +4017,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun setupSearch() {
         binding.tvEtSearch.setOnEditorActionListener { _, _, _ ->
+            // Close the (full-screen, on Fire TV) keyboard so the results can be reached.
+            getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(binding.tvEtSearch.windowToken, 0)
             dispatchSearch(binding.tvEtSearch.text.toString()); true
         }
         binding.tvEtSearch.addTextChangedListener(object : android.text.TextWatcher {
