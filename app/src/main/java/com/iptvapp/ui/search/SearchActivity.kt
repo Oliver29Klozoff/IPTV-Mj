@@ -24,6 +24,7 @@ import com.iptvapp.data.search.SearchHit
 import com.iptvapp.data.search.UniversalSearch
 import com.iptvapp.databinding.ActivitySearchBinding
 import com.iptvapp.databinding.ItemSearchResultBinding
+import com.iptvapp.util.focusFirstItemWhenLaidOut
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -128,9 +129,7 @@ class SearchActivity : AppCompatActivity() {
     private fun focusFirstResultIfAsked() {
         if (!focusFirstResult || adapter.itemCount == 0) return
         focusFirstResult = false
-        val rv = binding.rvSearchResults
-        rv.scrollToPosition(0)
-        rv.post { focusFirstResultNow() }
+        binding.rvSearchResults.focusFirstItemWhenLaidOut()
     }
 
     /** The remote onto the first result row; false when there is none on screen. */

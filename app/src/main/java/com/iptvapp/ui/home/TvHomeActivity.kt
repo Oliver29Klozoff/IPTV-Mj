@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.iptvapp.util.focusFirstItemWhenLaidOut
 import com.iptvapp.databinding.ActivityTvHomeBinding
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
@@ -3478,9 +3479,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun focusFirstPosterIfAsked(grid: RecyclerView) {
         if (!focusFirstPoster || grid.visibility != View.VISIBLE) return
         focusFirstPoster = false
-        if ((grid.adapter?.itemCount ?: 0) == 0) return
-        grid.scrollToPosition(0)
-        grid.post { (grid.findViewHolderForAdapterPosition(0)?.itemView ?: grid.getChildAt(0))?.requestFocus() }
+        grid.focusFirstItemWhenLaidOut()
     }
 
     // Bypasses the debounce and applies whatever's currently typed immediately — used by both
