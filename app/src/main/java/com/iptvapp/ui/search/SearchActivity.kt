@@ -84,22 +84,60 @@ class SearchActivity : AppCompatActivity() {
         binding.rvSearchResults.adapter = adapter
         binding.etSearch.setOnEditorActionListener { _, actionId, event ->
             val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || enter) {
-                runSearch(binding.etSearch.text.toString(), debounce = false)
-                // On a TV remote: from the box to the first result.
-                binding.rvSearchResults.post { binding.rvSearchResults.getChildAt(0)?.requestFocus() }
+            if (isSubmitAction(actionId) || enter) {
+                submitSearch()
                 true
             } else false
+        }
+        // After Back closes the keyboard: Down from the box goes straight to the first result.
+        binding.etSearch.setOnKeyListener { _, keyCode, event ->
+            keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && focusFirstResultNow()
         }
         binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) = runSearch(s.toString(), debounce = true)
+            override fun afterTextChanged(s: android.text.Editable?) {
+                focusFirstResult = false
+                runSearch(s.toString(), debounce = true)
+            }
         })
         val initial = intent.getStringExtra(EXTRA_QUERY)
         if (initial != null) binding.etSearch.setText(initial) else runSearch("", debounce = false)
         setupVoiceSearch()
         binding.etSearch.requestFocus()
+    }
+
+    /**
+     * Set by the keyboard's Search key: the first result takes focus as soon as it is shown. The
+     * search runs in the background, so the results are rarely there yet when the key is pressed.
+     */
+    private var focusFirstResult = false
+
+    /**
+     * The keyboard's Search key (Fire TV's full-screen keyboard may send Go, Done or Next): close
+     * the keyboard, search, and put the remote on the first result once it arrives. With the
+     * keyboard left open, a TV's full-screen keyboard keeps covering the results.
+     */
+    internal fun submitSearch() {
+        val imm = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+        imm?.hideSoftInputFromWindow(binding.etSearch.windowToken, 0)
+        focusFirstResult = true
+        runSearch(binding.etSearch.text.toString(), debounce = false)
+    }
+
+    private fun focusFirstResultIfAsked() {
+        if (!focusFirstResult || adapter.itemCount == 0) return
+        focusFirstResult = false
+        val rv = binding.rvSearchResults
+        rv.scrollToPosition(0)
+        rv.post { focusFirstResultNow() }
+    }
+
+    /** The remote onto the first result row; false when there is none on screen. */
+    private fun focusFirstResultNow(): Boolean {
+        val rv = binding.rvSearchResults
+        val row = rv.findViewHolderForAdapterPosition(0)?.itemView ?: rv.getChildAt(0) ?: return false
+        return row.requestFocus()
     }
 
     // ── Voice search: the mic button, or the remote's search / mic key (see VoiceSearch) ──
@@ -178,7 +216,7 @@ class SearchActivity : AppCompatActivity() {
     private fun show(status: String? = null) {
         renderFilters()
         val visible = results.filter { it.kind in filter.kinds }
-        adapter.submitList(visible)
+        adapter.submitList(visible) { focusFirstResultIfAsked() }
         val message = status ?: when {
             visible.isNotEmpty() -> null
             results.isEmpty() -> getString(R.string.search_nothing_found)
@@ -292,5 +330,10 @@ class SearchActivity : AppCompatActivity() {
     companion object {
         /** Optional: a query to search for straight away. */
         const val EXTRA_QUERY = "search_query"
+
+        /** Keyboard keys that mean "search now": Search, and the Go / Done / Next some TV keyboards show. */
+        internal fun isSubmitAction(actionId: Int) = actionId == EditorInfo.IME_ACTION_SEARCH ||
+            actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE ||
+            actionId == EditorInfo.IME_ACTION_NEXT
     }
 }
