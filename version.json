@@ -1,7 +1,7 @@
 {
-  "versionCode": 623,
-  "versionName": "7.85",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.85/MKTV.apk",
-  "apkSha256": "2bff191c222170624985a84ecd6743a6ce8d3b6329123029ac055e75d8d7d7eb",
-  "changelog": "Phone: tabs switched off in Settings (like Providers) are now hidden when the phone is upright too."
+  "versionCode": 624,
+  "versionName": "7.86",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.86/MKTV.apk",
+  "apkSha256": "b45636f42f600c43f7eab76f08f49241b59487cb5df928c7def6f1a11691d1d0",
+  "changelog": "TV / Fire Stick: the keyboard's Search key now closes the keyboard and jumps to the first result."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.86 - 2026-11-11
+- **Fixed**: TV / Fire Stick search. The keyboard's Search key now closes the keyboard and puts the
+  remote on the first result, so you can pick a movie straight away. This works in Search, and in the
+  Movies and Series search boxes. After closing the keyboard with Back, Down goes to the first result.
+
 ## v7.85 - 2026-11-09
 - **Fixed**: On a phone held upright, tabs switched off in Settings (Providers, Movies, Series, Watching)
   still showed in the tab strip. They are hidden now, as they already were in landscape.
