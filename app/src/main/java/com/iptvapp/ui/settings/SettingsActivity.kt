@@ -3721,6 +3721,8 @@ class SettingsActivity : AppCompatActivity() {
                         // silently fail to play under the new primary's credentials.
                         val isProviderSwap = url != creds.serverUrl || user != creds.username
                         if (isProviderSwap) {
+                            // Clearing the old provider's lists can take a moment: show the Save took.
+                            Toast.makeText(this@SettingsActivity, "Saving the new provider…", Toast.LENGTH_SHORT).show()
                             repository.clearPrimaryProviderData {
                                 prefs.saveCredentials(url, user, pass)
                             }

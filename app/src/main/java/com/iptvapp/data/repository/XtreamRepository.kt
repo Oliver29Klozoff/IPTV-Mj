@@ -208,9 +208,11 @@ class XtreamRepository @Inject constructor(
         primaryChannelsMutex.withLock { getFavoriteChannels().first() to creds() }
 
     // supersede() cancels movie and series downloads so a switch does not wait on the old
-    // provider. A write that has already started finishes or stops, then the tables are cleared.
+    // provider, and the channel-list download is cancelled for the same reason. A write that has
+    // already started finishes or stops, then the tables are cleared.
     suspend fun clearPrimaryProviderData(beforeRelease: suspend () -> Unit = {}) {
         primaryCatalog.supersede()
+        primaryChannelsFetch?.cancel()
         primaryChannelsMutex.withLock {
             primaryCatalog.afterIdle {
                 clearPrimaryProviderDataLocked()
@@ -286,15 +288,27 @@ class XtreamRepository @Inject constructor(
     // overwritten by an older one finishing after it.
     private val primaryChannelsMutex = kotlinx.coroutines.sync.Mutex()
 
+    /** The channel-list download holding [primaryChannelsMutex]. It holds the lock for the whole
+     * download, and a server that has gone dead or crawls can keep that going for many minutes;
+     * a provider switch ([clearPrimaryProviderData]) cancels it rather than wait behind it, which
+     * left an edited provider URL apparently not saving. */
+    @Volatile private var primaryChannelsFetch: kotlinx.coroutines.Job? = null
+
     // On Dispatchers.Default (v7.21): the response is parsed on OkHttp's threads, but everything
     // after it — matching every channel against saved user data, the USA Only filter, building tens
     // of thousands of entities, the stale-row sweep — ran on the caller's thread, which was Main
     // from the home screens. Room and DataStore calls inside dispatch themselves as before.
     suspend fun fetchLiveStreams(): Resource<List<LiveStream>> = withContext(Dispatchers.Default) { primaryChannelsMutex.withLock {
+        val job = coroutineContext[kotlinx.coroutines.Job]
+        primaryChannelsFetch = job
+        try { fetchLiveStreamsLocked() } finally { if (primaryChannelsFetch === job) primaryChannelsFetch = null }
+    } }
+
+    private suspend fun fetchLiveStreamsLocked(): Resource<List<LiveStream>> = run {
         val b = urlBuilder(); val c = creds()
         // Read once: the list is filtered and tagged with the same value even if it changes meanwhile.
         val usaOnly = prefs.usaOnlyChannels.first()
-        return@withLock safeApiCall {
+        return@run safeApiCall {
             val startMs = android.os.SystemClock.elapsedRealtime()
             val response = api.getLiveStreams(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
@@ -366,7 +380,7 @@ class XtreamRepository @Inject constructor(
             logCatalogTiming("live", list.size, startMs, fetchedMs)
             list
         }
-    } }
+    }
 
     // A refresh cancelled by now writes nothing (the safeApiCall blocks aren't CoroutineScopes).
     private suspend fun checkActive() = kotlinx.coroutines.currentCoroutineContext().ensureActive()
