@@ -21,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -91,6 +92,8 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun logout() {
+        // A provider-edit reload still downloading would refill the tables cleared below.
+        stopProviderEditReload()
         prefs.clearCredentials()
         withContext(Dispatchers.IO) { db.clearAllTables() }
     }
@@ -215,13 +218,19 @@ class XtreamRepository @Inject constructor(
         primaryChannelsFetch?.cancel()
         primaryChannelsMutex.withLock {
             primaryCatalog.afterIdle {
-                clearPrimaryProviderDataLocked()
-                // The new login is saved before any waiting refresh can write, so a download
-                // that started against the old provider cannot land in the new one's catalog.
-                beforeRelease()
+                liveCategoriesWrite.withLock {
+                    clearPrimaryProviderDataLocked()
+                    // The new login is saved before any waiting refresh can write, so a download
+                    // that started against the old provider cannot land in the new one's catalog.
+                    beforeRelease()
+                }
             }
         }
     }
+
+    /** Held while live categories are written and while a provider switch clears and saves the
+     * new login, so categories downloaded for the old login can't land after the switch. */
+    private val liveCategoriesWrite = Mutex()
 
     private suspend fun clearPrimaryProviderDataLocked() = withContext(Dispatchers.IO) {
         val sql = db.openHelper.writableDatabase
@@ -267,16 +276,21 @@ class XtreamRepository @Inject constructor(
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()
+        val identity = primaryGuideIdentity()
         return safeApiCall {
             val response = api.getLiveCategories(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             val unnamed = list.count { it.categoryName.isNullOrBlank() }
             if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "Live category count: ${list.size}, unnamed: $unnamed")
-            db.categoryDao().deleteCategoriesByType("live")
-            db.categoryDao().upsertCategories(list.map {
-                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
-            })
+            liveCategoriesWrite.withLock {
+                // The provider changed while this downloaded: these belong to the old login.
+                if (!samePrimary(identity)) throw Exception(PROVIDER_CHANGED)
+                db.categoryDao().deleteCategoriesByType("live")
+                db.categoryDao().upsertCategories(list.map {
+                    CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
+                })
+            }
             list
         }
     }
@@ -440,6 +454,55 @@ class XtreamRepository @Inject constructor(
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
 
     suspend fun getChannelCount(): Int = db.channelDao().getCount()
+
+    suspend fun getLiveCategoryCount(): Int = db.categoryDao().countByType("live")
+
+    suspend fun getMergedChannelCount(): Int = db.mergedChannelDao().count()
+
+    /** A note attached to the next crash report; skipped where Firebase isn't running (unit tests). */
+    private fun crashBreadcrumb(message: String) { runCatching { FirebaseCrashlytics.getInstance().log(message) } }
+
+    @Volatile private var providerEditReload: kotlinx.coroutines.Job? = null
+
+    /** Stops an earlier edit's [reloadAfterProviderEdit] and waits for it, so it can't save the
+     * old provider's lists after the next edit clears them. Call before an edit clears anything. */
+    suspend fun stopProviderEditReload() {
+        providerEditReload?.let { it.cancel(); it.join() }
+    }
+
+    /**
+     * After a provider is edited in Settings. Saving clears that provider's lists (and every other
+     * provider's channel cache), but their "last downloaded" times stayed recent, so nothing
+     * fetched them again for hours: Live, categories, Providers and home all stayed empty. This
+     * marks them stale and downloads them now. [primaryChanged]: the main login was replaced.
+     * Whatever the edit, the main provider's lists are also fetched when any is missing: a later
+     * edit stops this reload ([stopProviderEditReload]) and its own reload finishes that work.
+     */
+    suspend fun reloadAfterProviderEdit(primaryChanged: Boolean) = coroutineScope {
+        providerEditReload = coroutineContext[kotlinx.coroutines.Job]
+        prefs.setLastMergedChannelsRefresh(0L)
+        launch {
+            // Each list on its own: an earlier reload may have been stopped with some done.
+            val categories = db.categoryDao()
+            coroutineScope {
+                if (primaryChanged || getChannelCount() == 0) {
+                    prefs.setLastChannelsFetchTime(0L)
+                    launch { fetchLiveStreams() }
+                }
+                if (primaryChanged || categories.countByType("live") == 0) launch { fetchLiveCategories() }
+                if (primaryChanged || categories.countByType("vod") == 0) launch { fetchVodCategories() }
+                if (primaryChanged || categories.countByType("series") == 0) launch { fetchSeriesCategories() }
+            }
+            // A switch empties Movies and Series too. Home only reloads them on a stale channel
+            // list, which this reload has just made fresh, so fetch them here.
+            // One at a time, after the rest: two large catalogs at once can run out of memory.
+            if (getVodCount() == 0) fetchVodStreams()
+            if (getSeriesCount() == 0) fetchSeries()
+        }
+        launch {
+            if (refreshMergedChannels().isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+        }
+    }
 
     suspend fun getVodCount(): Int = db.vodDao().getCount()
 
@@ -2402,7 +2465,7 @@ class XtreamRepository @Inject constructor(
         withContext(NonCancellable) {
             (results.map { it.serverIndex } + succeeded).distinct().forEach { serverIndex ->
                 val count = results.count { it.serverIndex == serverIndex }
-                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
+                crashBreadcrumb("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
                 db.mergedChannelDao().clearForServer(serverIndex)
             }
             // A single @Upsert call over the WHOLE combined results list runs as one giant
@@ -2415,10 +2478,10 @@ class XtreamRepository @Inject constructor(
             // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
             // a time.
             results.chunked(2000).forEachIndexed { i, chunk ->
-                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: upsertAll chunk ${i + 1}/${(results.size + 1999) / 2000} (${chunk.size} rows)")
+                crashBreadcrumb("refreshMergedChannels: upsertAll chunk ${i + 1}/${(results.size + 1999) / 2000} (${chunk.size} rows)")
                 db.mergedChannelDao().upsertAll(chunk)
             }
-            FirebaseCrashlytics.getInstance().log("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
+            crashBreadcrumb("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
             applyPendingMergedRestoreData(servers)
         }
         // A full pass with every provider through: these lists match the setting they were fetched under.

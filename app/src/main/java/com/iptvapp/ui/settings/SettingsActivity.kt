@@ -3516,6 +3516,8 @@ class SettingsActivity : AppCompatActivity() {
                         .also { it.marginEnd = dp(8) }
                     setOnClickListener {
                         lifecycleScope.launch {
+                            // A provider-edit reload still running would save lists under the old slots.
+                            repository.stopProviderEditReload()
                             val primary = prefs.credentials.first()
                             val newPass = extraServers[i][2]
                             // The nickname you gave this extra server was never carried over
@@ -3568,6 +3570,8 @@ class SettingsActivity : AppCompatActivity() {
                     setOnClickListener {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
+                            // A provider-edit reload still running would save lists under the old slots.
+                            repository.stopProviderEditReload()
                             prefs.saveExtraServersWithNick(extraServers, removedIndex = i)
                             // NonCancellable — lifecycleScope cancels on exactly the things a
                             // user does in the middle of tapping a button and moving on
@@ -3714,6 +3718,8 @@ class SettingsActivity : AppCompatActivity() {
                 val nick = etNick.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
+                        // An earlier edit's reload could still save the old provider's lists.
+                        repository.stopProviderEditReload()
                         // A URL/username change here means this is really a different provider,
                         // not just a password fix — without clearing the OLD primary's
                         // channels/categories/VOD/series/EPG, stale favorited channels from that
@@ -3733,13 +3739,31 @@ class SettingsActivity : AppCompatActivity() {
                         db.mergedChannelDao().clearAll()
                         db.mergedVodDao().clearAll()
                         db.mergedSeriesDao().clearAll()
-                        Toast.makeText(this@SettingsActivity, "Primary provider updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Primary provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
+                        reloadListsInBackground(primaryChanged = isProviderSwap)
                     }
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    /** A provider edit cleared lists: download them again now, finishing even if Settings closes. */
+    private fun reloadListsInBackground(primaryChanged: Boolean) {
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                repository.reloadAfterProviderEdit(primaryChanged)
+                if (prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP ||
+                    prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON
+                ) {
+                    smartChannels.scheduleRebuild(this)
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
     }
 
     private fun showEditServerDialog(index: Int) {
@@ -3835,13 +3859,16 @@ class SettingsActivity : AppCompatActivity() {
                 val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
+                        // An earlier edit's reload could still save the old provider's channels.
+                        repository.stopProviderEditReload()
                         extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()
                         db.mergedVodDao().clearAll()
                         db.mergedSeriesDao().clearAll()
-                        Toast.makeText(this@SettingsActivity, "Provider updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
+                        reloadListsInBackground(primaryChanged = false)
                     }
                 }
             }

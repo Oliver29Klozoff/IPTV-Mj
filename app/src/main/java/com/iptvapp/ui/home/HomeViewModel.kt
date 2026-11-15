@@ -371,6 +371,9 @@ class HomeViewModel @Inject constructor(
      * either way, since both call sites count as "freshened the cache" equally. */
     suspend fun mergedListsUsaOnlyChanged() = repository.mergedListsUsaOnlyChanged()
 
+    /** No other provider's channels stored (a provider edit clears them): reload now, not after 6 hours. */
+    suspend fun mergedChannelsMissing() = repository.getMergedChannelCount() == 0
+
     fun refreshMergedChannels(targetServerIndex: Int? = null) {
         mergedChannelsRefreshJob?.takeIf { it.isActive }?.let { return }
         // _syncProgress drives the same visible blue bar + "N/Total" text the primary
@@ -1557,7 +1560,9 @@ class HomeViewModel @Inject constructor(
         // those on first run (table empty), never repeatedly in the background. Manual
         // refresh (refreshNow) always re-fetches everything since that's an explicit ask.
         viewModelScope.launch {
-            val isEmpty = repository.getChannelCount() == 0
+            // No categories with channels present: a provider change cleared them and they were
+            // never fetched again, which left Live and its categories empty. Treat as empty.
+            val isEmpty = repository.getChannelCount() == 0 || repository.getLiveCategoryCount() == 0
             val isStale = repository.isChannelCacheStale()
             if (!isEmpty && !isStale) return@launch
             if (isEmpty) _loading.value = true
