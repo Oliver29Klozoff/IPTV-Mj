@@ -473,25 +473,27 @@ class XtreamRepository @Inject constructor(
      * provider's channel cache), but their "last downloaded" times stayed recent, so nothing
      * fetched them again for hours: Live, categories, Providers and home all stayed empty. This
      * marks them stale and downloads them now. [primaryChanged]: the main login was replaced.
+     * Whatever the edit, the main provider's lists are also fetched when any is missing: a later
+     * edit stops this reload ([stopProviderEditReload]) and its own reload finishes that work.
      */
     suspend fun reloadAfterProviderEdit(primaryChanged: Boolean) = coroutineScope {
         providerEditReload = coroutineContext[kotlinx.coroutines.Job]
         prefs.setLastMergedChannelsRefresh(0L)
-        if (primaryChanged) {
-            prefs.setLastChannelsFetchTime(0L)
-            launch {
+        launch {
+            if (primaryChanged || getChannelCount() == 0 || getLiveCategoryCount() == 0) {
+                prefs.setLastChannelsFetchTime(0L)
                 coroutineScope {
                     launch { fetchLiveCategories() }
                     launch { fetchLiveStreams() }
                     launch { fetchVodCategories() }
                     launch { fetchSeriesCategories() }
                 }
-                // The switch emptied Movies and Series too. Home only reloads them on a stale
-                // channel list, which this reload has just made fresh, so fetch them here.
-                // One at a time, after the rest: two large catalogs at once can run out of memory.
-                if (getVodCount() == 0) fetchVodStreams()
-                if (getSeriesCount() == 0) fetchSeries()
             }
+            // A switch empties Movies and Series too. Home only reloads them on a stale channel
+            // list, which this reload has just made fresh, so fetch them here.
+            // One at a time, after the rest: two large catalogs at once can run out of memory.
+            if (getVodCount() == 0) fetchVodStreams()
+            if (getSeriesCount() == 0) fetchSeries()
         }
         launch {
             if (refreshMergedChannels().isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())

@@ -86,9 +86,12 @@ class ProviderEditReloadTest {
     }
 
     @Test
-    fun anOtherProviderEditLeavesTheMainListsAlone() = runBlocking {
+    fun anOtherProviderEditAlsoFinishesMissingMainLists() = runBlocking {
+        // An earlier switch's reload was stopped part way: the main lists are still empty.
         repository.reloadAfterProviderEdit(primaryChanged = false)
-        assertEquals(0, repository.getChannelCount())
+        assertEquals(1, repository.getChannelCount())
+        assertEquals(1, repository.getLiveCategoryCount())
+        assertEquals(1, repository.getVodCount())
         assertTrue(prefs.lastMergedChannelsRefresh.first() > 0L)
     }
 
@@ -110,6 +113,7 @@ class ProviderEditReloadTest {
         }
         assertTrue(started.await(10, java.util.concurrent.TimeUnit.SECONDS))
         kotlinx.coroutines.withTimeout(10_000) { repository.stopProviderEditReload() }
+        kotlinx.coroutines.withTimeout(10_000) { reload.join() }
         assertTrue(reload.isCancelled)
         release.countDown()
         Unit

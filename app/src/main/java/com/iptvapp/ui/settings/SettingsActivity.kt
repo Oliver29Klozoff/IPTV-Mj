@@ -3516,6 +3516,8 @@ class SettingsActivity : AppCompatActivity() {
                         .also { it.marginEnd = dp(8) }
                     setOnClickListener {
                         lifecycleScope.launch {
+                            // A provider-edit reload still running would save lists under the old slots.
+                            repository.stopProviderEditReload()
                             val primary = prefs.credentials.first()
                             val newPass = extraServers[i][2]
                             // The nickname you gave this extra server was never carried over
@@ -3568,6 +3570,8 @@ class SettingsActivity : AppCompatActivity() {
                     setOnClickListener {
                         extraServers.removeAt(i)
                         lifecycleScope.launch {
+                            // A provider-edit reload still running would save lists under the old slots.
+                            repository.stopProviderEditReload()
                             prefs.saveExtraServersWithNick(extraServers, removedIndex = i)
                             // NonCancellable — lifecycleScope cancels on exactly the things a
                             // user does in the middle of tapping a button and moving on
