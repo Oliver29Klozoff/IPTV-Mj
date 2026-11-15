@@ -73,13 +73,15 @@ class ProviderSwitchDuringDownloadTest {
 
     @Test
     fun aNewUrlSavesWhileTheOldServerIsStillSendingChannels() = runBlocking {
-        val download = async(Dispatchers.Default) { runCatching { repository.fetchLiveStreams() } }
+        val download = async(Dispatchers.Default) { repository.fetchLiveStreams() }
         assertTrue("download started", downloadStarted.await(10, TimeUnit.SECONDS))
         withTimeout(10_000) {
             repository.clearPrimaryProviderData { prefs.saveCredentials("http://new.test", "u", "p") }
         }
         assertEquals("http://new.test", prefs.credentials.first().serverUrl)
-        withTimeout(10_000) { download.await() }
+        // The refresh that was running gets an ordinary error back, not a cancellation.
+        val result = withTimeout(10_000) { download.await() }
+        assertTrue(result is com.iptvapp.util.Resource.Error && result.message == XtreamRepository.PROVIDER_CHANGED)
         Unit
     }
 }

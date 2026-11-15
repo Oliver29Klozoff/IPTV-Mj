@@ -299,9 +299,20 @@ class XtreamRepository @Inject constructor(
     // of thousands of entities, the stale-row sweep — ran on the caller's thread, which was Main
     // from the home screens. Room and DataStore calls inside dispatch themselves as before.
     suspend fun fetchLiveStreams(): Resource<List<LiveStream>> = withContext(Dispatchers.Default) { primaryChannelsMutex.withLock {
-        val job = coroutineContext[kotlinx.coroutines.Job]
-        primaryChannelsFetch = job
-        try { fetchLiveStreamsLocked() } finally { if (primaryChannelsFetch === job) primaryChannelsFetch = null }
+        // Its own child job, so a switch stops only the download: the caller gets an ordinary
+        // error back (and can put its buttons right) instead of being cancelled itself.
+        kotlinx.coroutines.coroutineScope {
+            val fetch = async { fetchLiveStreamsLocked() }
+            primaryChannelsFetch = fetch
+            try {
+                fetch.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                if (!fetch.isCancelled || !kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!.isActive) throw e
+                Resource.Error(PROVIDER_CHANGED, e)
+            } finally {
+                if (primaryChannelsFetch === fetch) primaryChannelsFetch = null
+            }
+        }
     } }
 
     private suspend fun fetchLiveStreamsLocked(): Resource<List<LiveStream>> = run {
@@ -3526,6 +3537,9 @@ class XtreamRepository @Inject constructor(
     }
 
     companion object {
+        /** Why a channel download stopped part way: the provider was changed meanwhile. */
+        const val PROVIDER_CHANGED = "Provider changed, so the old channel download was stopped"
+
         /** A copy scoring below this has failed or stalled enough that it is not worth moving to. */
         const val MIN_BACKUP_SCORE = 35
 
