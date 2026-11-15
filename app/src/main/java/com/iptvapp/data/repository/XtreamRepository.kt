@@ -92,6 +92,8 @@ class XtreamRepository @Inject constructor(
     }
 
     suspend fun logout() {
+        // A provider-edit reload still downloading would refill the tables cleared below.
+        stopProviderEditReload()
         prefs.clearCredentials()
         withContext(Dispatchers.IO) { db.clearAllTables() }
     }
