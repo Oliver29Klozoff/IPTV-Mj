@@ -36,7 +36,12 @@ class ProviderEditReloadTest {
     private lateinit var prefs: PreferencesManager
     private lateinit var repository: XtreamRepository
 
+    // Runs while the categories download, to switch the login part way.
+    private var duringCategories: () -> Unit = {}
+
     private val answers = mapOf(
+        "get_vod_streams" to """[{"num":1,"name":"Movie 1","stream_type":"movie","stream_id":1,"stream_icon":"","rating":"7","added":"1","category_id":"1","container_extension":"mkv"}]""",
+        "get_series" to """[{"num":1,"name":"Show 1","series_id":1,"cover":"","plot":"","genre":"Drama","rating":"7","category_id":"1"}]""",
         "get_live_categories" to """[{"category_id":"1","category_name":"US| SPORTS","parent_id":0}]""",
         "get_live_streams" to """[{"num":1,"name":"US| NFL REDZONE","stream_type":"live","stream_id":101,"stream_icon":"","epg_channel_id":"","added":"1","category_id":"1","tv_archive":0}]""",
     )
@@ -49,6 +54,7 @@ class ProviderEditReloadTest {
         prefs.saveCredentials("http://new.test", "u", "p")
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             val request = chain.request()
+            if (request.url.queryParameter("action") == "get_live_categories") duringCategories()
             val body = answers[request.url.queryParameter("action").orEmpty()] ?: "[]"
             Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
                 .body(body.toResponseBody("application/json".toMediaType())).build()
@@ -73,6 +79,8 @@ class ProviderEditReloadTest {
 
         assertEquals(1, repository.getLiveCategoryCount())
         assertEquals(1, repository.getChannelCount())
+        assertEquals(1, repository.getVodCount())
+        assertEquals(1, repository.getSeriesCount())
         assertTrue(prefs.lastMergedChannelsRefresh.first() > 0L)
     }
 
@@ -81,5 +89,13 @@ class ProviderEditReloadTest {
         repository.reloadAfterProviderEdit(primaryChanged = false)
         assertEquals(0, repository.getChannelCount())
         assertTrue(prefs.lastMergedChannelsRefresh.first() > 0L)
+    }
+
+    @Test
+    fun categoriesDownloadedForTheOldLoginAreNotSaved() = runBlocking {
+        duringCategories = { runBlocking { prefs.saveCredentials("http://other.test", "u2", "p") } }
+        val result = repository.fetchLiveCategories()
+        assertTrue(result is com.iptvapp.util.Resource.Error)
+        assertEquals(0, repository.getLiveCategoryCount())
     }
 }

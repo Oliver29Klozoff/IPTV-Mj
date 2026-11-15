@@ -216,13 +216,19 @@ class XtreamRepository @Inject constructor(
         primaryChannelsFetch?.cancel()
         primaryChannelsMutex.withLock {
             primaryCatalog.afterIdle {
-                clearPrimaryProviderDataLocked()
-                // The new login is saved before any waiting refresh can write, so a download
-                // that started against the old provider cannot land in the new one's catalog.
-                beforeRelease()
+                liveCategoriesWrite.withLock {
+                    clearPrimaryProviderDataLocked()
+                    // The new login is saved before any waiting refresh can write, so a download
+                    // that started against the old provider cannot land in the new one's catalog.
+                    beforeRelease()
+                }
             }
         }
     }
+
+    /** Held while live categories are written and while a provider switch clears and saves the
+     * new login, so categories downloaded for the old login can't land after the switch. */
+    private val liveCategoriesWrite = Mutex()
 
     private suspend fun clearPrimaryProviderDataLocked() = withContext(Dispatchers.IO) {
         val sql = db.openHelper.writableDatabase
@@ -268,16 +274,21 @@ class XtreamRepository @Inject constructor(
 
     suspend fun fetchLiveCategories(): Resource<List<Category>> {
         val b = urlBuilder(); val c = creds()
+        val identity = primaryGuideIdentity()
         return safeApiCall {
             val response = api.getLiveCategories(b.apiUrl(), c.username, c.password)
             if (!response.isSuccessful) throw Exception("Server returned ${response.code()}")
             val list = response.body() ?: emptyList()
             val unnamed = list.count { it.categoryName.isNullOrBlank() }
             if (com.iptvapp.BuildConfig.DEBUG) android.util.Log.d("VodDiag", "Live category count: ${list.size}, unnamed: $unnamed")
-            db.categoryDao().deleteCategoriesByType("live")
-            db.categoryDao().upsertCategories(list.map {
-                CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
-            })
+            liveCategoriesWrite.withLock {
+                // The provider changed while this downloaded: these belong to the old login.
+                if (!samePrimary(identity)) throw Exception(PROVIDER_CHANGED)
+                db.categoryDao().deleteCategoriesByType("live")
+                db.categoryDao().upsertCategories(list.map {
+                    CategoryEntity(it.categoryId, it.categoryName, it.parentId, "live")
+                })
+            }
             list
         }
     }
@@ -459,10 +470,19 @@ class XtreamRepository @Inject constructor(
         prefs.setLastMergedChannelsRefresh(0L)
         if (primaryChanged) {
             prefs.setLastChannelsFetchTime(0L)
-            launch { fetchLiveCategories() }
-            launch { fetchLiveStreams() }
-            launch { fetchVodCategories() }
-            launch { fetchSeriesCategories() }
+            launch {
+                coroutineScope {
+                    launch { fetchLiveCategories() }
+                    launch { fetchLiveStreams() }
+                    launch { fetchVodCategories() }
+                    launch { fetchSeriesCategories() }
+                }
+                // The switch emptied Movies and Series too. Home only reloads them on a stale
+                // channel list, which this reload has just made fresh, so fetch them here.
+                // One at a time, after the rest: two large catalogs at once can run out of memory.
+                if (getVodCount() == 0) fetchVodStreams()
+                if (getSeriesCount() == 0) fetchSeries()
+            }
         }
         launch {
             if (refreshMergedChannels().isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
