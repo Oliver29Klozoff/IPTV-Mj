@@ -1,7 +1,7 @@
 {
-  "versionCode": 624,
-  "versionName": "7.86",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.86/MKTV.apk",
-  "apkSha256": "b45636f42f600c43f7eab76f08f49241b59487cb5df928c7def6f1a11691d1d0",
-  "changelog": "TV / Fire Stick: the keyboard's Search key now closes the keyboard and jumps to the first result."
+  "versionCode": 625,
+  "versionName": "7.87",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.87/MKTV.apk",
+  "apkSha256": "4fed8b7e6107e98a3b2d13e4f434ac208d07c6ecf4c75fa047297b5601578e2b",
+  "changelog": "Changing the main provider's URL now saves straight away, even when the old server has stalled."
 }

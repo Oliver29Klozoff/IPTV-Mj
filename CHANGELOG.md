@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.87 - 2026-11-15
+- **Fixed**: Changing the main provider's URL in Settings → Providers could seem to do nothing when
+  the old server had stalled while sending the channel list: the save waited for that download.
+  Saving now stops the old download straight away, and "Saving the new provider…" shows at once.
+
 ## v7.86 - 2026-11-11
 - **Fixed**: TV / Fire Stick search. The keyboard's Search key now closes the keyboard and puts the
   remote on the first result, so you can pick a movie straight away. This works in Search, and in the
