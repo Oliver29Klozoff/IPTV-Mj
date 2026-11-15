@@ -3714,6 +3714,8 @@ class SettingsActivity : AppCompatActivity() {
                 val nick = etNick.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
+                        // An earlier edit's reload could still save the old provider's lists.
+                        repository.stopProviderEditReload()
                         // A URL/username change here means this is really a different provider,
                         // not just a password fix — without clearing the OLD primary's
                         // channels/categories/VOD/series/EPG, stale favorited channels from that
@@ -3853,6 +3855,8 @@ class SettingsActivity : AppCompatActivity() {
                 val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
+                        // An earlier edit's reload could still save the old provider's channels.
+                        repository.stopProviderEditReload()
                         extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
                         prefs.saveExtraServersWithNick(extraServers)
                         db.mergedChannelDao().clearAll()

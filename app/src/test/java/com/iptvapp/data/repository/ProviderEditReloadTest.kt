@@ -8,6 +8,7 @@ import com.iptvapp.data.api.XtreamApiService
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -97,5 +98,20 @@ class ProviderEditReloadTest {
         val result = repository.fetchLiveCategories()
         assertTrue(result is com.iptvapp.util.Resource.Error)
         assertEquals(0, repository.getLiveCategoryCount())
+    }
+
+    @Test
+    fun aNewEditStopsTheEarlierReloadFirst() = runBlocking {
+        val started = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        duringCategories = { started.countDown(); release.await(30, java.util.concurrent.TimeUnit.SECONDS) }
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class) val reload = kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            repository.reloadAfterProviderEdit(primaryChanged = true)
+        }
+        assertTrue(started.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        kotlinx.coroutines.withTimeout(10_000) { repository.stopProviderEditReload() }
+        assertTrue(reload.isCancelled)
+        release.countDown()
+        Unit
     }
 }

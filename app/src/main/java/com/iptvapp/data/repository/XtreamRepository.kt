@@ -460,6 +460,14 @@ class XtreamRepository @Inject constructor(
     /** A note attached to the next crash report; skipped where Firebase isn't running (unit tests). */
     private fun crashBreadcrumb(message: String) { runCatching { FirebaseCrashlytics.getInstance().log(message) } }
 
+    @Volatile private var providerEditReload: kotlinx.coroutines.Job? = null
+
+    /** Stops an earlier edit's [reloadAfterProviderEdit] and waits for it, so it can't save the
+     * old provider's lists after the next edit clears them. Call before an edit clears anything. */
+    suspend fun stopProviderEditReload() {
+        providerEditReload?.let { it.cancel(); it.join() }
+    }
+
     /**
      * After a provider is edited in Settings. Saving clears that provider's lists (and every other
      * provider's channel cache), but their "last downloaded" times stayed recent, so nothing
@@ -467,6 +475,7 @@ class XtreamRepository @Inject constructor(
      * marks them stale and downloads them now. [primaryChanged]: the main login was replaced.
      */
     suspend fun reloadAfterProviderEdit(primaryChanged: Boolean) = coroutineScope {
+        providerEditReload = coroutineContext[kotlinx.coroutines.Job]
         prefs.setLastMergedChannelsRefresh(0L)
         if (primaryChanged) {
             prefs.setLastChannelsFetchTime(0L)
