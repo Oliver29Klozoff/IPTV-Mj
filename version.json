@@ -1,7 +1,7 @@
 {
-  "versionCode": 625,
-  "versionName": "7.87",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.87/MKTV.apk",
-  "apkSha256": "4fed8b7e6107e98a3b2d13e4f434ac208d07c6ecf4c75fa047297b5601578e2b",
-  "changelog": "Changing the main provider's URL now saves straight away, even when the old server has stalled."
+  "versionCode": 626,
+  "versionName": "7.88",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.88/MKTV.apk",
+  "apkSha256": "fc94224057e024ef156bf11231cb558ced5b52ecc8ca2879fec62433263cb68e",
+  "changelog": "After changing a provider, Live, categories and home load again straight away instead of staying empty."
 }

@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.88 - 2026-11-15
+- **Fixed**: After changing a provider in Settings → Providers, Live, categories, Providers and the
+  home screen could stay empty for hours (search still worked). Saving a provider now downloads
+  its lists again straight away, and MKTV repairs missing channel lists the next time it opens.
+
 ## v7.87 - 2026-11-15
 - **Fixed**: Changing the main provider's URL in Settings → Providers could seem to do nothing when
   the old server had stalled while sending the channel list: the save waited for that download.
