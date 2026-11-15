@@ -41,6 +41,8 @@ class ProviderEditReloadTest {
     private var duringCategories: () -> Unit = {}
 
     private val answers = mapOf(
+        "get_vod_categories" to """[{"category_id":"5","category_name":"Movies","parent_id":0}]""",
+        "get_series_categories" to """[{"category_id":"6","category_name":"Shows","parent_id":0}]""",
         "get_vod_streams" to """[{"num":1,"name":"Movie 1","stream_type":"movie","stream_id":1,"stream_icon":"","rating":"7","added":"1","category_id":"1","container_extension":"mkv"}]""",
         "get_series" to """[{"num":1,"name":"Show 1","series_id":1,"cover":"","plot":"","genre":"Drama","rating":"7","category_id":"1"}]""",
         "get_live_categories" to """[{"category_id":"1","category_name":"US| SPORTS","parent_id":0}]""",
@@ -92,6 +94,8 @@ class ProviderEditReloadTest {
         assertEquals(1, repository.getChannelCount())
         assertEquals(1, repository.getLiveCategoryCount())
         assertEquals(1, repository.getVodCount())
+        assertEquals(1, db.categoryDao().countByType("vod"))
+        assertEquals(1, db.categoryDao().countByType("series"))
         assertTrue(prefs.lastMergedChannelsRefresh.first() > 0L)
     }
 

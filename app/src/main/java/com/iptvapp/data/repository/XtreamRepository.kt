@@ -480,14 +480,16 @@ class XtreamRepository @Inject constructor(
         providerEditReload = coroutineContext[kotlinx.coroutines.Job]
         prefs.setLastMergedChannelsRefresh(0L)
         launch {
-            if (primaryChanged || getChannelCount() == 0 || getLiveCategoryCount() == 0) {
-                prefs.setLastChannelsFetchTime(0L)
-                coroutineScope {
-                    launch { fetchLiveCategories() }
+            // Each list on its own: an earlier reload may have been stopped with some done.
+            val categories = db.categoryDao()
+            coroutineScope {
+                if (primaryChanged || getChannelCount() == 0) {
+                    prefs.setLastChannelsFetchTime(0L)
                     launch { fetchLiveStreams() }
-                    launch { fetchVodCategories() }
-                    launch { fetchSeriesCategories() }
                 }
+                if (primaryChanged || categories.countByType("live") == 0) launch { fetchLiveCategories() }
+                if (primaryChanged || categories.countByType("vod") == 0) launch { fetchVodCategories() }
+                if (primaryChanged || categories.countByType("series") == 0) launch { fetchSeriesCategories() }
             }
             // A switch empties Movies and Series too. Home only reloads them on a stale channel
             // list, which this reload has just made fresh, so fetch them here.
