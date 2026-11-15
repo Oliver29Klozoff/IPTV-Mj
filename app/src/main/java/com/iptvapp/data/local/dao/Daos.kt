@@ -180,6 +180,8 @@ interface CategoryDao {
     suspend fun upsertCategories(categories: List<CategoryEntity>)
     @Query("DELETE FROM categories WHERE type = :type")
     suspend fun deleteCategoriesByType(type: String)
+    @Query("SELECT COUNT(*) FROM categories WHERE type = :type")
+    suspend fun countByType(type: String): Int
     @Query("SELECT categoryId FROM categories WHERE type = :type")
     suspend fun getIdsByType(type: String): List<String>
     @Query("DELETE FROM categories WHERE type = :type AND categoryId IN (:ids)")
@@ -800,6 +802,8 @@ data class WatchedEpisodeRow(
 
 @Dao
 interface MergedChannelDao {
+    @Query("SELECT COUNT(*) FROM merged_channels")
+    suspend fun count(): Int
     // When this provider's channel list was last synced, for Provider Health.
     @Query("SELECT MAX(cachedAt) FROM merged_channels WHERE serverIndex = :serverIndex")
     suspend fun lastCachedAt(serverIndex: Int): Long?

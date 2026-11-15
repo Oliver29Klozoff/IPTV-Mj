@@ -21,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -440,6 +441,33 @@ class XtreamRepository @Inject constructor(
     fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
 
     suspend fun getChannelCount(): Int = db.channelDao().getCount()
+
+    suspend fun getLiveCategoryCount(): Int = db.categoryDao().countByType("live")
+
+    suspend fun getMergedChannelCount(): Int = db.mergedChannelDao().count()
+
+    /** A note attached to the next crash report; skipped where Firebase isn't running (unit tests). */
+    private fun crashBreadcrumb(message: String) { runCatching { FirebaseCrashlytics.getInstance().log(message) } }
+
+    /**
+     * After a provider is edited in Settings. Saving clears that provider's lists (and every other
+     * provider's channel cache), but their "last downloaded" times stayed recent, so nothing
+     * fetched them again for hours: Live, categories, Providers and home all stayed empty. This
+     * marks them stale and downloads them now. [primaryChanged]: the main login was replaced.
+     */
+    suspend fun reloadAfterProviderEdit(primaryChanged: Boolean) = coroutineScope {
+        prefs.setLastMergedChannelsRefresh(0L)
+        if (primaryChanged) {
+            prefs.setLastChannelsFetchTime(0L)
+            launch { fetchLiveCategories() }
+            launch { fetchLiveStreams() }
+            launch { fetchVodCategories() }
+            launch { fetchSeriesCategories() }
+        }
+        launch {
+            if (refreshMergedChannels().isEmpty()) prefs.setLastMergedChannelsRefresh(System.currentTimeMillis())
+        }
+    }
 
     suspend fun getVodCount(): Int = db.vodDao().getCount()
 
@@ -2402,7 +2430,7 @@ class XtreamRepository @Inject constructor(
         withContext(NonCancellable) {
             (results.map { it.serverIndex } + succeeded).distinct().forEach { serverIndex ->
                 val count = results.count { it.serverIndex == serverIndex }
-                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
+                crashBreadcrumb("refreshMergedChannels: clearForServer(serverIndex=$serverIndex, incomingRows=$count)")
                 db.mergedChannelDao().clearForServer(serverIndex)
             }
             // A single @Upsert call over the WHOLE combined results list runs as one giant
@@ -2415,10 +2443,10 @@ class XtreamRepository @Inject constructor(
             // fetchSeries) for the same reason — chunk so only one chunk's worth of rows commits at
             // a time.
             results.chunked(2000).forEachIndexed { i, chunk ->
-                FirebaseCrashlytics.getInstance().log("refreshMergedChannels: upsertAll chunk ${i + 1}/${(results.size + 1999) / 2000} (${chunk.size} rows)")
+                crashBreadcrumb("refreshMergedChannels: upsertAll chunk ${i + 1}/${(results.size + 1999) / 2000} (${chunk.size} rows)")
                 db.mergedChannelDao().upsertAll(chunk)
             }
-            FirebaseCrashlytics.getInstance().log("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
+            crashBreadcrumb("refreshMergedChannels: write phase complete, ${results.size} total rows across ${servers.size} servers")
             applyPendingMergedRestoreData(servers)
         }
         // A full pass with every provider through: these lists match the setting they were fetched under.

@@ -581,7 +581,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             // still enough to fire this on every cold start with nothing to actually merge.
             val hasEnabledExtraServer = prefs.getExtraServersWithNick().any { it.getOrElse(5) { "true" }.toBoolean() }
             // Or the lists were downloaded under a different USA Only setting (e.g. before v7.17).
-            if (hasEnabledExtraServer && (sinceLastRefresh >= staleMs || viewModel.mergedListsUsaOnlyChanged())) {
+            if (hasEnabledExtraServer && (sinceLastRefresh >= staleMs || viewModel.mergedListsUsaOnlyChanged() || viewModel.mergedChannelsMissing())) {
                 viewModel.refreshMergedChannels()
             }
         }

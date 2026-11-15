@@ -3733,13 +3733,31 @@ class SettingsActivity : AppCompatActivity() {
                         db.mergedChannelDao().clearAll()
                         db.mergedVodDao().clearAll()
                         db.mergedSeriesDao().clearAll()
-                        Toast.makeText(this@SettingsActivity, "Primary provider updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Primary provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
+                        reloadListsInBackground(primaryChanged = isProviderSwap)
                     }
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    /** A provider edit cleared lists: download them again now, finishing even if Settings closes. */
+    private fun reloadListsInBackground(primaryChanged: Boolean) {
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                repository.reloadAfterProviderEdit(primaryChanged)
+                if (prefs.smartChannelDisplayNow() == com.iptvapp.util.SmartChannels.DISPLAY_GROUP ||
+                    prefs.smartAutoBackupNow() == com.iptvapp.util.SmartChannels.BACKUP_ON
+                ) {
+                    smartChannels.scheduleRebuild(this)
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
     }
 
     private fun showEditServerDialog(index: Int) {
@@ -3840,8 +3858,9 @@ class SettingsActivity : AppCompatActivity() {
                         db.mergedChannelDao().clearAll()
                         db.mergedVodDao().clearAll()
                         db.mergedSeriesDao().clearAll()
-                        Toast.makeText(this@SettingsActivity, "Provider updated", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@SettingsActivity, "Provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
+                        reloadListsInBackground(primaryChanged = false)
                     }
                 }
             }
