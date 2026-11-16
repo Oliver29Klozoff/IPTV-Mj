@@ -3718,30 +3718,16 @@ class SettingsActivity : AppCompatActivity() {
                 val nick = etNick.text.toString().trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
-                        // An earlier edit's reload could still save the old provider's lists.
-                        repository.stopProviderEditReload()
-                        // A URL/username change here means this is really a different provider,
-                        // not just a password fix — without clearing the OLD primary's
-                        // channels/categories/VOD/series/EPG, stale favorited channels from that
-                        // provider (wrong streamIds, wrong cached streamUrl) linger forever and
-                        // silently fail to play under the new primary's credentials.
-                        val isProviderSwap = url != creds.serverUrl || user != creds.username
-                        if (isProviderSwap) {
-                            // Clearing the old provider's lists can take a moment: show the Save took.
+                        // A different account clears the old one's lists, which can take a moment.
+                        if (user != creds.username) {
                             Toast.makeText(this@SettingsActivity, "Saving the new provider…", Toast.LENGTH_SHORT).show()
-                            repository.clearPrimaryProviderData {
-                                prefs.saveCredentials(url, user, pass)
-                            }
-                        } else {
-                            prefs.saveCredentials(url, user, pass)
                         }
+                        // Favorites and history stay unless the username changed (see the kdoc).
+                        val primaryChanged = repository.applyPrimaryProviderEdit(url, user, pass)
                         prefs.setServerNickname(nick)
-                        db.mergedChannelDao().clearAll()
-                        db.mergedVodDao().clearAll()
-                        db.mergedSeriesDao().clearAll()
                         Toast.makeText(this@SettingsActivity, "Primary provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
-                        reloadListsInBackground(primaryChanged = isProviderSwap)
+                        reloadListsInBackground(primaryChanged = primaryChanged)
                     }
                 }
             }
@@ -3859,13 +3845,9 @@ class SettingsActivity : AppCompatActivity() {
                 val epgUrl = etEpg.text.toString().replace(" ", "").trim()
                 if (url.isNotEmpty() && user.isNotEmpty()) {
                     lifecycleScope.launch {
-                        // An earlier edit's reload could still save the old provider's channels.
-                        repository.stopProviderEditReload()
-                        extraServers[index] = listOf(url, user, pass, etNick.text.toString().trim(), epgUrl)
-                        prefs.saveExtraServersWithNick(extraServers)
-                        db.mergedChannelDao().clearAll()
-                        db.mergedVodDao().clearAll()
-                        db.mergedSeriesDao().clearAll()
+                        // Keeps every provider's favorites unless this one's username changed.
+                        repository.applyExtraProviderEdit(index, url, user, pass, etNick.text.toString().trim(), epgUrl)
+                        extraServers.clear(); extraServers.addAll(prefs.getExtraServersWithNick())
                         Toast.makeText(this@SettingsActivity, "Provider updated. Reloading channel lists…", Toast.LENGTH_LONG).show()
                         updateServerList()
                         reloadListsInBackground(primaryChanged = false)

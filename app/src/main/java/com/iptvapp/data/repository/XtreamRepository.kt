@@ -228,6 +228,36 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    /** Saves an edited main-provider login and returns true when its lists must be downloaded again.
+     * Only a different username is a different account: its channels, favorites and history are
+     * cleared, here and in the All Providers lists. A new address or password for the same account
+     * keeps everything — the account's channel ids don't change when it moves, and the next download
+     * keeps favorites by id. Wiping on an address change lost every favorite and recent channel. */
+    suspend fun applyPrimaryProviderEdit(url: String, user: String, pass: String): Boolean {
+        stopProviderEditReload()
+        val old = creds()
+        val otherAccount = user != old.username
+        if (otherAccount) {
+            clearPrimaryProviderData { prefs.saveCredentials(url, user, pass) }
+            clearMergedProviderData(-1)
+        } else {
+            prefs.saveCredentials(url, user, pass)
+        }
+        return otherAccount || url != old.serverUrl
+    }
+
+    /** Saves an edited extra provider. Its saved on/off switch, type and playlist address are kept.
+     * Only a different username clears that one provider's lists and favorites; every other
+     * provider's favorites stay (an edit used to clear the All Providers lists of every provider). */
+    suspend fun applyExtraProviderEdit(index: Int, url: String, user: String, pass: String, nick: String, epgUrl: String) {
+        stopProviderEditReload()
+        val servers = prefs.getExtraServersWithNick().toMutableList()
+        val old = servers.getOrNull(index) ?: return
+        servers[index] = listOf(url, user, pass, nick, epgUrl) + old.drop(5)
+        prefs.saveExtraServersWithNick(servers)
+        if (user != old[1]) clearMergedProviderData(index)
+    }
+
     /** Held while live categories are written and while a provider switch clears and saves the
      * new login, so categories downloaded for the old login can't land after the switch. */
     private val liveCategoriesWrite = Mutex()
