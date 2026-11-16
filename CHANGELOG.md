@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.89 - 2026-11-15
+- **Fixed**: Giving a provider a new URL or password in Settings → Providers deleted its favorites and
+  recently watched channels, and the favorites of every other provider too. Only a different username
+  now counts as a new account, and only that provider's lists are cleared. Editing an extra provider
+  also keeps whether it is switched on.
+
 ## v7.88 - 2026-11-15
 - **Fixed**: After changing a provider in Settings → Providers, Live, categories, Providers and the
   home screen could stay empty for hours (search still worked). Saving a provider now downloads

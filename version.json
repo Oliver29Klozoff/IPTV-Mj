@@ -1,7 +1,7 @@
 {
-  "versionCode": 626,
-  "versionName": "7.88",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.88/MKTV.apk",
-  "apkSha256": "fc94224057e024ef156bf11231cb558ced5b52ecc8ca2879fec62433263cb68e",
-  "changelog": "After changing a provider, Live, categories and home load again straight away instead of staying empty."
+  "versionCode": 627,
+  "versionName": "7.89",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.89/MKTV.apk",
+  "apkSha256": "39ace353b104692f21c723f5e745c4dcb3f15d276b90a9017cbbd9bf740cb932",
+  "changelog": "Changing a provider's URL or password no longer deletes your favorites and recently watched channels."
 }
