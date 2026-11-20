@@ -2336,7 +2336,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> openStandIn(binding.btnTvSeries)
             com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> {
                 showHome()
-                binding.btnTvGuide.performClick()
+                // Guide hidden in Customize Sidebar: Home (or what stands in for it) is the start.
+                if (binding.btnTvGuide.visibility == View.VISIBLE) binding.btnTvGuide.performClick()
             }
             com.iptvapp.data.home.HomeLayout.StartScreen.FULLSCREEN_LIVE -> {
                 showHome()
