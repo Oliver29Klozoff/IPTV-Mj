@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v7.90 - 2026-11-20
+- **New**: TV Home mini player display. Customize Home → PLAYER picks Hero (the large picture with
+  one row under it, as before), Compact (picture and rows half and half) or Off (no picture on Home:
+  nothing plays there, the rows fill the screen, and a channel picked on Home opens full screen).
+
 ## v7.89 - 2026-11-15
 - **Fixed**: Giving a provider a new URL or password in Settings → Providers deleted its favorites and
   recently watched channels, and the favorites of every other provider too. Only a different username
