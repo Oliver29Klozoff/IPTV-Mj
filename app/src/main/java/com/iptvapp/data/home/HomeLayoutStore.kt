@@ -33,4 +33,33 @@ object HomeLayoutStore {
             after
         }
     }
+
+    /**
+     * Applies a viewing persona (PersonaPresets) in one write, under the same lock as [update]:
+     * the rows and start screen, and on a TV the Home tab, sidebar and mini player. Custom changes
+     * nothing; it only marks the settings as the viewer's own. Returns the layout now saved.
+     */
+    suspend fun applyPersona(
+        prefs: PreferencesManager,
+        tv: Boolean,
+        persona: ViewingPersona,
+    ): HomeLayout.Layout = withContext(NonCancellable) {
+        lock.withLock {
+            val before = load(prefs, tv)
+            val preset = PersonaPresets.get(persona)
+            if (preset == null) {
+                prefs.clearViewingPersona(tv)
+                return@withLock before
+            }
+            val after = PersonaPresets.layout(before, preset, tv)
+            prefs.applyViewingPersona(
+                tv = tv,
+                persona = persona,
+                layoutJson = HomeLayout.toJson(after),
+                sidebar = if (tv) PersonaPresets.sidebar(preset) else null,
+                miniMode = if (tv) preset.miniMode.key else null,
+            )
+            after
+        }
+    }
 }

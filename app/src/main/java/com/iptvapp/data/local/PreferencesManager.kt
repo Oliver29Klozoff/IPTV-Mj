@@ -378,6 +378,11 @@ class PreferencesManager @Inject constructor(
         // Customized Home (HomeLayout JSON), one per form factor. Arrangement only, no credentials.
         val HOME_LAYOUT_TV = stringPreferencesKey("home_layout_tv")
         val HOME_LAYOUT_PHONE = stringPreferencesKey("home_layout_phone")
+        // TV sidebar order and Shown/Hidden (TvSidebar JSON array of {id, visible}). Screen preference only.
+        val TV_SIDEBAR_CONFIG = stringPreferencesKey("tv_sidebar_config")
+        // Viewing persona preset (ViewingPersona id), per form factor. Absent = Custom.
+        val HOME_PERSONA_TV = stringPreferencesKey("home_persona_tv")
+        val HOME_PERSONA_PHONE = stringPreferencesKey("home_persona_phone")
         val TOP_FAVORITES = stringPreferencesKey("top_favorites")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
@@ -547,9 +552,52 @@ class PreferencesManager @Inject constructor(
         .map { it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] }
     /** [homeLayoutJson] now, for a screen choosing what to show before its first frame. */
     fun homeLayoutJsonNow(tv: Boolean): String? = PrefsSnapshot.read(context) { it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] }
+    /** A layout change made by hand, so the form factor's viewing persona becomes Custom. */
     suspend fun setHomeLayoutJson(tv: Boolean, json: String?) = context.dataStore.edit {
         val key = if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE
+        if (it[key] != json) it.remove(personaKey(tv))
         if (json == null) it.remove(key) else it[key] = json
+    }
+    private fun personaKey(tv: Boolean) = if (tv) Keys.HOME_PERSONA_TV else Keys.HOME_PERSONA_PHONE
+    /** The viewing persona last applied on TV ([tv]) or phone; Custom until one is, and again after any change by hand. */
+    fun viewingPersona(tv: Boolean): Flow<com.iptvapp.data.home.ViewingPersona> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.home.ViewingPersona.fromId(it[personaKey(tv)]) }
+        .distinctUntilChanged()
+    fun viewingPersonaNow(tv: Boolean): com.iptvapp.data.home.ViewingPersona =
+        com.iptvapp.data.home.ViewingPersona.fromId(PrefsSnapshot.read(context) { it[personaKey(tv)] })
+    /** Marks the settings as the viewer's own (Custom) without changing any of them. */
+    suspend fun clearViewingPersona(tv: Boolean) = context.dataStore.edit { it.remove(personaKey(tv)) }
+    /**
+     * Saves everything a persona sets in one write, so Home never sees half of it: the layout,
+     * and on a TV the sidebar and mini player ([sidebar] and [miniMode] null on a phone).
+     */
+    suspend fun applyViewingPersona(
+        tv: Boolean,
+        persona: com.iptvapp.data.home.ViewingPersona,
+        layoutJson: String,
+        sidebar: List<com.iptvapp.data.home.TvSidebar.SidebarItem>?,
+        miniMode: String?,
+    ) = context.dataStore.edit {
+        it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] = layoutJson
+        if (sidebar != null) it[Keys.TV_SIDEBAR_CONFIG] = com.iptvapp.data.home.TvSidebar.toJson(sidebar)
+        if (miniMode != null) it[Keys.TV_HOME_MINI_PLAYER_MODE] = com.iptvapp.data.home.TvHomeMiniMode.of(miniMode).key
+        if (persona == com.iptvapp.data.home.ViewingPersona.CUSTOM) it.remove(personaKey(tv)) else it[personaKey(tv)] = persona.id
+    }
+    /** The TV sidebar's order and Shown/Hidden (Customize Sidebar); MKTV's own order until it is changed. */
+    val tvSidebarConfig: Flow<List<com.iptvapp.data.home.TvSidebar.SidebarItem>> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.home.TvSidebar.parse(it[Keys.TV_SIDEBAR_CONFIG]) }
+        .distinctUntilChanged()
+    /** [tvSidebarConfig] now, so the sidebar is in order before its first frame. */
+    fun tvSidebarConfigNow(): List<com.iptvapp.data.home.TvSidebar.SidebarItem> =
+        com.iptvapp.data.home.TvSidebar.parse(PrefsSnapshot.read(context) { it[Keys.TV_SIDEBAR_CONFIG] })
+    /** Saves the sidebar; null puts MKTV's own order back. */
+    suspend fun setTvSidebarConfig(items: List<com.iptvapp.data.home.TvSidebar.SidebarItem>?) = context.dataStore.edit {
+        val json = items?.let { list -> com.iptvapp.data.home.TvSidebar.toJson(list) }
+        // A change by hand: the TV's viewing persona becomes Custom.
+        if (it[Keys.TV_SIDEBAR_CONFIG] != json) it.remove(Keys.HOME_PERSONA_TV)
+        if (json == null) it.remove(Keys.TV_SIDEBAR_CONFIG) else it[Keys.TV_SIDEBAR_CONFIG] = json
     }
     /** Top Favorites (TopFavorites), shared by TV and phone, or null before the first one is added. */
     val topFavoritesJson: Flow<String?> = context.dataStore.data
@@ -630,7 +678,12 @@ class PreferencesManager @Inject constructor(
         .map(readTvHomeMiniPlayerMode)
         .distinctUntilChanged()
     suspend fun setTvHomeMiniPlayerMode(mode: String) {
-        context.dataStore.edit { it[Keys.TV_HOME_MINI_PLAYER_MODE] = com.iptvapp.data.home.TvHomeMiniMode.of(mode).key }
+        context.dataStore.edit {
+            val key = com.iptvapp.data.home.TvHomeMiniMode.of(mode).key
+            // A change by hand: the TV's viewing persona becomes Custom.
+            if (readTvHomeMiniPlayerMode(it) != key) it.remove(Keys.HOME_PERSONA_TV)
+            it[Keys.TV_HOME_MINI_PLAYER_MODE] = key
+        }
     }
 
     val sportsScoreOverlay: Flow<Boolean> = context.dataStore.data

@@ -188,6 +188,12 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
 
+        <!-- Customize Sidebar: the TV sidebar's order and which entries show (TvSidebar). -->
+        <activity
+            android:name=".ui.home.TvSidebarCustomizeActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
         <activity
             android:name=".ui.home.HomeCollectionActivity"
             android:exported="false"

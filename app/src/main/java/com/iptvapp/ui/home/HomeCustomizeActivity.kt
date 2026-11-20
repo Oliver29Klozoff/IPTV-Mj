@@ -24,10 +24,12 @@ import com.iptvapp.data.home.HomeLayoutStore
 import com.iptvapp.data.home.TopFavorites
 import com.iptvapp.data.home.TopFavoritesStore
 import com.iptvapp.data.home.TvHomeMiniMode
+import com.iptvapp.data.home.ViewingPersona
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityHomeCustomizeBinding
 import com.iptvapp.databinding.ItemHomeSectionEditBinding
+import com.iptvapp.databinding.ItemPersonaCardBinding
 import com.iptvapp.util.isLargeScreenDevice
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -94,10 +96,20 @@ class HomeCustomizeActivity : AppCompatActivity() {
             binding.btnCustomizeHomeTab.visibility = View.VISIBLE
             binding.btnCustomizeHomeTab.setOnClickListener {
                 val show = !layout.showHomeTab
+                // Customize Sidebar may have hidden Favorites, Guide and Live: Home is then the last way in.
+                val sidebar = com.iptvapp.data.home.TvSidebar.withHome(prefs.tvSidebarConfigNow(), true)
+                if (!show && !com.iptvapp.data.home.TvSidebar.canHide(sidebar, com.iptvapp.data.home.TvSidebar.Entry.HOME.id)) {
+                    Toast.makeText(this, "Keep at least one of Home, Favorites, Guide or Live in the sidebar. Show another in Customize Sidebar first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 change { HomeLayout.setShowHomeTab(it, show) }
                 if (!show) Toast.makeText(this, "Home is hidden from the sidebar. Customize Home is in Settings → Display.", Toast.LENGTH_LONG).show()
             }
+            // The rest of the sidebar: its order and which entries show.
+            binding.btnCustomizeSidebar.visibility = View.VISIBLE
+            binding.btnCustomizeSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
         }
+        buildPersonaCards()
         binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"
     }
@@ -113,6 +125,8 @@ class HomeCustomizeActivity : AppCompatActivity() {
             topFavorites = TopFavoritesStore.load(prefs)
             layout = HomeLayoutStore.load(prefs, tv)
             render(focus = null)
+            // Customize Sidebar (opened from here) may have made the settings Custom.
+            refreshPersona()
             refreshTopDetail()
             // A container (the button bar) can take first focus on TV; start on DONE instead.
             if (currentFocus?.isClickable != true) binding.btnCustomizeDone.requestFocus()
@@ -126,6 +140,86 @@ class HomeCustomizeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             layout = HomeLayoutStore.update(prefs, tv, change)
             render(if (focusId != null) focusId to focusButton else null)
+            // A change by hand makes the settings Custom (PreferencesManager.setHomeLayoutJson).
+            refreshPersona()
+        }
+    }
+
+    // ── Viewing style ───────────────────────────────────────────────────
+
+    private var persona = ViewingPersona.CUSTOM
+    private val personaCards = LinkedHashMap<ViewingPersona, ItemPersonaCardBinding>()
+
+    /** One card per viewing style, left to right; Down goes to the buttons, Up from them to the style in use. */
+    private fun buildPersonaCards() {
+        val parent = binding.personaCards
+        persona = prefs.viewingPersonaNow(tv)
+        // A short phone held sideways: titles only, so the rows keep room.
+        val short = resources.configuration.screenHeightDp < 480
+        for (p in ViewingPersona.entries) {
+            val card = ItemPersonaCardBinding.inflate(layoutInflater, parent, false)
+            card.root.id = View.generateViewId()
+            card.tvPersonaBadge.text = p.badge
+            card.tvPersonaTitle.setText(p.titleRes)
+            card.tvPersonaDesc.text = getString(if (tv) p.tvDescRes else p.phoneDescRes)
+            if (short) card.tvPersonaDesc.visibility = View.GONE
+            card.root.nextFocusDownId = R.id.btnCustomizeDone
+            card.root.setOnClickListener { pickPersona(p) }
+            parent.addView(card.root)
+            personaCards[p] = card
+        }
+        renderPersona()
+    }
+
+    private suspend fun refreshPersona() {
+        persona = prefs.viewingPersona(tv).first()
+        renderPersona()
+    }
+
+    private fun renderPersona() {
+        for ((p, card) in personaCards) {
+            val active = p == persona
+            card.root.isActivated = active
+            card.tvPersonaActive.visibility = if (active) View.VISIBLE else View.GONE
+            card.root.contentDescription = getString(
+                if (active) R.string.persona_card_description_active else R.string.persona_card_description,
+                getString(p.titleRes), card.tvPersonaDesc.text,
+            )
+        }
+        // Up from the button row lands on the style in use.
+        val up = personaCards[persona]?.root?.id ?: View.NO_ID
+        val bar = binding.btnCustomizeDone.parent as ViewGroup
+        for (i in 0 until bar.childCount) bar.getChildAt(i).nextFocusUpId = up
+    }
+
+    private fun pickPersona(p: ViewingPersona) {
+        if (p == persona) return
+        if (p == ViewingPersona.CUSTOM) {
+            applyPersona(p)
+            Toast.makeText(this, R.string.persona_custom_kept, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val name = getString(p.titleRes)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.persona_apply_title, name))
+            .setMessage(if (tv) R.string.persona_apply_message_tv else R.string.persona_apply_message_phone)
+            .setPositiveButton(R.string.persona_apply) { _, _ ->
+                applyPersona(p)
+                Toast.makeText(this, getString(R.string.persona_applied, name), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
+    }
+
+    /** Saves the persona in one write, then redraws everything it may have changed. */
+    private fun applyPersona(p: ViewingPersona) {
+        lifecycleScope.launch {
+            layout = HomeLayoutStore.applyPersona(prefs, tv, p)
+            render(focus = null)
+            if (tv) showMiniPlayerMode(TvHomeMiniMode.of(prefs.tvHomeMiniPlayerMode.first()))
+            refreshPersona()
+            personaCards[persona]?.root?.requestFocus()
         }
     }
 
@@ -399,7 +493,10 @@ class HomeCustomizeActivity : AppCompatActivity() {
                 d.dismiss()
                 val mode = options[which]
                 showMiniPlayerMode(mode)
-                lifecycleScope.launch { prefs.setTvHomeMiniPlayerMode(mode.key) }
+                lifecycleScope.launch {
+                    prefs.setTvHomeMiniPlayerMode(mode.key)
+                    refreshPersona()
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

@@ -11,4 +11,26 @@
     <string name="quick_peek_loading">Loading…</string>
     <string name="quick_peek_pick_list">Lists</string>
     <string name="quick_peek_list_description">%1$s, %2$d channels. Left and right change the list.</string>
+    <!-- Viewing personas: Customize Home's one-press presets (ViewingPersona, PersonaPresets) -->
+    <string name="persona_heading">VIEWING STYLE</string>
+    <string name="persona_classic_cable_title">Classic Cable Box</string>
+    <string name="persona_classic_cable_desc_tv">Opens on your last channel full screen. Live and Guide lead the sidebar.</string>
+    <string name="persona_classic_cable_desc_phone">Opens on Live TV. Home leads with what\'s on now and your channels.</string>
+    <string name="persona_cinema_hub_title">Cinema Hub</string>
+    <string name="persona_cinema_hub_desc_tv">Opens on Home with movie and series rows, no mini player.</string>
+    <string name="persona_cinema_hub_desc_phone">Opens on Home with movie and series rows first.</string>
+    <string name="persona_sports_bar_title">Sports Bar</string>
+    <string name="persona_sports_bar_desc_tv">Large mini player, live rows first, Sports near the top.</string>
+    <string name="persona_sports_bar_desc_phone">Live rows first: on now, starting soon, your channels.</string>
+    <string name="persona_custom_title">Custom</string>
+    <string name="persona_custom_desc">Your own settings, as you set them below.</string>
+    <string name="persona_active">✓ IN USE</string>
+    <string name="persona_card_description">%1$s viewing style. %2$s</string>
+    <string name="persona_card_description_active">%1$s viewing style, in use. %2$s</string>
+    <string name="persona_apply_title">Apply %1$s?</string>
+    <string name="persona_apply_message_tv">This sets your start screen, the sidebar\'s order, the Home tab and the mini player, and reorders Home\'s rows to suit it. Rows you made, favorites and recordings are not touched.</string>
+    <string name="persona_apply_message_phone">This sets your start screen and reorders Home\'s rows to suit it. Rows you made, favorites and recordings are not touched.</string>
+    <string name="persona_apply">Apply Preset</string>
+    <string name="persona_applied">Applied %1$s</string>
+    <string name="persona_custom_kept">Your settings stay as they are. Change anything below.</string>
 </resources>

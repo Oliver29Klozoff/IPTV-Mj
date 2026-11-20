@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.util.focusFirstItemWhenLaidOut
 import com.iptvapp.databinding.ActivityTvHomeBinding
+import com.iptvapp.data.home.TvSidebar.Entry as SidebarEntry
 import com.iptvapp.ui.player.PlayerActivity
 import com.iptvapp.ui.recordings.TvRecordingActivity
 import com.iptvapp.ui.series.SeriesDetailActivity
@@ -555,6 +556,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // (no Home flashing first). Only an ordinary fresh launch: a recreation, a reminder or a
         // home-screen card opens on Home (or Favorites, with Home's tab hidden).
         val tvLayout = com.iptvapp.data.home.HomeLayout.parse(prefs.homeLayoutJsonNow(tv = true))
+        // Customize Sidebar's order and hidden entries, also before the first frame.
+        sidebarItems = prefs.tvSidebarConfigNow()
         applyHomeTab(tvLayout.showHomeTab)
         val freshLaunch = savedInstanceState == null && intent?.action == Intent.ACTION_MAIN && tune == null && launcherCard == null
         openStartScreen(if (freshLaunch) tvLayout.opensOn else com.iptvapp.data.home.HomeLayout.StartScreen.HOME)
@@ -982,7 +985,13 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         // Back from Customize Home (from Home's rows or Settings): the Home tab may have been switched.
         val showTab = com.iptvapp.data.home.HomeLayout.parse(prefs.homeLayoutJsonNow(tv = true)).showHomeTab
-        if (showTab != homeTabShown) applyHomeTab(showTab)
+        // Back from Customize Sidebar: the sidebar's order or hidden entries may have changed.
+        val sidebar = prefs.tvSidebarConfigNow()
+        if (showTab != homeTabShown || sidebar != sidebarItems) {
+            sidebarItems = sidebar
+            applyHomeTab(showTab)
+            leaveHiddenSection()
+        }
         // Back from watching something: Continue Watching and Recently Watched have moved on.
         if (homeShowing) refreshHome()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
@@ -2207,14 +2216,112 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     // Customize Home → HOME TAB. Hidden, Home is out of the sidebar and Favorites stands in for it.
     private var homeTabShown = true
 
-    /** Shows or hides the sidebar's Home; hiding it while Home is up moves to Favorites. */
+    /**
+     * Shows or hides the sidebar's Home (and lays the rest of the sidebar out again); hiding it
+     * while Home is up moves to Favorites, or the first section still in the sidebar.
+     */
     private fun applyHomeTab(show: Boolean) {
         homeTabShown = show
-        binding.btnTvHome.visibility = if (show) View.VISIBLE else View.GONE
+        applySidebar()
         if (!show && homeShowing) {
             refocusCustomize = false
-            binding.btnTvFavorites.performClick()
+            openStandIn(binding.btnTvFavorites)
         }
+    }
+
+    // ── Customize Sidebar ───────────────────────────────────────────────────
+    // The order and hidden entries saved by Customize Sidebar. Home's Shown/Hidden is homeTabShown.
+    private var sidebarItems: List<com.iptvapp.data.home.TvSidebar.SidebarItem> = com.iptvapp.data.home.TvSidebar.default()
+    // Settings → Display switches, which hide an entry whatever Customize Sidebar says.
+    private var sidebarMoviesOn = true
+    private var sidebarSeriesOn = true
+    private var sidebarProvidersOn = true
+
+    private val sidebarButtonsById: Map<String, View> get() {
+        return mapOf(
+            SidebarEntry.HOME.id to binding.btnTvHome,
+            SidebarEntry.FAVORITES.id to binding.btnTvFavorites,
+            SidebarEntry.PROVIDERS.id to binding.btnTvProviders,
+            SidebarEntry.LIVE.id to binding.btnTvLive,
+            SidebarEntry.CATEGORIES.id to binding.btnTvCategories,
+            SidebarEntry.MOVIES.id to binding.btnTvMovies,
+            SidebarEntry.SERIES.id to binding.btnTvSeries,
+            SidebarEntry.GUIDE.id to binding.btnTvGuide,
+            SidebarEntry.SPORTS.id to binding.btnTvSports,
+            SidebarEntry.SEARCH.id to binding.btnTvSearch,
+            SidebarEntry.VOICE.id to binding.btnTvVoice,
+            SidebarEntry.RECORDINGS.id to binding.btnTvRecordings,
+        )
+    }
+
+    /** Puts the sidebar in the saved order, showing only entries that are shown and available. */
+    private fun applySidebar() {
+        TvSidebarLayout.apply(
+            binding.tvSidebarButtons,
+            sidebarButtonsById,
+            com.iptvapp.data.home.TvSidebar.withHome(sidebarItems, homeTabShown),
+        ) { id ->
+            when (id) {
+                SidebarEntry.MOVIES.id -> sidebarMoviesOn
+                SidebarEntry.SERIES.id -> sidebarSeriesOn
+                SidebarEntry.PROVIDERS.id -> sidebarProvidersOn
+                else -> true
+            }
+        }
+    }
+
+    /**
+     * [preferred] while it is in the sidebar; else the first section (Favorites, Live, Categories,
+     * Providers, Movies or Series) the sidebar still shows, in its order; else Home. With none, [preferred]:
+     * its screen still opens, and Back focuses the nearest shown entry.
+     */
+    private fun standInButton(preferred: View): View {
+        if (preferred.visibility == View.VISIBLE) return preferred
+        // Not Guide: it opens the guide grid on top rather than a section here.
+        val sections = sectionButtons.toSet() - binding.btnTvGuide
+        return TvSidebarLayout.shown(binding.tvSidebarButtons).firstOrNull { it in sections }
+            // No section left but Home: Home (its click is showHome, which only comes here with Home hidden).
+            ?: binding.btnTvHome.takeIf { homeTabShown && it.visibility == View.VISIBLE }
+            ?: preferred
+    }
+
+    /**
+     * Back from Customize Sidebar with the open section's entry hidden: open the first section
+     * still in the sidebar instead, as switching Movies off in Settings does. With only the
+     * sidebar showing, nothing opens; focus has already moved to the nearest entry.
+     */
+    private fun leaveHiddenSection() {
+        if (homeShowing) return
+        val active = activeSidebarButton()
+        if (active.visibility == View.VISIBLE) return
+        val sectionOpen = navState != NavState.SIDEBAR ||
+            binding.tvMoviesFullScreen.visibility == View.VISIBLE ||
+            binding.tvSeriesFullScreen.visibility == View.VISIBLE
+        if (!sectionOpen) return
+        openStandIn(active)
+    }
+
+    /**
+     * Opens [standInButton]'s pick. When even that is hidden (only Guide and the like are left in
+     * the sidebar) nothing hidden is opened: the bare sidebar shows, focused on its nearest entry.
+     */
+    private fun openStandIn(preferred: View) {
+        val pick = standInButton(preferred)
+        // Movies and Series are overlays: close one first, or it stays over the section picked here.
+        val closedOverlay = when {
+            binding.tvMoviesFullScreen.visibility == View.VISIBLE -> { hideMoviesFullScreen(); true }
+            binding.tvSeriesFullScreen.visibility == View.VISIBLE -> { hideSeriesFullScreen(); true }
+            else -> false
+        }
+        if (pick.visibility == View.VISIBLE) { pick.performClick(); return }
+        hideHome()
+        if (!closedOverlay) showBareSidebar()
+    }
+
+    /** Focuses [button], or the nearest shown sidebar entry when Customize Sidebar hid it. */
+    private fun focusSidebarButton(button: View) {
+        val target = TvSidebarLayout.nearestShown(binding.tvSidebarButtons, button) ?: binding.btnTvSettings
+        target.requestFocus()
     }
 
     /**
@@ -2224,13 +2331,15 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun openStartScreen(start: com.iptvapp.data.home.HomeLayout.StartScreen) {
         when (start) {
             com.iptvapp.data.home.HomeLayout.StartScreen.HOME -> showHome()
-            com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> binding.btnTvFavorites.performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> binding.btnTvLive.performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> binding.btnTvMovies.performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> binding.btnTvSeries.performClick()
+            // A start whose entry Customize Sidebar hid opens the first section still shown.
+            com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> openStandIn(binding.btnTvFavorites)
+            com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> openStandIn(binding.btnTvLive)
+            com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> openStandIn(binding.btnTvMovies)
+            com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> openStandIn(binding.btnTvSeries)
             com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> {
                 showHome()
-                binding.btnTvGuide.performClick()
+                // Guide hidden in Customize Sidebar: Home (or what stands in for it) is the start.
+                if (binding.btnTvGuide.visibility == View.VISIBLE) binding.btnTvGuide.performClick()
             }
             com.iptvapp.data.home.HomeLayout.StartScreen.FULLSCREEN_LIVE -> {
                 showHome()
@@ -2266,14 +2375,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.tvMiniPlayerContainer.performClick()
         } else {
             endStartCover()
-            binding.btnTvLive.performClick()
+            openStandIn(binding.btnTvLive)
         }
     }
 
     private fun showHome() {
-        // Home's tab is hidden: Favorites stands in for it.
+        // Home's tab is hidden: Favorites (or the first section still in the sidebar) stands in for it.
         if (!homeTabShown) {
-            binding.btnTvFavorites.performClick()
+            openStandIn(binding.btnTvFavorites)
             return
         }
         showBareSidebar()
@@ -2451,8 +2560,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // through the 10s sidebar auto-collapse (this function), only disappearing once the mini
         // player goes fullscreen on idle (see observeViewModel's whatsOnNow collector, gated on
         // miniPlayerExpanded now instead of navState/currentSection).
-        // Home has no section open: its own button.
-        (if (homeShowing) binding.btnTvHome else activeSidebarButton()).requestFocus()
+        // Home has no section open: its own button. A section Customize Sidebar hid: the nearest entry.
+        focusSidebarButton(if (homeShowing) binding.btnTvHome else activeSidebarButton())
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()
     }
@@ -2475,7 +2584,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvChanPanel.visibility = View.GONE
         binding.tvGuidePanel.visibility = View.GONE
         sectionButtons.forEach { paintSectionLabel(it, false); it.isSelected = false }
-        binding.btnTvFavorites.requestFocus()
+        focusSidebarButton(binding.btnTvFavorites)
         resetMiniPreviewToNowPlaying()
         resetIdleExpandTimer()
     }
@@ -2620,23 +2729,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun moveSidebarFocus(up: Boolean) {
-        // Order must match the visual top-to-bottom order in activity_tv_home.xml —
-        // Providers sits directly under Favorites now.
-        val buttons = listOf(
-            binding.btnTvHome,
-            binding.btnTvFavorites,
-            binding.btnTvProviders,
-            binding.btnTvLive,
-            binding.btnTvCategories,
-            binding.btnTvMovies,
-            binding.btnTvSeries,
-            binding.btnTvGuide,
-            binding.btnTvSports,
-            binding.btnTvSearch,
-            binding.btnTvVoice,
-            binding.btnTvRecordings,
-            binding.btnTvSettings
-        ).filter { it.visibility == View.VISIBLE }
+        // The sidebar's shown entries as they are laid out now (Customize Sidebar's order), then
+        // Settings, pinned under them. Up from the top and Down from Settings stay put.
+        val buttons = TvSidebarLayout.shown(binding.tvSidebarButtons) +
+            listOf(binding.btnTvSettings).filter { it.visibility == View.VISIBLE }
         val idx = buttons.indexOfFirst { it == currentFocus }
         if (idx < 0) { buttons.firstOrNull()?.requestFocus(); return }
         buttons.getOrNull(if (up) idx - 1 else idx + 1)?.requestFocus()
@@ -4725,23 +4821,28 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun observeSidebarVisibility() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // Each switch also has to agree with Customize Sidebar (applySidebar). An open
+                // section switched off moves to Live, or the first section still in the sidebar.
                 launch {
                     viewModel.showMovies.collect { show ->
-                        binding.btnTvMovies.visibility = if (show) View.VISIBLE else View.GONE
-                        if (!show && currentSection == Section.MOVIES) selectSection(Section.LIVE)
+                        sidebarMoviesOn = show
+                        applySidebar()
+                        if (!show && currentSection == Section.MOVIES) openStandIn(binding.btnTvLive)
                     }
                 }
                 launch {
                     viewModel.showSeries.collect { show ->
-                        binding.btnTvSeries.visibility = if (show) View.VISIBLE else View.GONE
-                        if (!show && currentSection == Section.SERIES) selectSection(Section.LIVE)
+                        sidebarSeriesOn = show
+                        applySidebar()
+                        if (!show && currentSection == Section.SERIES) openStandIn(binding.btnTvLive)
                     }
                 }
                 launch {
                     // Settings, off by default: the merged Providers screen is for more than one provider.
                     viewModel.showProviders.collect { show ->
-                        binding.btnTvProviders.visibility = if (show) View.VISIBLE else View.GONE
-                        if (!show && currentSection == Section.PROVIDERS) selectSection(Section.LIVE)
+                        sidebarProvidersOn = show
+                        applySidebar()
+                        if (!show && currentSection == Section.PROVIDERS) openStandIn(binding.btnTvLive)
                     }
                 }
             }
