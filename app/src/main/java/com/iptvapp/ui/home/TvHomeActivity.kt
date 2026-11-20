@@ -2225,7 +2225,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         applySidebar()
         if (!show && homeShowing) {
             refocusCustomize = false
-            standInButton(binding.btnTvFavorites).performClick()
+            openStandIn(binding.btnTvFavorites)
         }
     }
 
@@ -2298,8 +2298,22 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.tvMoviesFullScreen.visibility == View.VISIBLE ||
             binding.tvSeriesFullScreen.visibility == View.VISIBLE
         if (!sectionOpen) return
-        val next = standInButton(active)
-        if (next !== active) next.performClick()
+        openStandIn(active)
+    }
+
+    /**
+     * Opens [standInButton]'s pick. When even that is hidden (only Guide and the like are left in
+     * the sidebar) nothing hidden is opened: the bare sidebar shows, focused on its nearest entry.
+     */
+    private fun openStandIn(preferred: View) {
+        val pick = standInButton(preferred)
+        if (pick.visibility == View.VISIBLE) { pick.performClick(); return }
+        hideHome()
+        when {
+            binding.tvMoviesFullScreen.visibility == View.VISIBLE -> hideMoviesFullScreen()
+            binding.tvSeriesFullScreen.visibility == View.VISIBLE -> hideSeriesFullScreen()
+            else -> showBareSidebar()
+        }
     }
 
     /** Focuses [button], or the nearest shown sidebar entry when Customize Sidebar hid it. */
@@ -2316,10 +2330,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         when (start) {
             com.iptvapp.data.home.HomeLayout.StartScreen.HOME -> showHome()
             // A start whose entry Customize Sidebar hid opens the first section still shown.
-            com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> standInButton(binding.btnTvFavorites).performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> standInButton(binding.btnTvLive).performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> standInButton(binding.btnTvMovies).performClick()
-            com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> standInButton(binding.btnTvSeries).performClick()
+            com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> openStandIn(binding.btnTvFavorites)
+            com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> openStandIn(binding.btnTvLive)
+            com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> openStandIn(binding.btnTvMovies)
+            com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> openStandIn(binding.btnTvSeries)
             com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> {
                 showHome()
                 binding.btnTvGuide.performClick()
@@ -2358,14 +2372,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.tvMiniPlayerContainer.performClick()
         } else {
             endStartCover()
-            standInButton(binding.btnTvLive).performClick()
+            openStandIn(binding.btnTvLive)
         }
     }
 
     private fun showHome() {
         // Home's tab is hidden: Favorites (or the first section still in the sidebar) stands in for it.
         if (!homeTabShown) {
-            standInButton(binding.btnTvFavorites).performClick()
+            openStandIn(binding.btnTvFavorites)
             return
         }
         showBareSidebar()
@@ -4810,14 +4824,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     viewModel.showMovies.collect { show ->
                         sidebarMoviesOn = show
                         applySidebar()
-                        if (!show && currentSection == Section.MOVIES) standInButton(binding.btnTvLive).performClick()
+                        if (!show && currentSection == Section.MOVIES) openStandIn(binding.btnTvLive)
                     }
                 }
                 launch {
                     viewModel.showSeries.collect { show ->
                         sidebarSeriesOn = show
                         applySidebar()
-                        if (!show && currentSection == Section.SERIES) standInButton(binding.btnTvLive).performClick()
+                        if (!show && currentSection == Section.SERIES) openStandIn(binding.btnTvLive)
                     }
                 }
                 launch {
@@ -4825,7 +4839,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     viewModel.showProviders.collect { show ->
                         sidebarProvidersOn = show
                         applySidebar()
-                        if (!show && currentSection == Section.PROVIDERS) standInButton(binding.btnTvLive).performClick()
+                        if (!show && currentSection == Section.PROVIDERS) openStandIn(binding.btnTvLive)
                     }
                 }
             }
