@@ -145,16 +145,14 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
             .setTitle("Reset the sidebar?")
             .setMessage("Every entry goes back to MKTV's order and is shown again, Home included. Movies, Series and Providers still follow their switches in Settings.")
             .setPositiveButton("Reset") { _, _ ->
+                // Shown at once, so any change made next starts from the reset list; the writes
+                // queue behind earlier ones and ahead of later ones.
+                items = TvSidebar.default()
+                adapter.submit(items)
+                binding.btnSidebarReset.requestFocus()
                 write {
                     prefs.setTvSidebarConfig(null)
                     HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, true) }
-                }
-                val reset = lastWrite
-                lifecycleScope.launch {
-                    reset?.join()
-                    items = load()
-                    adapter.submit(items)
-                    binding.btnSidebarReset.requestFocus()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
