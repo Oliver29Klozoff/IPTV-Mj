@@ -545,6 +545,8 @@ class PreferencesManager @Inject constructor(
     fun homeLayoutJson(tv: Boolean): Flow<String?> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] }
+    /** [homeLayoutJson] now, for a screen choosing what to show before its first frame. */
+    fun homeLayoutJsonNow(tv: Boolean): String? = PrefsSnapshot.read(context) { it[if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE] }
     suspend fun setHomeLayoutJson(tv: Boolean, json: String?) = context.dataStore.edit {
         val key = if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE
         if (json == null) it.remove(key) else it[key] = json

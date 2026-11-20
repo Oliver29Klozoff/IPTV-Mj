@@ -1981,6 +1981,29 @@
                                 android:layout_height="wrap_content"
                                 android:checked="false" />
                         </LinearLayout>
+                        <!-- Also reachable from Home's last row; here for a TV with Home hidden. -->
+                        <LinearLayout
+                            android:id="@+id/rowCustomizeHome"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Customize Home" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Home's rows, what MKTV opens on, and the Home tab" />
+                            </LinearLayout>
+                        </LinearLayout>
                         <LinearLayout
                             android:id="@+id/rowAutoClearContinueWatching"
                             style="@style/Rack.Row.Tappable"

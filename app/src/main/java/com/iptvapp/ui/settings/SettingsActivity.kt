@@ -300,6 +300,9 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Show Series Tab", 1, null, R.id.cbShowSeries),
             SettingSearchEntry("Show Watching Tab", 1, null, R.id.cbShowWatching),
             SettingSearchEntry("Show Providers Tab", 1, null, R.id.cbShowProviders),
+            SettingSearchEntry("Customize Home", 1, null, R.id.rowCustomizeHome),
+            SettingSearchEntry("Start Screen", 1, null, R.id.rowCustomizeHome),
+            SettingSearchEntry("Hide Home Tab", 1, null, R.id.rowCustomizeHome),
             SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
             SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
             SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
@@ -717,6 +720,9 @@ class SettingsActivity : AppCompatActivity() {
             lifecycleScope.launch { prefs.setShowProviders(isChecked) }
         }
 
+        binding.rowCustomizeHome.setOnClickListener {
+            com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv = isLargeScreenDevice())
+        }
         binding.rowAutoClearContinueWatching.setOnClickListener { showAutoClearContinueWatchingDialog() }
 
         binding.btnRefreshMovies.setOnClickListener {

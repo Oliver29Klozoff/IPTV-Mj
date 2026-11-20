@@ -60,6 +60,12 @@
                 style="@style/HomeEditHeaderChip"
                 android:visibility="gone" />
 
+            <!-- TV only: shows or hides Home in the sidebar. -->
+            <TextView
+                android:id="@+id/btnCustomizeHomeTab"
+                style="@style/HomeEditHeaderChip"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/btnCustomizeReset"
                 style="@style/HomeEditHeaderChip"

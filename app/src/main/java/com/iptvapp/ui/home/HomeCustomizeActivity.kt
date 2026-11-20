@@ -90,6 +90,13 @@ class HomeCustomizeActivity : AppCompatActivity() {
             binding.btnCustomizeMiniPlayer.visibility = View.VISIBLE
             binding.btnCustomizeMiniPlayer.setOnClickListener { pickMiniPlayer() }
             showMiniPlayerMode(TvHomeMiniMode.of(prefs.tvHomeMiniPlayerModeNow()))
+            // The sidebar's Home: a press switches it. Hiding it moves a Home start to Favorites.
+            binding.btnCustomizeHomeTab.visibility = View.VISIBLE
+            binding.btnCustomizeHomeTab.setOnClickListener {
+                val show = !layout.showHomeTab
+                change { HomeLayout.setShowHomeTab(it, show) }
+                if (!show) Toast.makeText(this, "Home is hidden from the sidebar. Customize Home is in Settings → Display.", Toast.LENGTH_LONG).show()
+            }
         }
         binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"
@@ -124,8 +131,11 @@ class HomeCustomizeActivity : AppCompatActivity() {
 
     private fun render(focus: Pair<String, Int>?) {
         adapter.submit(layout.sections)
-        binding.btnCustomizeStart.text = "START ON: ${layout.start.label.uppercase()}"
-        binding.btnCustomizeStart.contentDescription = "Home opens on ${layout.start.label}. Change it"
+        binding.btnCustomizeStart.text = "START ON: ${layout.opensOn.label.uppercase()}"
+        binding.btnCustomizeStart.contentDescription = "MKTV opens on ${layout.opensOn.label}. Change it"
+        binding.btnCustomizeHomeTab.text = if (layout.showHomeTab) "HOME TAB: SHOWN" else "HOME TAB: HIDDEN"
+        binding.btnCustomizeHomeTab.contentDescription =
+            if (layout.showHomeTab) "Home is in the sidebar. Hide it" else "Home is hidden from the sidebar. Show it"
         if (focus == null) return
         val pos = layout.sections.indexOfFirst { it.id == focus.first }
         if (pos < 0) return
@@ -360,13 +370,13 @@ class HomeCustomizeActivity : AppCompatActivity() {
     }
 
     private fun pickStart() {
+        // TV: the last channel full screen and the guide grid too; Home only while its tab shows.
         val options = if (tv) {
-            listOf(HomeLayout.StartScreen.HOME, HomeLayout.StartScreen.FAVORITES, HomeLayout.StartScreen.LIVE,
-                HomeLayout.StartScreen.MOVIES, HomeLayout.StartScreen.SERIES)
-        } else HomeLayout.StartScreen.entries.toList()
+            HomeLayout.StartScreen.entries.filter { it != HomeLayout.StartScreen.HOME || layout.showHomeTab }
+        } else HomeLayout.StartScreen.entries.filter { it != HomeLayout.StartScreen.FULLSCREEN_LIVE }
         AlertDialog.Builder(this)
             .setTitle("Open MKTV on")
-            .setSingleChoiceItems(options.map { it.label }.toTypedArray(), options.indexOf(layout.start).coerceAtLeast(0)) { d, which ->
+            .setSingleChoiceItems(options.map { it.label }.toTypedArray(), options.indexOf(layout.opensOn)) { d, which ->
                 d.dismiss()
                 change { HomeLayout.setStart(it, options[which]) }
             }
