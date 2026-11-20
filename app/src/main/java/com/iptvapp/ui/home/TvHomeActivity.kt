@@ -2272,14 +2272,17 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     /**
      * [preferred] while it is in the sidebar; else the first section (Favorites, Live, Categories,
-     * Providers, Movies or Series) the sidebar still shows, in its order. With none, [preferred]:
+     * Providers, Movies or Series) the sidebar still shows, in its order; else Home. With none, [preferred]:
      * its screen still opens, and Back focuses the nearest shown entry.
      */
     private fun standInButton(preferred: View): View {
         if (preferred.visibility == View.VISIBLE) return preferred
         // Not Guide: it opens the guide grid on top rather than a section here.
         val sections = sectionButtons.toSet() - binding.btnTvGuide
-        return TvSidebarLayout.shown(binding.tvSidebarButtons).firstOrNull { it in sections } ?: preferred
+        return TvSidebarLayout.shown(binding.tvSidebarButtons).firstOrNull { it in sections }
+            // No section left but Home: Home (its click is showHome, which only comes here with Home hidden).
+            ?: binding.btnTvHome.takeIf { homeTabShown && it.visibility == View.VISIBLE }
+            ?: preferred
     }
 
     /**
