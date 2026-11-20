@@ -2277,7 +2277,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      */
     private fun standInButton(preferred: View): View {
         if (preferred.visibility == View.VISIBLE) return preferred
-        val sections = sectionButtons.toSet()
+        // Not Guide: it opens the guide grid on top rather than a section here.
+        val sections = sectionButtons.toSet() - binding.btnTvGuide
         return TvSidebarLayout.shown(binding.tvSidebarButtons).firstOrNull { it in sections } ?: preferred
     }
 
