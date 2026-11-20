@@ -990,6 +990,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (showTab != homeTabShown || sidebar != sidebarItems) {
             sidebarItems = sidebar
             applyHomeTab(showTab)
+            leaveHiddenSection()
         }
         // Back from watching something: Continue Watching and Recently Watched have moved on.
         if (homeShowing) refreshHome()
@@ -2278,6 +2279,23 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (preferred.visibility == View.VISIBLE) return preferred
         val sections = sectionButtons.toSet()
         return TvSidebarLayout.shown(binding.tvSidebarButtons).firstOrNull { it in sections } ?: preferred
+    }
+
+    /**
+     * Back from Customize Sidebar with the open section's entry hidden: open the first section
+     * still in the sidebar instead, as switching Movies off in Settings does. With only the
+     * sidebar showing, nothing opens; focus has already moved to the nearest entry.
+     */
+    private fun leaveHiddenSection() {
+        if (homeShowing) return
+        val active = activeSidebarButton()
+        if (active.visibility == View.VISIBLE) return
+        val sectionOpen = navState != NavState.SIDEBAR ||
+            binding.tvMoviesFullScreen.visibility == View.VISIBLE ||
+            binding.tvSeriesFullScreen.visibility == View.VISIBLE
+        if (!sectionOpen) return
+        val next = standInButton(active)
+        if (next !== active) next.performClick()
     }
 
     /** Focuses [button], or the nearest shown sidebar entry when Customize Sidebar hid it. */

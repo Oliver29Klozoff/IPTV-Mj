@@ -26,7 +26,9 @@ import com.iptvapp.databinding.ActivityTvSidebarCustomizeBinding
 import com.iptvapp.databinding.ItemTvSidebarEditBinding
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -86,11 +88,12 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
 
     // ── Changes ─────────────────────────────────────────────────────────
 
+    // Writes run NonCancellable: Done or Back right after a change must not drop it.
     /** Saves [next] and redraws, keeping focus on [focusButton] of entry [focusId] (it may have moved). */
     private fun save(next: List<SidebarItem>, focusId: String? = null, focusButton: Int = 0) {
         items = next
         adapter.submit(next)
-        lifecycleScope.launch { prefs.setTvSidebarConfig(next) }
+        lifecycleScope.launch(NonCancellable) { prefs.setTvSidebarConfig(next) }
         if (focusId != null) refocus(focusId, focusButton)
     }
 
@@ -111,7 +114,7 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
         val next = TvSidebar.setVisible(items, item.id, show)
         if (item.id == TvSidebar.Entry.HOME.id) {
             // Home's switch is Customize Home's HOME TAB: hiding it also moves a Home start to Favorites.
-            lifecycleScope.launch { HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, show) } }
+            lifecycleScope.launch(NonCancellable) { HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, show) } }
         }
         save(next, item.id, R.id.btnSidebarVisible)
     }
@@ -122,8 +125,10 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
             .setMessage("Every entry goes back to MKTV's order and is shown again, Home included. Movies, Series and Providers still follow their switches in Settings.")
             .setPositiveButton("Reset") { _, _ ->
                 lifecycleScope.launch {
-                    prefs.setTvSidebarConfig(null)
-                    HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, true) }
+                    withContext(NonCancellable) {
+                        prefs.setTvSidebarConfig(null)
+                        HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, true) }
+                    }
                     items = load()
                     adapter.submit(items)
                     binding.btnSidebarReset.requestFocus()
