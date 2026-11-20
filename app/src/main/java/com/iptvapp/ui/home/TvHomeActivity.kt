@@ -2307,13 +2307,15 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      */
     private fun openStandIn(preferred: View) {
         val pick = standInButton(preferred)
+        // Movies and Series are overlays: close one first, or it stays over the section picked here.
+        val closedOverlay = when {
+            binding.tvMoviesFullScreen.visibility == View.VISIBLE -> { hideMoviesFullScreen(); true }
+            binding.tvSeriesFullScreen.visibility == View.VISIBLE -> { hideSeriesFullScreen(); true }
+            else -> false
+        }
         if (pick.visibility == View.VISIBLE) { pick.performClick(); return }
         hideHome()
-        when {
-            binding.tvMoviesFullScreen.visibility == View.VISIBLE -> hideMoviesFullScreen()
-            binding.tvSeriesFullScreen.visibility == View.VISIBLE -> hideSeriesFullScreen()
-            else -> showBareSidebar()
-        }
+        if (!closedOverlay) showBareSidebar()
     }
 
     /** Focuses [button], or the nearest shown sidebar entry when Customize Sidebar hid it. */
