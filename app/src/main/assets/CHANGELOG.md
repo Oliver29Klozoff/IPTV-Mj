@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v7.92 - 2026-11-20
+- **New**: Customize Sidebar (TV). Reorder the TV sidebar and hide entries you don't use, from
+  Customize Home → SIDEBAR… or Settings → Display → Customize Sidebar Sections. Settings stays at
+  the bottom, and one of Home, Favorites, Guide or Live always stays shown.
+- **New**: Viewing styles in Customize Home. One press sets the start screen, Home's rows and, on a
+  TV, the sidebar and mini player: Classic Cable Box, Cinema Hub or Sports Bar. Changing anything
+  by hand afterwards switches to Custom. Rows you made and your favorites are never touched.
+
 ## v7.91 - 2026-11-20
 - **New**: TV start screen. Customize Home → START ON can now open MKTV straight into the TV Guide,
   or the last channel full screen (Live TV if nothing was watched yet).

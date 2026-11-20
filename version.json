@@ -1,7 +1,7 @@
 {
-  "versionCode": 629,
-  "versionName": "7.91",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.91/MKTV.apk",
-  "apkSha256": "70031b8064df8046303f7c165285b15150a0b29f03e790c0e330db63cfa31756",
-  "changelog": "TV: open straight into the Guide or your last channel full screen, and hide the Home tab if you like."
+  "versionCode": 630,
+  "versionName": "7.92",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.92/MKTV.apk",
+  "apkSha256": "6c8189a6be4260a312982df365642c3b05fdd8835c1e545d085bd5e6b9d8ce89",
+  "changelog": "TV: reorder and hide sidebar entries, and pick a viewing style (Classic Cable, Cinema Hub, Sports Bar) in Customize Home."
 }
