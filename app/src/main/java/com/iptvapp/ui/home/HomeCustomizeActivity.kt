@@ -23,6 +23,7 @@ import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeLayoutStore
 import com.iptvapp.data.home.TopFavorites
 import com.iptvapp.data.home.TopFavoritesStore
+import com.iptvapp.data.home.TvHomeMiniMode
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.repository.XtreamRepository
 import com.iptvapp.databinding.ActivityHomeCustomizeBinding
@@ -85,6 +86,11 @@ class HomeCustomizeActivity : AppCompatActivity() {
         binding.btnCustomizeAdd.setOnClickListener { addRow() }
         binding.btnCustomizeStart.setOnClickListener { pickStart() }
         binding.btnCustomizeReset.setOnClickListener { confirmReset() }
+        if (tv) {
+            binding.btnCustomizeMiniPlayer.visibility = View.VISIBLE
+            binding.btnCustomizeMiniPlayer.setOnClickListener { pickMiniPlayer() }
+            showMiniPlayerMode(TvHomeMiniMode.of(prefs.tvHomeMiniPlayerModeNow()))
+        }
         binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"
     }
@@ -363,6 +369,27 @@ class HomeCustomizeActivity : AppCompatActivity() {
             .setSingleChoiceItems(options.map { it.label }.toTypedArray(), options.indexOf(layout.start).coerceAtLeast(0)) { d, which ->
                 d.dismiss()
                 change { HomeLayout.setStart(it, options[which]) }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showMiniPlayerMode(mode: TvHomeMiniMode) {
+        binding.btnCustomizeMiniPlayer.text = "PLAYER: ${mode.name}"
+        binding.btnCustomizeMiniPlayer.contentDescription = "Home Mini Player Display: ${mode.label}. Change it"
+    }
+
+    /** TV Home's mini player: Hero, Compact or Off. Saved at once; Home applies it when it shows again. */
+    private fun pickMiniPlayer() {
+        val options = TvHomeMiniMode.entries
+        val current = TvHomeMiniMode.of(prefs.tvHomeMiniPlayerModeNow())
+        AlertDialog.Builder(this)
+            .setTitle("Home Mini Player Display")
+            .setSingleChoiceItems(options.map { it.label }.toTypedArray(), options.indexOf(current)) { d, which ->
+                d.dismiss()
+                val mode = options[which]
+                showMiniPlayerMode(mode)
+                lifecycleScope.launch { prefs.setTvHomeMiniPlayerMode(mode.key) }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

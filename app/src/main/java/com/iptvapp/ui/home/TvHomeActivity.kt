@@ -305,11 +305,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 currentMiniIsVod = false
                 binding.tvTvChannelName.text = title
                 com.iptvapp.remote.RemoteControlServer.nowPlaying = title
-                miniPlayer?.let {
-                    it.setMediaItem(MediaItem.fromUri(url))
-                    it.prepare()
-                    it.playWhenReady = true
-                }
+                startMini(url)
                 lifecycleScope.launch { refreshMiniEpg(sid) }
                 startEpgRefreshLoop(sid)
             }
@@ -645,10 +641,16 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         if (session.serverIndex != -1) {
                             val channel = viewModel.getMergedChannelByIndexAndId(session.serverIndex, session.streamId)
                             // Play it and leave Home up. Providers still opens from the sidebar.
-                            if (channel != null) playMergedChannel(channel)
+                            if (channel != null) {
+                                playMergedChannel(channel)
+                                openHiddenMiniFullScreen { currentMiniServerIndex == channel.serverIndex && currentMiniMergedStreamId == channel.streamId }
+                            }
                         } else {
                             val channel = viewModel.getChannelById(session.streamId)
-                            if (channel != null) playInMiniPlayer(channel)
+                            if (channel != null) {
+                                playInMiniPlayer(channel)
+                                openHiddenMiniFullScreen()
+                            }
                         }
                     }
                 }
@@ -807,6 +809,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.tvMainContent.visibility = View.VISIBLE
         }
         showSidebar()
+        // Home with the player off only loaded it: the reminded channel opens full screen.
+        if (miniHiddenOnHome()) binding.tvMiniPlayerContainer.performClick()
         return true
     }
 
@@ -1014,6 +1018,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 val recent = viewModel.getRecentChannel()
                 if (recent != null) playInMiniPlayer(recent)
             }
+        } else if (miniHiddenOnHome()) {
+            // Home has the player off: the channel stays loaded but stopped until it's back.
+            miniHeldForHome = true
         } else if (!currentMiniIsVod && currentMiniUrl.isNotEmpty()) {
             // Re-prepare so ExoPlayer re-fetches the manifest and starts at the real live
             // edge, instead of resuming from whatever position was buffered before pausing.
@@ -1107,11 +1114,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     miniPlayJob?.cancel()
                     miniPlayJob = lifecycleScope.launch {
                         delay(3000L)
-                        miniPlayer?.let {
-                            it.setMediaItem(MediaItem.fromUri(currentMiniUrl))
-                            it.prepare()
-                            it.playWhenReady = true
-                        }
+                        startMini(currentMiniUrl)
                     }
                 }
             })
@@ -1175,11 +1178,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             currentMiniIsVod = false
             binding.tvTvChannelName.text = currentMiniTitle
             com.iptvapp.remote.RemoteControlServer.nowPlaying = currentMiniTitle
-            miniPlayer?.let {
-                it.setMediaItem(MediaItem.fromUri(url))
-                it.prepare()
-                it.playWhenReady = true
-            }
+            startMini(url)
             // Beside the job, not in it: whoever waits for the channel (reminder and phone tunes)
             // shouldn't also wait on a guide request.
             val id = channel.streamId
@@ -1665,11 +1664,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     currentMiniServerIndex = -1
                     currentMiniIsVod = true
                     binding.tvTvChannelName.text = vod.name
-                    miniPlayer?.let {
-                        it.setMediaItem(MediaItem.fromUri(url))
-                        it.prepare()
-                        it.playWhenReady = true
-                    }
+                    startMini(url)
                 }
             },
             onFavoriteClick = {},
@@ -1887,13 +1882,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (miniPlayerExpanded) {
             collapseMiniPlayerFromFullScreen()
         }
-        if (navState == NavState.SIDEBAR) {
+        // Home with the player off has no picture to expand into.
+        if (navState == NavState.SIDEBAR && !miniHiddenOnHome()) {
             idleExpandHandler.postDelayed(idleExpandRunnable, 60_000L)
         }
     }
 
     private fun expandMiniPlayerFullScreen() {
-        if (navState != NavState.SIDEBAR) return
+        if (navState != NavState.SIDEBAR || miniHiddenOnHome()) return
         miniPlayerExpanded = true
         binding.tvLeftPanel.visibility = View.GONE
         binding.tvMiniPlayerFooter.visibility = View.GONE
@@ -1965,7 +1961,88 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     @javax.inject.Inject lateinit var homeRepository: com.iptvapp.data.repository.XtreamRepository
     @javax.inject.Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     private var homeShowing = false
+    // Customize Home → Home Mini Player Display. Read before the first showHome (setupHome), so a
+    // cold start in Off never shows or plays the picture first.
+    private var homeMiniMode = com.iptvapp.data.home.TvHomeMiniMode.HERO
+    // Set while Home's Off mode keeps the mini player stopped (or only loaded): it starts again
+    // when the picture comes back (syncMiniPlayback).
+    private var miniHeldForHome = false
     private var homeRefreshJob: kotlinx.coroutines.Job? = null
+
+    /** Home is showing with its mini player turned off: no picture, and nothing plays behind it. */
+    private fun miniHiddenOnHome() = homeShowing && homeMiniMode == com.iptvapp.data.home.TvHomeMiniMode.OFF
+
+    /**
+     * Loads [url] into the mini player and plays it, or, while Home hides the player, only loads
+     * it (no decoder, no provider connection) until the picture comes back.
+     */
+    private fun startMini(url: String) {
+        val player = miniPlayer ?: return
+        if (miniHiddenOnHome()) {
+            player.stop()
+            player.setMediaItem(MediaItem.fromUri(url))
+            miniHeldForHome = true
+            return
+        }
+        player.setMediaItem(MediaItem.fromUri(url))
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    /** Plays what the mini player holds again: a stopped live channel from its live edge, a video where it was. */
+    private fun resumeMini() {
+        val player = miniPlayer ?: return
+        if (currentMiniUrl.isEmpty() || miniHiddenOnHome()) return
+        if (player.playbackState == Player.STATE_IDLE) {
+            if (!currentMiniIsVod || player.mediaItemCount == 0) player.setMediaItem(MediaItem.fromUri(currentMiniUrl))
+            player.prepare()
+        }
+        player.play()
+    }
+
+    /** Stops the mini player while Home hides it; starts it again once the picture is back. */
+    private fun syncMiniPlayback() {
+        if (miniHiddenOnHome()) {
+            miniPlayer?.let { if (it.playbackState != Player.STATE_IDLE) it.stop() }
+            miniHeldForHome = true
+            return
+        }
+        if (!miniHeldForHome) return
+        miniHeldForHome = false
+        // Not in front: onResume restarts it. Posted, so a section opened from Home lays out
+        // first: Movies and Series keep it paused, and their Back plays it (resumeMini).
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
+        binding.root.post {
+            if (binding.tvMoviesFullScreen.visibility != View.VISIBLE && binding.tvSeriesFullScreen.visibility != View.VISIBLE) resumeMini()
+        }
+    }
+
+    /** Sizes the player and the rows for [homeMiniMode] (TvHomeMiniLayout), and keeps focus and the idle timer off a hidden player. */
+    private fun applyHomeMiniMode() {
+        if (miniHiddenOnHome() && miniPlayerExpanded) collapseMiniPlayerFromFullScreen()
+        val playerHadFocus = binding.tvMiniPlayerContainer.isFocused
+        com.iptvapp.ui.home.TvHomeMiniLayout.apply(
+            homeMiniMode, homeShowing, binding.tvMiniPlayerSection, binding.tvRvHome,
+            resources.getDimensionPixelSize(com.iptvapp.R.dimen.tv_home_row_slot),
+            player = binding.tvMiniPlayerContainer, expanded = miniPlayerExpanded,
+        )
+        // Hero's rows fill the slot (set by the rows' layout listener); the others size themselves.
+        if (::homeAdapter.isInitialized && !com.iptvapp.ui.home.TvHomeMiniLayout.rowsFillSlot(homeMiniMode)) homeAdapter.rowHeightPx = 0
+        if (miniHiddenOnHome()) {
+            idleExpandHandler.removeCallbacks(idleExpandRunnable)
+            // The hidden picture lost focus (it can't take it now): HOME has it instead.
+            if (playerHadFocus || currentFocus == null) binding.btnTvHome.requestFocus()
+        }
+    }
+
+    /**
+     * A channel picked while Home hides the mini player: it was only loaded there, so it opens full
+     * screen instead. [loaded] says the mini player holds the picked channel (not an older one).
+     */
+    private suspend fun openHiddenMiniFullScreen(loaded: () -> Boolean = { true }) {
+        miniPlayJob?.join()
+        if (miniHiddenOnHome() && currentMiniUrl.isNotEmpty() && loaded()) binding.tvMiniPlayerContainer.performClick()
+    }
     private lateinit var homeAdapter: SmartHomeAdapter
     private val homeHitUi by lazy {
         com.iptvapp.ui.search.SearchHitUi(this, homeRepository,
@@ -1975,9 +2052,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                         playInMiniPlayer(channel)
                         viewModel.markChannelWatched(channel.streamId)
                         viewModel.setCurrentlyPlaying(channel.streamId)
+                        openHiddenMiniFullScreen()
                     }
                 } else if (merged != null) {
                     playMergedChannel(merged)
+                    lifecycleScope.launch {
+                        // A merged channel that failed to load leaves the older one in the player.
+                        openHiddenMiniFullScreen { currentMiniServerIndex == merged.serverIndex && currentMiniMergedStreamId == merged.streamId }
+                    }
                 }
             },
             playReplay = { replay ->
@@ -2018,10 +2100,26 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         rv.adapter = homeAdapter
         rv.itemAnimator = null
-        // Each row fills the slot exactly (activity_tv_home's tv_home_row_slot).
+        // Hero: each row fills the slot exactly (activity_tv_home's tv_home_row_slot). Compact and
+        // Off show several rows, each its own height.
         rv.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
             val slot = bottom - top - rv.paddingTop - rv.paddingBottom
-            if (slot > 0 && homeAdapter.rowHeightPx != slot) rv.post { homeAdapter.rowHeightPx = slot }
+            if (slot <= 0) return@addOnLayoutChangeListener
+            rv.post {
+                val wanted = if (com.iptvapp.ui.home.TvHomeMiniLayout.rowsFillSlot(homeMiniMode)) slot else 0
+                if (homeAdapter.rowHeightPx != wanted) homeAdapter.rowHeightPx = wanted
+            }
+        }
+        // The saved mode now (the snapshot is loaded at app start), then any change Customize Home makes.
+        homeMiniMode = com.iptvapp.data.home.TvHomeMiniMode.of(prefs.tvHomeMiniPlayerModeNow())
+        lifecycleScope.launch {
+            prefs.tvHomeMiniPlayerMode.collect { key ->
+                val mode = com.iptvapp.data.home.TvHomeMiniMode.of(key)
+                if (mode == homeMiniMode) return@collect
+                homeMiniMode = mode
+                applyHomeMiniMode()
+                syncMiniPlayback()
+            }
         }
         // Whichever row takes focus slides to the top of the slot, whole.
         rv.viewTreeObserver.addOnGlobalFocusChangeListener { _, now ->
@@ -2088,7 +2186,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (from == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return false
         val to = if (down) from + 1 else from - 1
         if (to < 0) {
-            binding.tvMiniPlayerContainer.requestFocus()
+            // With the player off there is nothing above the first row: stay on it.
+            if (!miniHiddenOnHome()) binding.tvMiniPlayerContainer.requestFocus()
             return true
         }
         // Past the last row (Customize Home): stay put.
@@ -2106,6 +2205,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     private fun showHome() {
         showBareSidebar()
         homeShowing = true
+        applyHomeMiniMode()
+        syncMiniPlayback()
         binding.tvRvHome.visibility = if (miniPlayerExpanded) View.GONE else View.VISIBLE
         // On Now is a row here; the strip above the player would repeat it.
         binding.tvWhatsOnNowContainer.visibility = View.GONE
@@ -2120,6 +2221,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         homeShowing = false
         homeRefreshJob?.cancel()
         binding.tvRvHome.visibility = View.GONE
+        // The section opened in Home's place has the player back (and plays it again).
+        applyHomeMiniMode()
+        syncMiniPlayback()
         if (tvWhatsOnNowAdapter.itemCount > 0 && !miniPlayerExpanded) binding.tvWhatsOnNowContainer.visibility = View.VISIBLE
         paintSectionLabel(binding.btnTvHome, false)
         binding.btnTvHome.isSelected = false
@@ -2236,6 +2340,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             binding.tvSidebar.hasFocus() && navState == NavState.SIDEBAR
         ) {
             if (focusHomeRows()) return true
+            // No rows yet and no player to land on: Right stays on the sidebar.
+            if (miniHiddenOnHome()) return true
         }
         // Down from the live channel: the rows under it (the player's own Down goes to the sidebar).
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN &&
@@ -2251,6 +2357,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (binding.tvMoviesFullScreen.visibility == View.VISIBLE) hideMoviesFullScreen()
         if (binding.tvSeriesFullScreen.visibility == View.VISIBLE) hideSeriesFullScreen()
         if (navState != NavState.SIDEBAR) showSidebar()
+        // Home with the player off: the channel it holds opens in the full player instead.
+        if (miniHiddenOnHome()) {
+            if (currentMiniUrl.isNotEmpty()) binding.tvMiniPlayerContainer.performClick()
+            return
+        }
         expandMiniPlayerFullScreen()
     }
 
@@ -3012,11 +3123,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 currentMiniIsVod = false
                 binding.tvTvChannelName.text = title
                 com.iptvapp.remote.RemoteControlServer.nowPlaying = title
-                miniPlayer?.let {
-                    it.setMediaItem(MediaItem.fromUri(url))
-                    it.prepare()
-                    it.playWhenReady = true
-                }
+                startMini(url)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -3120,6 +3227,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                     playInMiniPlayer(channel)
                     viewModel.markChannelWatched(channel.streamId)
                     viewModel.setCurrentlyPlaying(channel.streamId)
+                    openHiddenMiniFullScreen()
                 }
                 return true
             }
@@ -3519,7 +3627,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Activity, not separate Activities, so onResume() (which already handles this exact
         // "resume the mini player" job on a real app foreground) never fires just from hiding
         // this overlay; has to be done explicitly here instead.
-        if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
+        resumeMini()
         // Back from Movies lands on the bare sidebar now — no section auto-selected/no content
         // panel shown, just the nav list itself. Explicitly asked for over re-selecting whatever
         // was active before: picking a real section (e.g. tapping Favorites) still jumps to and
@@ -3812,7 +3920,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvEtSeriesFsSearch.setText("")
         seriesFsSearchQuery = ""
         // See hideMoviesFullScreen's identical logic for both of these.
-        if (currentMiniUrl.isNotEmpty()) miniPlayer?.play()
+        resumeMini()
         showBareSidebar()
     }
 

@@ -134,6 +134,7 @@ class PreferencesManager @Inject constructor(
     fun seekPreviewPicturesNow() = PrefsSnapshot.read(context, readSeekPreviewPictures)
     fun seekPreviewOneStreamNow() = PrefsSnapshot.read(context, readSeekPreviewOneStream)
     fun pictureModeNow() = PrefsSnapshot.read(context, readPictureMode)
+    fun tvHomeMiniPlayerModeNow() = PrefsSnapshot.read(context, readTvHomeMiniPlayerMode)
     fun sportsScoreOverlayNow() = PrefsSnapshot.read(context, readSportsScoreOverlay)
     fun favoriteTeamsNow() = PrefsSnapshot.read(context, readFavoriteTeams)
     fun tunneledPlaybackEnabledNow() = PrefsSnapshot.read(context, readTunneledPlaybackEnabled)
@@ -183,6 +184,7 @@ class PreferencesManager @Inject constructor(
     private val readFrameRateMatch = { p: Preferences ->
         com.iptvapp.util.FrameRateMatch.normalize(p[Keys.FRAME_RATE_MATCH] ?: com.iptvapp.util.FrameRateMatch.DEFAULT)
     }
+    private val readTvHomeMiniPlayerMode = { p: Preferences -> com.iptvapp.data.home.TvHomeMiniMode.of(p[Keys.TV_HOME_MINI_PLAYER_MODE]).key }
     private val readPictureMode = { p: Preferences -> com.iptvapp.util.PictureMode.normalize(p[Keys.PICTURE_MODE] ?: com.iptvapp.util.PictureMode.AUTO) }
     private val readSportsScoreOverlay = { p: Preferences -> p[Keys.SPORTS_SCORE_OVERLAY] ?: true }
     private val readFavoriteTeams = { p: Preferences -> com.iptvapp.util.SportsMode.normalizeStoredTeams(p[Keys.FAVORITE_TEAMS] ?: "") }
@@ -398,6 +400,8 @@ class PreferencesManager @Inject constructor(
         val SEEK_PREVIEW_SALT = stringPreferencesKey("seek_preview_salt")
         // Picture profile: 0 auto, 1 sports, 2 movie, 3 standard. Auto follows the programme.
         val PICTURE_MODE = intPreferencesKey("picture_mode")
+        // TV Home's mini player: "hero", "compact" or "off" (TvHomeMiniMode).
+        val TV_HOME_MINI_PLAYER_MODE = stringPreferencesKey("tv_home_mini_player_mode")
         // When a guide title already contains a score, Sports Mode can show it. Default on.
         val SPORTS_SCORE_OVERLAY = booleanPreferencesKey("sports_score_overlay")
         // Newline-separated team names, capped by SportsMode. Shortcuts on the sports list.
@@ -616,6 +620,15 @@ class PreferencesManager @Inject constructor(
         .map(readPictureMode)
     suspend fun setPictureMode(v: Int) = context.dataStore.edit {
         it[Keys.PICTURE_MODE] = com.iptvapp.util.PictureMode.normalize(v)
+    }
+
+    /** TV Home's mini player (Customize Home → Home Mini Player Display): "hero" until changed. */
+    val tvHomeMiniPlayerMode: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readTvHomeMiniPlayerMode)
+        .distinctUntilChanged()
+    suspend fun setTvHomeMiniPlayerMode(mode: String) {
+        context.dataStore.edit { it[Keys.TV_HOME_MINI_PLAYER_MODE] = com.iptvapp.data.home.TvHomeMiniMode.of(mode).key }
     }
 
     val sportsScoreOverlay: Flow<Boolean> = context.dataStore.data
