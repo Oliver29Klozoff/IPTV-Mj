@@ -544,22 +544,20 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         observeEpgGuide()
         observeSidebarVisibility()
         setupHome()
-        // Opens on Home: the live channel (resumed below) with the rows under it. Customize Home
-        // can name another section to open on instead (a fresh start only, not a recreation).
-        showHome()
-        if (savedInstanceState == null && intent?.action == Intent.ACTION_MAIN) lifecycleScope.launch {
-            val start = try { smartHome.layout(tv = true).start } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                com.iptvapp.data.home.HomeLayout.StartScreen.HOME
-            }
-            when (start) {
-                com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> binding.btnTvFavorites.performClick()
-                com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> binding.btnTvLive.performClick()
-                com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> binding.btnTvMovies.performClick()
-                com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> binding.btnTvSeries.performClick()
-                else -> Unit
-            }
-        }
+        // A reminder notification names a channel: play that, and don't let the resume below
+        // replace it a moment later. take() also reads the id the tap activity saved, because
+        // the intent extras are dropped when this screen is already the task root.
+        val tune = ReminderTune.take(this, intent)
+        // A home-screen card. Taken (and cleared) even on a restore, but only acted on for a
+        // fresh start — a screen recreated after Android closed the app must not replay it.
+        val launcherCard = LauncherPending.take(this, intent)?.takeIf { savedInstanceState == null }
+        // Where Customize Home says to open, read now so the first frame is already that screen
+        // (no Home flashing first). Only an ordinary fresh launch: a recreation, a reminder or a
+        // home-screen card opens on Home (or Favorites, with Home's tab hidden).
+        val tvLayout = com.iptvapp.data.home.HomeLayout.parse(prefs.homeLayoutJsonNow(tv = true))
+        applyHomeTab(tvLayout.showHomeTab)
+        val freshLaunch = savedInstanceState == null && intent?.action == Intent.ACTION_MAIN && tune == null && launcherCard == null
+        openStartScreen(if (freshLaunch) tvLayout.opensOn else com.iptvapp.data.home.HomeLayout.StartScreen.HOME)
         viewModel.loadAll()
         // Same cold-start auto-refresh as the phone: the merged "All Providers" cache used to
         // sit empty until the user manually hit Refresh, even on a device with providers
@@ -590,13 +588,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // otherwise fires immediately (synchronously ahead of this async retry loop) and wins
         // the race with a primary channel every time, even when this block is about to resolve
         // to the actual last-played merged channel a moment later.
-        // A reminder notification names a channel: play that, and don't let the resume above
-        // replace it a moment later. take() also reads the id the tap activity saved, because
-        // the intent extras are dropped when this screen is already the task root.
-        val tune = ReminderTune.take(this, intent)
-        // A home-screen card. Taken (and cleared) even on a restore, but only acted on for a
-        // fresh start — a screen recreated after Android closed the app must not replay it.
-        val launcherCard = LauncherPending.take(this, intent)?.takeIf { savedInstanceState == null }
+        // The reminder and home-screen card were taken above.
         if (tune != null) {
             launchReminderTune(tune.streamId, tune.serverIndex, fallBackToLastPlayed = true)
         } else if (launcherCard != null) {
@@ -606,7 +598,10 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             startupResumeJob = lifecycleScope.launch {
                 try {
                     resumeLastPlayedChannel()
+                    finishFullScreenStart()
                 } finally {
+                    // Cancelled by a reminder or card that took over: show the screen it tunes on.
+                    if (fullScreenStartPending) { fullScreenStartPending = false; endStartCover() }
                     // A reminder that took over owns this flag now (see launchReminderTune).
                     if (reminderTuneGen == 0) coldBootResumeInProgress = false
                 }
@@ -758,7 +753,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         }
         val recent = viewModel.getRecentChannel()
         if (recent != null) playInMiniPlayer(recent)
-        showSidebar()
+        // A start screen already opened a section's list: leave it open.
+        if (navState == NavState.SIDEBAR) showSidebar()
     }
 
     // Plays the reminded channel and leaves the sidebar on the player. Returns false when the
@@ -984,6 +980,9 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (binding.tvMoviesFullScreen.visibility == View.VISIBLE && moviesFsSearchQuery.isNotBlank()) {
             submitFilteredMoviesFs(viewModel.vod.value)
         }
+        // Back from Customize Home (from Home's rows or Settings): the Home tab may have been switched.
+        val showTab = com.iptvapp.data.home.HomeLayout.parse(prefs.homeLayoutJsonNow(tv = true)).showHomeTab
+        if (showTab != homeTabShown) applyHomeTab(showTab)
         // Back from watching something: Continue Watching and Recently Watched have moved on.
         if (homeShowing) refreshHome()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
@@ -1055,6 +1054,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     override fun onStop() {
         super.onStop()
+        // A Full-Screen Live TV start: the player is over this screen now, so it can show again.
+        if (binding.root.alpha < 1f) endStartCover()
         // No Home refreshes while hidden; onResume starts them again while Home shows.
         homeRefreshJob?.cancel()
         if (!isChangingConfigurations) {
@@ -1978,10 +1979,11 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
      */
     private fun startMini(url: String) {
         val player = miniPlayer ?: return
-        if (miniHiddenOnHome()) {
+        if (miniHiddenOnHome() || fullScreenStartPending) {
             player.stop()
             player.setMediaItem(MediaItem.fromUri(url))
-            miniHeldForHome = true
+            // A Full-Screen Live TV start opens it in the player instead (finishFullScreenStart).
+            if (miniHiddenOnHome()) miniHeldForHome = true
             return
         }
         player.setMediaItem(MediaItem.fromUri(url))
@@ -2202,7 +2204,78 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         return true
     }
 
+    // Customize Home → HOME TAB. Hidden, Home is out of the sidebar and Favorites stands in for it.
+    private var homeTabShown = true
+
+    /** Shows or hides the sidebar's Home; hiding it while Home is up moves to Favorites. */
+    private fun applyHomeTab(show: Boolean) {
+        homeTabShown = show
+        binding.btnTvHome.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show && homeShowing) {
+            refocusCustomize = false
+            binding.btnTvFavorites.performClick()
+        }
+    }
+
+    /**
+     * Opens [start] (Customize Home → START ON) on a cold launch, in place of Home. The Guide and
+     * the full-screen channel open over Home (or Favorites), which is where Back lands.
+     */
+    private fun openStartScreen(start: com.iptvapp.data.home.HomeLayout.StartScreen) {
+        when (start) {
+            com.iptvapp.data.home.HomeLayout.StartScreen.HOME -> showHome()
+            com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> binding.btnTvFavorites.performClick()
+            com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> binding.btnTvLive.performClick()
+            com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> binding.btnTvMovies.performClick()
+            com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> binding.btnTvSeries.performClick()
+            com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> {
+                showHome()
+                binding.btnTvGuide.performClick()
+            }
+            com.iptvapp.data.home.HomeLayout.StartScreen.FULLSCREEN_LIVE -> {
+                showHome()
+                // The cold-boot resume finds the last channel; finishFullScreenStart opens it.
+                // Until then the screen stays blank, so Home doesn't flash up first.
+                fullScreenStartPending = true
+                binding.root.alpha = 0f
+                binding.root.postDelayed(endStartCoverRunnable, 8_000L)
+            }
+        }
+    }
+
+    // Set from a Full-Screen Live TV start until the last channel opens in the player (or there is none).
+    private var fullScreenStartPending = false
+    private val endStartCoverRunnable = Runnable { endStartCover() }
+
+    /** Shows the screen again after a Full-Screen Live TV start (or its 8 s safety limit). */
+    private fun endStartCover() {
+        binding.root.removeCallbacks(endStartCoverRunnable)
+        binding.root.alpha = 1f
+    }
+
+    /**
+     * After the cold-boot resume, a Full-Screen Live TV start opens what it tuned in the full
+     * player; with nothing ever played, Live TV opens instead.
+     */
+    private suspend fun finishFullScreenStart() {
+        if (!fullScreenStartPending) return
+        miniPlayJob?.join()
+        fullScreenStartPending = false
+        if (currentMiniUrl.isNotEmpty()) {
+            // The cover lifts in onStop, once the player is over this screen.
+            binding.tvMiniPlayerContainer.performClick()
+        } else {
+            endStartCover()
+            binding.btnTvLive.performClick()
+        }
+    }
+
     private fun showHome() {
+        // Home's tab is hidden: Favorites stands in for it.
+        if (!homeTabShown) {
+            binding.btnTvFavorites.performClick()
+            return
+        }
         showBareSidebar()
         homeShowing = true
         applyHomeMiniMode()

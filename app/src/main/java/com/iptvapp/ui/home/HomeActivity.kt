@@ -1537,6 +1537,8 @@ class HomeActivity : AppCompatActivity() {
                     when (smartHome.layout(tv = false).start) {
                         com.iptvapp.data.home.HomeLayout.StartScreen.FAVORITES -> TAB_FAVORITES
                         com.iptvapp.data.home.HomeLayout.StartScreen.LIVE -> TAB_LIVE
+                        // TV only; the phone's picker doesn't offer it.
+                        com.iptvapp.data.home.HomeLayout.StartScreen.FULLSCREEN_LIVE -> TAB_LIVE
                         com.iptvapp.data.home.HomeLayout.StartScreen.MOVIES -> TAB_MOVIES
                         com.iptvapp.data.home.HomeLayout.StartScreen.SERIES -> TAB_SERIES
                         com.iptvapp.data.home.HomeLayout.StartScreen.GUIDE -> TAB_GUIDE

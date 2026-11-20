@@ -111,22 +111,37 @@ object HomeLayout {
         val emptyText get() = builtin?.emptyText ?: if (filter?.gone == true) "This row's provider was removed. Edit it to pick another category." else if (isDynamic) "Nothing in this category right now." else "Add content to this collection."
     }
 
-    /** What the home screen opens on. Each form factor offers its own list. */
+    /**
+     * What the home screen opens on. Each form factor offers its own list: only the TV has
+     * [FULLSCREEN_LIVE] (the last channel, straight into the full player).
+     */
     enum class StartScreen(val id: String, val label: String) {
         HOME("home", "Home"),
+        FULLSCREEN_LIVE("fullscreen_live", "Full-Screen Live TV (Last Channel)"),
+        GUIDE("guide", "TV Guide"),
         FAVORITES("favorites", "Favorites"),
         LIVE("live", "Live TV"),
         MOVIES("movies", "Movies"),
-        SERIES("series", "Series"),
-        GUIDE("guide", "Guide");
+        SERIES("series", "Series");
 
         companion object {
             fun of(id: String?) = entries.firstOrNull { it.id == id } ?: HOME
         }
     }
 
-    data class Layout(val sections: List<Section>, val start: StartScreen = StartScreen.HOME) {
+    /**
+     * [showHomeTab] false takes Home out of the TV sidebar; [start] is then never [StartScreen.HOME]
+     * ([setShowHomeTab] and [setStart] see to it; [opensOn] covers an older saved pair).
+     */
+    data class Layout(
+        val sections: List<Section>,
+        val start: StartScreen = StartScreen.HOME,
+        val showHomeTab: Boolean = true,
+    ) {
         fun section(id: String) = sections.firstOrNull { it.id == id }
+
+        /** Where Home opens: [start], or Favorites when that is Home and Home is hidden. */
+        val opensOn: StartScreen get() = if (!showHomeTab && start == StartScreen.HOME) StartScreen.FAVORITES else start
     }
 
     /** The styles a row can use. A channel or a programme reads as a landscape card; posters suit films. */
@@ -172,7 +187,15 @@ object HomeLayout {
         if (!it.isCustom) it else it.copy(title = cleanTitle(title).ifBlank { it.title })
     }
 
-    fun setStart(layout: Layout, start: StartScreen) = layout.copy(start = start)
+    /** Home can't be the start while its tab is hidden. */
+    fun setStart(layout: Layout, start: StartScreen) =
+        if (!layout.showHomeTab && start == StartScreen.HOME) layout else layout.copy(start = start)
+
+    /** Shows or hides the TV sidebar's Home; hiding it moves a Home start to Favorites. Rows are untouched. */
+    fun setShowHomeTab(layout: Layout, show: Boolean) = layout.copy(
+        showHomeTab = show,
+        start = if (!show && layout.start == StartScreen.HOME) StartScreen.FAVORITES else layout.start,
+    )
 
     /** A new row of hand-picked items, or (with [filter]) one category, placed at the top. */
     fun addCustom(layout: Layout, newId: String, title: String, content: Content, filter: Filter? = null): Layout {
@@ -218,7 +241,7 @@ object HomeLayout {
     }
 
     /** Back to [default]. Rows someone made are dropped from Home; nothing they listed is touched. */
-    fun reset(layout: Layout): Layout = default().copy(start = layout.start)
+    fun reset(layout: Layout): Layout = default().copy(start = layout.start, showHomeTab = layout.showHomeTab)
 
     /**
      * After the provider list changes: [moved] maps each extra provider's old index to its new one
@@ -260,6 +283,7 @@ object HomeLayout {
         val root = JsonObject()
         root.addProperty("schema", SCHEMA)
         root.addProperty("start", layout.start.id)
+        root.addProperty("showHomeTab", layout.showHomeTab)
         val arr = JsonArray()
         for (s in layout.sections) {
             val o = JsonObject()
@@ -296,7 +320,8 @@ object HomeLayout {
         if (json.isNullOrBlank()) return default()
         val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { return default() }
         val start = StartScreen.of(root.str("start"))
-        val arr = (root.get("sections") as? JsonArray) ?: return default().copy(start = start)
+        val showHomeTab = root.bool("showHomeTab") ?: true
+        val arr = (root.get("sections") as? JsonArray) ?: return default().copy(start = start, showHomeTab = showHomeTab)
         val out = ArrayList<Section>()
         val seen = HashSet<String>()
         for (el in arr) {
@@ -310,7 +335,7 @@ object HomeLayout {
         for (b in Builtin.entries) if (b.id !in seen) {
             if (b == Builtin.TOP_FAVORITES) out.add(0, defaultSection(b)) else out += defaultSection(b)
         }
-        return Layout(out, start)
+        return Layout(out, start, showHomeTab)
     }
 
     private fun sectionOf(el: JsonElement): Section? {
