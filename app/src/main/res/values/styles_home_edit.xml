@@ -21,4 +21,13 @@
         <item name="android:paddingStart">14dp</item>
         <item name="android:paddingEnd">14dp</item>
     </style>
+
+    <!-- Customize Sidebar (TvSidebarCustomizeActivity): the same chips with a 3.5dp focus ring. -->
+    <style name="SidebarEditChip" parent="HomeEditChip">
+        <item name="android:background">@drawable/sidebar_edit_chip_bg</item>
+    </style>
+
+    <style name="SidebarEditHeaderChip" parent="HomeEditHeaderChip">
+        <item name="android:background">@drawable/sidebar_edit_chip_bg</item>
+    </style>
 </resources>

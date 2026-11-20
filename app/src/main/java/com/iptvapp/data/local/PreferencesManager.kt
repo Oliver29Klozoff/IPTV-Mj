@@ -378,6 +378,8 @@ class PreferencesManager @Inject constructor(
         // Customized Home (HomeLayout JSON), one per form factor. Arrangement only, no credentials.
         val HOME_LAYOUT_TV = stringPreferencesKey("home_layout_tv")
         val HOME_LAYOUT_PHONE = stringPreferencesKey("home_layout_phone")
+        // TV sidebar order and Shown/Hidden (TvSidebar JSON array of {id, visible}). Screen preference only.
+        val TV_SIDEBAR_CONFIG = stringPreferencesKey("tv_sidebar_config")
         val TOP_FAVORITES = stringPreferencesKey("top_favorites")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
@@ -550,6 +552,19 @@ class PreferencesManager @Inject constructor(
     suspend fun setHomeLayoutJson(tv: Boolean, json: String?) = context.dataStore.edit {
         val key = if (tv) Keys.HOME_LAYOUT_TV else Keys.HOME_LAYOUT_PHONE
         if (json == null) it.remove(key) else it[key] = json
+    }
+    /** The TV sidebar's order and Shown/Hidden (Customize Sidebar); MKTV's own order until it is changed. */
+    val tvSidebarConfig: Flow<List<com.iptvapp.data.home.TvSidebar.SidebarItem>> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.home.TvSidebar.parse(it[Keys.TV_SIDEBAR_CONFIG]) }
+        .distinctUntilChanged()
+    /** [tvSidebarConfig] now, so the sidebar is in order before its first frame. */
+    fun tvSidebarConfigNow(): List<com.iptvapp.data.home.TvSidebar.SidebarItem> =
+        com.iptvapp.data.home.TvSidebar.parse(PrefsSnapshot.read(context) { it[Keys.TV_SIDEBAR_CONFIG] })
+    /** Saves the sidebar; null puts MKTV's own order back. */
+    suspend fun setTvSidebarConfig(items: List<com.iptvapp.data.home.TvSidebar.SidebarItem>?) = context.dataStore.edit {
+        if (items == null) it.remove(Keys.TV_SIDEBAR_CONFIG)
+        else it[Keys.TV_SIDEBAR_CONFIG] = com.iptvapp.data.home.TvSidebar.toJson(items)
     }
     /** Top Favorites (TopFavorites), shared by TV and phone, or null before the first one is added. */
     val topFavoritesJson: Flow<String?> = context.dataStore.data

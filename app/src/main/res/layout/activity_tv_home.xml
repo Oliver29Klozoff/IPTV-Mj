@@ -96,7 +96,9 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:scrollbars="none">
+            <!-- Put in the viewer's order, and entries hidden, by TvHomeActivity.applySidebarConfig (Customize Sidebar). -->
             <LinearLayout
+                android:id="@+id/tvSidebarButtons"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical">

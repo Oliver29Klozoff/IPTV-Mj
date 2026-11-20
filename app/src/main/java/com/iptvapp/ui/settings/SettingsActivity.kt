@@ -303,6 +303,7 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Customize Home", 1, null, R.id.rowCustomizeHome),
             SettingSearchEntry("Start Screen", 1, null, R.id.rowCustomizeHome),
             SettingSearchEntry("Hide Home Tab", 1, null, R.id.rowCustomizeHome),
+            SettingSearchEntry("Customize Sidebar Sections", 1, null, R.id.rowCustomizeSidebar),
             SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
             SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
             SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
@@ -373,7 +374,11 @@ class SettingsActivity : AppCompatActivity() {
         var currentMatches: List<SettingSearchEntry> = emptyList()
         fun renderMatches(query: String) {
             currentMatches = if (query.isBlank()) emptyList()
-                else settingSearchIndex.filter { it.label.contains(query, ignoreCase = true) }
+                else settingSearchIndex.filter {
+                    it.label.contains(query, ignoreCase = true) &&
+                        // Customize Sidebar is TV only: off a TV its row is hidden, so search skips it.
+                        (it.targetId != R.id.rowCustomizeSidebar || isLargeScreenDevice())
+                }
             resultsList.adapter = android.widget.ArrayAdapter(
                 this, android.R.layout.simple_list_item_1, currentMatches.map { it.label }
             )
@@ -723,6 +728,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.rowCustomizeHome.setOnClickListener {
             com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv = isLargeScreenDevice())
         }
+        // The sidebar is the TV home screen's; phones have tabs instead.
+        binding.rowCustomizeSidebar.visibility = if (isLargeScreenDevice()) View.VISIBLE else View.GONE
+        binding.rowCustomizeSidebar.setOnClickListener { com.iptvapp.ui.home.TvSidebarCustomizeActivity.open(this) }
         binding.rowAutoClearContinueWatching.setOnClickListener { showAutoClearContinueWatchingDialog() }
 
         binding.btnRefreshMovies.setOnClickListener {

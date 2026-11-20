@@ -66,6 +66,14 @@
                 style="@style/HomeEditHeaderChip"
                 android:visibility="gone" />
 
+            <!-- TV only: Customize Sidebar (order and Shown/Hidden of the sidebar's entries). -->
+            <TextView
+                android:id="@+id/btnCustomizeSidebar"
+                style="@style/HomeEditHeaderChip"
+                android:contentDescription="Customize Sidebar Sections: order and which entries show"
+                android:text="SIDEBAR…"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/btnCustomizeReset"
                 style="@style/HomeEditHeaderChip"

@@ -94,9 +94,18 @@ class HomeCustomizeActivity : AppCompatActivity() {
             binding.btnCustomizeHomeTab.visibility = View.VISIBLE
             binding.btnCustomizeHomeTab.setOnClickListener {
                 val show = !layout.showHomeTab
+                // Customize Sidebar may have hidden Favorites, Guide and Live: Home is then the last way in.
+                val sidebar = com.iptvapp.data.home.TvSidebar.withHome(prefs.tvSidebarConfigNow(), true)
+                if (!show && !com.iptvapp.data.home.TvSidebar.canHide(sidebar, com.iptvapp.data.home.TvSidebar.Entry.HOME.id)) {
+                    Toast.makeText(this, "Keep at least one of Home, Favorites, Guide or Live in the sidebar. Show another in Customize Sidebar first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 change { HomeLayout.setShowHomeTab(it, show) }
                 if (!show) Toast.makeText(this, "Home is hidden from the sidebar. Customize Home is in Settings → Display.", Toast.LENGTH_LONG).show()
             }
+            // The rest of the sidebar: its order and which entries show.
+            binding.btnCustomizeSidebar.visibility = View.VISIBLE
+            binding.btnCustomizeSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
         }
         binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"

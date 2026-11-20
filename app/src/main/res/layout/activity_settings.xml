@@ -2004,6 +2004,30 @@
                                     android:text="Home's rows, what MKTV opens on, and the Home tab" />
                             </LinearLayout>
                         </LinearLayout>
+                        <!-- TV only (SettingsActivity shows it on large screens): the sidebar's order and entries. -->
+                        <LinearLayout
+                            android:id="@+id/rowCustomizeSidebar"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Customize Sidebar Sections" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Reorder the TV sidebar and hide entries you don't use" />
+                            </LinearLayout>
+                        </LinearLayout>
                         <LinearLayout
                             android:id="@+id/rowAutoClearContinueWatching"
                             style="@style/Rack.Row.Tappable"
