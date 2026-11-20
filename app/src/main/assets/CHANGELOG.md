@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.91 - 2026-11-20
+- **New**: TV start screen. Customize Home → START ON can now open MKTV straight into the TV Guide,
+  or the last channel full screen (Live TV if nothing was watched yet).
+- **New**: Customize Home → HOME TAB hides Home from the TV sidebar; Favorites takes its place.
+  Customize Home is also in Settings → Display, so Home can be turned back on.
+
 ## v7.90 - 2026-11-20
 - **New**: TV Home mini player display. Customize Home → PLAYER picks Hero (the large picture with
   one row under it, as before), Compact (picture and rows half and half) or Off (no picture on Home:

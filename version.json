@@ -1,7 +1,7 @@
 {
-  "versionCode": 628,
-  "versionName": "7.90",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.90/MKTV.apk",
-  "apkSha256": "1ffac4c0d4c6bccedda88207ade78894cb59dc71b68758c3e3207d2fbcd30eb9",
-  "changelog": "TV Home mini player: choose Hero, Compact or Off in Customize Home."
+  "versionCode": 629,
+  "versionName": "7.91",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.91/MKTV.apk",
+  "apkSha256": "70031b8064df8046303f7c165285b15150a0b29f03e790c0e330db63cfa31756",
+  "changelog": "TV: open straight into the Guide or your last channel full screen, and hide the Home tab if you like."
 }
