@@ -54,6 +54,12 @@
                 android:id="@+id/btnCustomizeStart"
                 style="@style/HomeEditHeaderChip" />
 
+            <!-- TV only: Home Mini Player Display (Hero, Compact or Off). -->
+            <TextView
+                android:id="@+id/btnCustomizeMiniPlayer"
+                style="@style/HomeEditHeaderChip"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/btnCustomizeReset"
                 style="@style/HomeEditHeaderChip"

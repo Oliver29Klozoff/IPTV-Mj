@@ -987,8 +987,11 @@
         <!-- MINI PLAYER ROW — fills the whole right panel now that the EPG guide has its
              own sidebar section instead of sharing this space. Channel name + now/next used
              to sit in a side panel next to the video; now it's a full-width footer below it
-             instead, since the video no longer needs to share width with anything. -->
+             instead, since the video no longer needs to share width with anything.
+             On Home, Customize Home's Home Mini Player Display sizes this section against the
+             rows below it, or hides it (TvHomeMiniLayout). -->
         <LinearLayout
+            android:id="@+id/tvMiniPlayerSection"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
@@ -1071,12 +1074,26 @@
 
             </LinearLayout>
 
+            <!-- EPG progress bar: full width, directly under the mini player. Inside its section,
+                 so it goes with the player when Home hides it, and stays above the Home rows. -->
+            <ProgressBar
+                android:id="@+id/tvEpgProgress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:max="100"
+                android:progress="0"
+                android:progressBackgroundTint="@color/rack_control_off"
+                android:progressTint="@color/oled_cyan_primary"
+                android:visibility="gone" />
+
         </LinearLayout>
 
-        <!-- SMART HOME ROWS (v7.33) — under the live channel while Home is showing. One row at a
-             time: a fixed slot that holds any row whole (@dimen/tv_home_row_slot), each
-             row filling it, so Down / Up slide the next row into place (TvHomeActivity's Smart
-             Home section). The player above takes the rest of the column. -->
+        <!-- SMART HOME ROWS (v7.33) — under the live channel while Home is showing. Hero (the
+             default): one row at a time in a fixed slot that holds any row whole
+             (@dimen/tv_home_row_slot), each row filling it, so Down / Up slide the next row into
+             place (TvHomeActivity's Smart Home section); the player above takes the rest.
+             Compact and Off resize this at run time (TvHomeMiniLayout). -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/tvRvHome"
             android:layout_width="match_parent"
@@ -1088,18 +1105,6 @@
             android:scrollbars="none"
             android:visibility="gone"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-        <!-- EPG progress bar: full width, directly under mini player -->
-        <ProgressBar
-            android:id="@+id/tvEpgProgress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="3dp"
-            android:max="100"
-            android:progress="0"
-            android:progressBackgroundTint="@color/rack_control_off"
-            android:progressTint="@color/oled_cyan_primary"
-            android:visibility="gone" />
 
     </LinearLayout>
 
