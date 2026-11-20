@@ -28,7 +28,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 /**
@@ -67,7 +67,10 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
         binding.rvSidebarItems.itemAnimator = null
         dragHelper = ItemTouchHelper(DragCallback())
         if (touch) dragHelper.attachToRecyclerView(binding.rvSidebarItems)
-        binding.btnSidebarDone.setOnClickListener { finish() }
+        binding.btnSidebarDone.setOnClickListener { finishWhenSaved() }
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = finishWhenSaved()
+        })
         binding.btnSidebarReset.setOnClickListener { confirmReset() }
 
         lifecycleScope.launch {
@@ -88,12 +91,30 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
 
     // ── Changes ─────────────────────────────────────────────────────────
 
-    // Writes run NonCancellable: Done or Back right after a change must not drop it.
+    // The last queued write. Writes run one after another, in the order they were made, and
+    // can't be cancelled; Done and Back wait for the last one, so TV Home reads the final choice.
+    private var lastWrite: Job? = null
+
+    private fun write(block: suspend () -> Unit) {
+        val before = lastWrite
+        lastWrite = lifecycleScope.launch(NonCancellable) {
+            before?.join()
+            block()
+        }
+    }
+
+    /** Closes once every change made here is saved. */
+    private fun finishWhenSaved() {
+        val pending = lastWrite
+        if (pending == null || pending.isCompleted) { finish(); return }
+        lifecycleScope.launch { pending.join(); finish() }
+    }
+
     /** Saves [next] and redraws, keeping focus on [focusButton] of entry [focusId] (it may have moved). */
     private fun save(next: List<SidebarItem>, focusId: String? = null, focusButton: Int = 0) {
         items = next
         adapter.submit(next)
-        lifecycleScope.launch(NonCancellable) { prefs.setTvSidebarConfig(next) }
+        write { prefs.setTvSidebarConfig(next) }
         if (focusId != null) refocus(focusId, focusButton)
     }
 
@@ -114,7 +135,7 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
         val next = TvSidebar.setVisible(items, item.id, show)
         if (item.id == TvSidebar.Entry.HOME.id) {
             // Home's switch is Customize Home's HOME TAB: hiding it also moves a Home start to Favorites.
-            lifecycleScope.launch(NonCancellable) { HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, show) } }
+            write { HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, show) } }
         }
         save(next, item.id, R.id.btnSidebarVisible)
     }
@@ -124,11 +145,13 @@ class TvSidebarCustomizeActivity : AppCompatActivity() {
             .setTitle("Reset the sidebar?")
             .setMessage("Every entry goes back to MKTV's order and is shown again, Home included. Movies, Series and Providers still follow their switches in Settings.")
             .setPositiveButton("Reset") { _, _ ->
+                write {
+                    prefs.setTvSidebarConfig(null)
+                    HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, true) }
+                }
+                val reset = lastWrite
                 lifecycleScope.launch {
-                    withContext(NonCancellable) {
-                        prefs.setTvSidebarConfig(null)
-                        HomeLayoutStore.update(prefs, true) { HomeLayout.setShowHomeTab(it, true) }
-                    }
+                    reset?.join()
                     items = load()
                     adapter.submit(items)
                     binding.btnSidebarReset.requestFocus()
