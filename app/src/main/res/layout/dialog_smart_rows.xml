@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Customize Home → Smart Rows (HomeCustomizeActivity.showSmartRowsDialog): show or hide each
+     group of automatic rows at once, the empty-row and finished-item rules, and cards per row.
+     Every control is a chip the remote reaches in turn; the chosen ones are outlined (activated).
+     Nothing is saved until Save. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/rack_surface"
+    android:theme="@style/ThemeOverlay.HomeRack">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            style="@style/SmartRowsLabel"
+            android:text="@string/smart_rows_live_heading" />
+
+        <TextView
+            android:id="@+id/tvSmartRowsLiveList"
+            style="@style/SmartRowsNote" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="2dp">
+
+            <TextView
+                android:id="@+id/btnSmartLiveShow"
+                style="@style/DensityChip"
+                android:layout_marginStart="0dp"
+                android:text="@string/smart_rows_show_all" />
+
+            <TextView
+                android:id="@+id/btnSmartLiveHide"
+                style="@style/DensityChip"
+                android:text="@string/smart_rows_hide_all" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/SmartRowsLabel"
+            android:text="@string/smart_rows_vod_heading" />
+
+        <TextView
+            android:id="@+id/tvSmartRowsVodList"
+            style="@style/SmartRowsNote" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="2dp">
+
+            <TextView
+                android:id="@+id/btnSmartVodShow"
+                style="@style/DensityChip"
+                android:layout_marginStart="0dp"
+                android:text="@string/smart_rows_show_all" />
+
+            <TextView
+                android:id="@+id/btnSmartVodHide"
+                style="@style/DensityChip"
+                android:text="@string/smart_rows_hide_all" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/SmartRowsLabel"
+            android:text="@string/smart_rows_rules_heading" />
+
+        <TextView
+            android:id="@+id/btnSmartCollapse"
+            style="@style/SmartRowsToggle" />
+
+        <TextView
+            android:id="@+id/btnSmartHideFinished"
+            style="@style/SmartRowsToggle" />
+
+        <TextView
+            style="@style/SmartRowsLabel"
+            android:text="@string/smart_rows_limit_heading" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="2dp">
+
+            <TextView
+                android:id="@+id/btnSmartLimit10"
+                style="@style/DensityChip"
+                android:layout_marginStart="0dp" />
+
+            <TextView
+                android:id="@+id/btnSmartLimit20"
+                style="@style/DensityChip" />
+
+            <TextView
+                android:id="@+id/btnSmartLimit30"
+                style="@style/DensityChip" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

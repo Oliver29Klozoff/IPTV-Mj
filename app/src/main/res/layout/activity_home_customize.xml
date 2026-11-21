@@ -130,6 +130,12 @@
                 style="@style/HomeEditHeaderChip"
                 android:text="+ ADD ROW" />
 
+            <!-- Smart Rows: groups of automatic rows at once, empty-row and finished-item rules, cards per row. -->
+            <TextView
+                android:id="@+id/btnCustomizeSmartRows"
+                style="@style/HomeEditHeaderChip"
+                android:text="@string/btn_smart_rows" />
+
             <TextView
                 android:id="@+id/btnCustomizeStart"
                 style="@style/HomeEditHeaderChip" />

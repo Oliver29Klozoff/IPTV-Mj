@@ -46,4 +46,29 @@
     <string name="density_option_selected">%1$s card size, selected. %2$s</string>
     <string name="density_option">%1$s card size. %2$s</string>
     <string name="density_dialog_title">Card Density &amp; Size</string>
+    <!-- Smart Rows: Customize Home's rules for the automatic rows (SmartRows) -->
+    <string name="btn_smart_rows">SMART ROWS…</string>
+    <string name="smart_rows_title">Smart Rows</string>
+    <string name="smart_rows_live_heading">LIVE TV ROWS</string>
+    <string name="smart_rows_vod_heading">MOVIES &amp; SERIES ROWS</string>
+    <string name="smart_rows_show_all">Show all</string>
+    <string name="smart_rows_hide_all">Hide all</string>
+    <string name="smart_rows_rules_heading">RULES</string>
+    <string name="smart_rows_collapse_on">● Hide empty rows: ON</string>
+    <string name="smart_rows_collapse_off">○ Hide empty rows: OFF</string>
+    <string name="smart_rows_finished_on">● Hide finished items (90%% watched): ON</string>
+    <string name="smart_rows_finished_off">○ Hide finished items (90%% watched): OFF, 95%% still counts as watched</string>
+    <string name="smart_rows_collapse_description">Hide empty rows. %1$s. Press to switch.</string>
+    <string name="smart_rows_finished_description">Leave movies and episodes watched 90 percent or more out of Continue Watching. %1$s. When off, 95 percent still counts as watched. Press to switch.</string>
+    <string name="smart_rows_on">On</string>
+    <string name="smart_rows_off">Off</string>
+    <string name="smart_rows_limit_heading">CARDS PER ROW</string>
+    <string name="smart_rows_limit">%1$d</string>
+    <string name="smart_rows_limit_default">%1$d (default)</string>
+    <string name="smart_rows_limit_description">%1$d cards per row</string>
+    <string name="smart_rows_group_description">%1$s rows: %2$s</string>
+    <string name="smart_rows_group_chosen">%1$s, chosen</string>
+    <string name="smart_rows_save">Save</string>
+    <string name="smart_rows_updated">Smart rows updated</string>
+    <string name="smart_rows_when_empty_overridden">When empty: hidden (Smart Rows hides empty rows)</string>
 </resources>

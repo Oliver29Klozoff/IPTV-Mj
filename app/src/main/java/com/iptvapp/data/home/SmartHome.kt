@@ -78,7 +78,8 @@ class SmartHome @Inject constructor(
     private val prefs: PreferencesManager
 ) {
     companion object {
-        const val ROW_LIMIT = 20
+        /** Cards per automatic row when nothing else is chosen (Customize Home → Smart Rows picks 10, 20 or 30). */
+        const val ROW_LIMIT = SmartRows.DEFAULT_LIMIT
         /** The Customize Home row at the end of Home. */
         const val CUSTOMIZE_ID = "customize"
         /** How far ahead Starting Soon looks. */
@@ -87,6 +88,8 @@ class SmartHome @Inject constructor(
         private const val NEXT_MS = 4 * 60 * 60_000L
         /** Channels On Now and Starting Soon look at: favorites first, then recently watched. */
         private const val GUIDE_CHANNELS = 60
+        // Each followed series is one request to its provider, so New Episodes stays at 8 cards
+        // whatever Smart Rows' cards per row says (that is a maximum, not a target).
         private const val FOLLOWED_SERIES = 8
         private const val NEW_EPISODES_TTL_MS = 30 * 60_000L
 
@@ -137,10 +140,13 @@ class SmartHome @Inject constructor(
         fun shows(b: HomeLayout.Builtin) = b in shown
         val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
         val enabled = prefs.enabledExtraServerIndices.first()
+        // Customize Home → Smart Rows: how long the automatic rows are and which empty rows stay.
+        val rules = prefs.smartRows.first()
+        val limit = rules.limit
 
         // Rows people made: their channels, films and series, looked up by id or one bounded category read.
         val custom = visible.filter { it.value.isCustom }
-            .associate { (_, s) -> s.id to async { resolve(s, enabled) } }
+            .associate { (_, s) -> s.id to async { resolve(s, enabled, limit) } }
         val topRow = if (shows(HomeLayout.Builtin.TOP_FAVORITES)) async { topFavorites(enabled, nowMs) } else null
 
         val needShelf = shows(HomeLayout.Builtin.ON_NOW) || shows(HomeLayout.Builtin.STARTING_SOON) ||
@@ -152,17 +158,17 @@ class SmartHome @Inject constructor(
         val guideChannels = shelf.guideChannels
         val guideOthers = shelf.guideOthers
 
-        val continueRow = if (shows(HomeLayout.Builtin.CONTINUE)) async { continueWatching(primaryLabel) } else null
-        val recordings = if (shows(HomeLayout.Builtin.RECORDINGS)) async { db.recordingDao().getForHome().map { HomeCard(SearchHit.Recording(it)) } } else null
-        val recommended = if (shows(HomeLayout.Builtin.RECOMMENDED)) async { recommended(primaryLabel) } else null
+        val continueRow = if (shows(HomeLayout.Builtin.CONTINUE)) async { continueWatching(primaryLabel, limit, rules.hideCompleted) } else null
+        val recordings = if (shows(HomeLayout.Builtin.RECORDINGS)) async { db.recordingDao().getForHomeLimited(limit).map { HomeCard(SearchHit.Recording(it)) } } else null
+        val recommended = if (shows(HomeLayout.Builtin.RECOMMENDED)) async { recommended(primaryLabel, limit) } else null
         val recentMovies = if (shows(HomeLayout.Builtin.RECENT_MOVIES)) async {
-            db.vodDao().getRecentlyAddedVod().first().take(ROW_LIMIT).map { movieCard(it, primaryLabel) }
+            db.vodDao().getRecentlyAddedVodLimited(limit).map { movieCard(it, primaryLabel) }
         } else null
         val favoriteMovies = if (shows(HomeLayout.Builtin.FAVORITE_MOVIES)) async {
-            db.vodDao().getFavoriteVodLimited(ROW_LIMIT).map { movieCard(it, primaryLabel) }
+            db.vodDao().getFavoriteVodLimited(limit).map { movieCard(it, primaryLabel) }
         } else null
         val favoriteSeries = if (shows(HomeLayout.Builtin.FAVORITE_SERIES)) async {
-            db.seriesDao().getFavoriteSeriesLimited(ROW_LIMIT).map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
+            db.seriesDao().getFavoriteSeriesLimited(limit).map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
         } else null
 
         val resolved = custom.mapValues { it.value.await() }
@@ -206,13 +212,13 @@ class SmartHome @Inject constructor(
 
         val onNow = if (!shows(HomeLayout.Builtin.ON_NOW)) emptyList() else nowByChannel.values
             .sortedBy { channelOrder(it, guideChannels, guideOthers) }
-            .mapNotNull { program(it, SearchHit.Kind.ON_NOW) }.take(ROW_LIMIT)
+            .mapNotNull { program(it, SearchHit.Kind.ON_NOW) }.take(limit)
         // The next show on each channel, starting soon (not already on).
         val startingSoon = if (!shows(HomeLayout.Builtin.STARTING_SOON)) emptyList() else guide
             .filter { ms(it.startTimestamp) > nowMs && ms(it.startTimestamp) <= nowMs + STARTING_SOON_MS }
             .groupBy { it.serverIndex to it.streamId }.values.map { airings -> airings.minBy { ms(it.startTimestamp) } }
             .sortedBy { ms(it.startTimestamp) }
-            .mapNotNull { program(it, SearchHit.Kind.UPCOMING) }.take(ROW_LIMIT)
+            .mapNotNull { program(it, SearchHit.Kind.UPCOMING) }.take(limit)
 
         fun channelCard(c: ChannelEntity?, m: MergedChannelEntity?): HomeCard = if (c != null) {
             HomeCard(SearchHit.Channel(c, null, primaryLabel), line = nowTitle(-1, c.streamId))
@@ -224,13 +230,14 @@ class SmartHome @Inject constructor(
             val next = nextByChannel[(c?.let { -1 } ?: m!!.serverIndex) to (c?.streamId ?: m!!.streamId)]
             channelCard(c, m).copy(nextTitle = next?.title, nextStartMs = next?.let { ms(it.startTimestamp) })
         }
-        val recentCards = recent.take(ROW_LIMIT).map { channelCard(it, null) }
+        val recentCards = recent.take(limit).map { channelCard(it, null) }
 
         val builtinCards: Map<HomeLayout.Builtin, List<HomeCard>> = mapOf(
+            // Picked by hand, like rows people make: Smart Rows' cards per row (automatic rows) doesn't cut it.
             HomeLayout.Builtin.TOP_FAVORITES to topCards,
             HomeLayout.Builtin.CONTINUE to (continueRow?.await() ?: emptyList()),
             HomeLayout.Builtin.ON_NOW to onNow,
-            HomeLayout.Builtin.FAVORITES to favoriteCards.take(ROW_LIMIT),
+            HomeLayout.Builtin.FAVORITES to favoriteCards.take(limit),
             HomeLayout.Builtin.RECENT to recentCards,
             HomeLayout.Builtin.STARTING_SOON to startingSoon,
             HomeLayout.Builtin.RECORDINGS to (recordings?.await() ?: emptyList()),
@@ -252,7 +259,8 @@ class SmartHome @Inject constructor(
                         r.series.map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
                 }.orEmpty()
             }
-            if (cards.isEmpty() && !s.showWhenEmpty) continue
+            // Empty: kept only when Smart Rows' auto-collapse is off and the row asks to show a hint.
+            if (cards.isEmpty() && !SmartRows.keepsEmpty(rules, s)) continue
             out += rowFor(s, order, cards)
         }
         out += HomeRow(null, emptyList(), id = CUSTOMIZE_ID, title = "Customize Home", order = Int.MAX_VALUE, customize = true)
@@ -283,20 +291,20 @@ class SmartHome @Inject constructor(
      * (anything no longer there is skipped, the rest stay), or one category, bounded. An item on
      * a provider that is switched off is skipped too.
      */
-    private suspend fun resolve(s: HomeLayout.Section, enabled: Set<Int>): Resolved {
+    private suspend fun resolve(s: HomeLayout.Section, enabled: Set<Int>, limit: Int = ROW_LIMIT): Resolved {
         val f = s.filter
         return when (s.contentType) {
             HomeLayout.Content.CHANNELS -> when {
                 f?.gone == true -> Resolved()
                 f != null && f.serverIndex == -1 ->
-                    Resolved(channels = f.categoryId?.let { db.channelDao().getChannelsByCategoryLimited(it, ROW_LIMIT) }.orEmpty().map { it to null })
+                    Resolved(channels = f.categoryId?.let { db.channelDao().getChannelsByCategoryLimited(it, limit) }.orEmpty().map { it to null })
                 f != null -> if (f.serverIndex !in enabled) Resolved() else
-                    Resolved(channels = db.mergedChannelDao().getByServerAndCategoryLimited(f.serverIndex, f.categoryId, ROW_LIMIT).map { null to it })
+                    Resolved(channels = db.mergedChannelDao().getByServerAndCategoryLimited(f.serverIndex, f.categoryId, limit).map { null to it })
                 else -> Resolved(channels = channelsOf(s.items, enabled))
             }
             HomeLayout.Content.MOVIES -> when {
                 f?.gone == true -> Resolved()
-                f != null -> Resolved(movies = f.categoryId?.let { db.vodDao().getVodByCategoryLimited(it, ROW_LIMIT) }.orEmpty())
+                f != null -> Resolved(movies = f.categoryId?.let { db.vodDao().getVodByCategoryLimited(it, limit) }.orEmpty())
                 else -> {
                     val byId = s.items.map { it.id }.chunked(500).flatMap { db.vodDao().getVodByIds(it) }.associateBy { it.streamId }
                     Resolved(movies = s.items.mapNotNull { byId[it.id] })
@@ -304,7 +312,7 @@ class SmartHome @Inject constructor(
             }
             HomeLayout.Content.SERIES -> when {
                 f?.gone == true -> Resolved()
-                f != null -> Resolved(series = f.categoryId?.let { db.seriesDao().getSeriesByCategoryLimited(it, ROW_LIMIT) }.orEmpty())
+                f != null -> Resolved(series = f.categoryId?.let { db.seriesDao().getSeriesByCategoryLimited(it, limit) }.orEmpty())
                 else -> {
                     val byId = s.items.map { it.id }.chunked(500).flatMap { db.seriesDao().getSeriesByIds(it) }
                         .filter { !it.isHidden }.associateBy { it.seriesId }
@@ -366,31 +374,36 @@ class SmartHome @Inject constructor(
         return ids.chunked(500).flatMap { db.epgDao().getProgramsBetween(it, serverIndex, nowMs, toMs) }
     }
 
-    // Movies and series partway through, most recently watched first.
-    private suspend fun continueWatching(primaryLabel: String): List<HomeCard> {
-        val movies = db.vodDao().getInProgressVodRecent(ROW_LIMIT).map { vod ->
-            vod.lastWatchedAt to HomeCard(SearchHit.Movie(vod, null, primaryLabel), progress = percent(vod.watchedMs, vod.durationMs))
-        }
-        val series = repository.getInProgressSeries().first().mapIndexed { i, row ->
-            val hit = SearchHit.Series(row.series, null, primaryLabel)
-            // Rows without a recorded time keep their query order (most recent first).
-            val at = row.series.lastWatchedAt.takeIf { it > 0 } ?: (Long.MAX_VALUE / 2 - i)
-            at to HomeCard(SearchHit.Episode(hit, row.lastSeason, row.lastEpisode, ""),
-                line = "S${row.lastSeason}E${row.lastEpisode}", progress = percent(row.lastEpisodeWatchedMs, row.lastEpisodeDurationMs))
-        }
-        return (movies + series).sortedByDescending { it.first }.map { it.second }.take(ROW_LIMIT)
+    // Movies and series partway through, most recently watched first. The cut-off is in the queries,
+    // so the row fills from everything unfinished: 90% with [hideCompleted] (SmartRows), otherwise
+    // MKTV's own 95% "watched" mark.
+    private suspend fun continueWatching(primaryLabel: String, limit: Int, hideCompleted: Boolean): List<HomeCard> {
+        val maxRatio = SmartRows.finishedRatio(hideCompleted)
+        val movies = db.vodDao().getInProgressVodBelow(limit, maxRatio)
+            .map { vod ->
+                vod.lastWatchedAt to HomeCard(SearchHit.Movie(vod, null, primaryLabel), progress = percent(vod.watchedMs, vod.durationMs))
+            }
+        val series = db.seriesDao().getInProgressSeriesLimited(limit, maxRatio)
+            .mapIndexed { i, row ->
+                val hit = SearchHit.Series(row.series, null, primaryLabel)
+                // Rows without a recorded time keep their query order (most recent first).
+                val at = row.series.lastWatchedAt.takeIf { it > 0 } ?: (Long.MAX_VALUE / 2 - i)
+                at to HomeCard(SearchHit.Episode(hit, row.lastSeason, row.lastEpisode, ""),
+                    line = "S${row.lastSeason}E${row.lastEpisode}", progress = percent(row.lastEpisodeWatchedMs, row.lastEpisodeDurationMs))
+            }
+        return (movies + series).sortedByDescending { it.first }.map { it.second }.take(limit)
     }
 
     // Movies and series from the categories watched most, alternating.
-    private suspend fun recommended(primaryLabel: String): List<HomeCard> {
-        val movies = db.vodDao().getRecommended(ROW_LIMIT).map { HomeCard(SearchHit.Movie(it, null, primaryLabel)) }
-        val series = db.seriesDao().getRecommended(ROW_LIMIT / 2).map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
+    private suspend fun recommended(primaryLabel: String, limit: Int): List<HomeCard> {
+        val movies = db.vodDao().getRecommended(limit).map { HomeCard(SearchHit.Movie(it, null, primaryLabel)) }
+        val series = db.seriesDao().getRecommended(limit / 2).map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
         val out = ArrayList<HomeCard>()
         for (i in 0 until maxOf(movies.size, series.size)) {
             movies.getOrNull(i)?.let { out += it }
             series.getOrNull(i)?.let { out += it }
         }
-        return out.take(ROW_LIMIT)
+        return out.take(limit)
     }
 
     private data class ListedEpisode(val season: Int, val episodeNum: Int, val title: String, val addedSec: Long)
@@ -445,7 +458,7 @@ class SmartHome @Inject constructor(
                 if (episodes == null) return@async null
                 cardFor(series, episodes, primaryLabel, nowMs)
             }
-        }.awaitAll().filterNotNull()
+        }.awaitAll().filterNotNull().take(prefs.smartRows.first().limit)
         if (cards.isEmpty()) null else rowFor(section, order, cards)
     }
 

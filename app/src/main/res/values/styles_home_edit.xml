@@ -39,4 +39,34 @@
         <item name="android:background">@drawable/persona_card_bg</item>
         <item name="android:textAllCaps">true</item>
     </style>
+
+    <!-- Customize Home → Smart Rows dialog (dialog_smart_rows). -->
+    <style name="SmartRowsLabel">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="SmartRowsNote">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:textColor">@color/rack_text_secondary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- A rule switched with one press: the whole width, outlined while on. -->
+    <style name="SmartRowsToggle" parent="HomeEditChip">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_marginStart">0dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:background">@drawable/persona_card_bg</item>
+        <item name="android:gravity">center_vertical|start</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+    </style>
 </resources>

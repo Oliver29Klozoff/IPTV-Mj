@@ -177,6 +177,22 @@ object HomeLayout {
 
     fun setVisible(layout: Layout, id: String, visible: Boolean) = update(layout, id) { it.copy(visible = visible) }
 
+    /** Customize Home → Smart Rows' live TV group: channels, the guide and recordings. */
+    val LIVE_BUILTINS = setOf(
+        Builtin.TOP_FAVORITES, Builtin.ON_NOW, Builtin.FAVORITES, Builtin.RECENT, Builtin.STARTING_SOON, Builtin.RECORDINGS,
+    )
+
+    /** Customize Home → Smart Rows' movies and series group. */
+    val VOD_BUILTINS = setOf(
+        Builtin.CONTINUE, Builtin.NEW_EPISODES, Builtin.RECOMMENDED, Builtin.RECENT_MOVIES, Builtin.FAVORITE_MOVIES, Builtin.FAVORITE_SERIES,
+    )
+
+    /** Shows or hides every row in [builtins] at once. Only their Shown/Hidden changes: order, styles and rows people made stay. */
+    fun setGroupVisibility(layout: Layout, builtins: Set<Builtin>, visible: Boolean): Layout {
+        val ids = builtins.map { it.id }.toSet()
+        return layout.copy(sections = layout.sections.map { if (it.id in ids) it.copy(visible = visible) else it })
+    }
+
     fun setStyle(layout: Layout, id: String, style: Style) = update(layout, id) {
         if (style in styles(it.contentType)) it.copy(style = style) else it
     }
