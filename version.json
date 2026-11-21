@@ -1,7 +1,7 @@
 {
-  "versionCode": 630,
-  "versionName": "7.92",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.92/MKTV.apk",
-  "apkSha256": "6c8189a6be4260a312982df365642c3b05fdd8835c1e545d085bd5e6b9d8ce89",
-  "changelog": "TV: reorder and hide sidebar entries, and pick a viewing style (Classic Cable, Cinema Hub, Sports Bar) in Customize Home."
+  "versionCode": 631,
+  "versionName": "7.93",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.93/MKTV.apk",
+  "apkSha256": "78f1e14fe3e797cb518cd8bcd28e1b7bc2267232f92c1704c2d7073509a8fab9",
+  "changelog": "Pick Compact, Standard or Expanded card sizes for Home in Customize Home."
 }

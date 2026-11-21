@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.93 - 2026-11-21
+- **New**: Card size in Customize Home → Card Density & Size. Compact fits more cards on screen,
+  Expanded makes cards, text and touch targets bigger (good for car screens and far-away TVs), and
+  Standard keeps MKTV's usual look. On a TV, the Movies and Series grids show 6, 5 or 4 posters
+  across to match. Reset Home puts it back to Standard.
+
 ## v7.92 - 2026-11-20
 - **New**: Customize Sidebar (TV). Reorder the TV sidebar and hide entries you don't use, from
   Customize Home → SIDEBAR… or Settings → Display → Customize Sidebar Sections. Settings stays at
