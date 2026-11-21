@@ -383,6 +383,8 @@ class PreferencesManager @Inject constructor(
         // Viewing persona preset (ViewingPersona id), per form factor. Absent = Custom.
         val HOME_PERSONA_TV = stringPreferencesKey("home_persona_tv")
         val HOME_PERSONA_PHONE = stringPreferencesKey("home_persona_phone")
+        // Home card size (CardDensity id): compact, standard or expanded. Absent = standard.
+        val CARD_DENSITY = stringPreferencesKey("home_card_density")
         val TOP_FAVORITES = stringPreferencesKey("top_favorites")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
@@ -670,6 +672,18 @@ class PreferencesManager @Inject constructor(
         .map(readPictureMode)
     suspend fun setPictureMode(v: Int) = context.dataStore.edit {
         it[Keys.PICTURE_MODE] = com.iptvapp.util.PictureMode.normalize(v)
+    }
+
+    /** Home's card size (Customize Home → Card Density & Size): Standard until changed. TV and phone share it. */
+    val cardDensity: Flow<com.iptvapp.data.home.CardDensity> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.home.CardDensity.fromId(it[Keys.CARD_DENSITY]) }
+        .distinctUntilChanged()
+    /** [cardDensity] now, so Home's first cards are already the right size. */
+    fun cardDensityNow(): com.iptvapp.data.home.CardDensity =
+        com.iptvapp.data.home.CardDensity.fromId(PrefsSnapshot.read(context) { it[Keys.CARD_DENSITY] })
+    suspend fun setCardDensity(density: com.iptvapp.data.home.CardDensity) = context.dataStore.edit {
+        it[Keys.CARD_DENSITY] = density.id
     }
 
     /** TV Home's mini player (Customize Home → Home Mini Player Display): "hero" until changed. */

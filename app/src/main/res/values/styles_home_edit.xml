@@ -30,4 +30,13 @@
     <style name="SidebarEditHeaderChip" parent="HomeEditHeaderChip">
         <item name="android:background">@drawable/sidebar_edit_chip_bg</item>
     </style>
+
+    <!-- Customize Home's Card Density & Size choices: a third of the row each, outlined when
+         selected (activated) and ringed on remote focus, like the viewing style cards. -->
+    <style name="DensityChip" parent="HomeEditChip">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/persona_card_bg</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
 </resources>

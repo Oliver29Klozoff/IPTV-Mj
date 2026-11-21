@@ -33,4 +33,17 @@
     <string name="persona_apply">Apply Preset</string>
     <string name="persona_applied">Applied %1$s</string>
     <string name="persona_custom_kept">Your settings stay as they are. Change anything below.</string>
+    <!-- Card Density & Size: Customize Home's card size (CardDensity) -->
+    <string name="card_density_heading">CARD DENSITY &amp; SIZE</string>
+    <string name="density_compact_title">Compact</string>
+    <string name="density_compact_desc">More items on screen; tighter spacing for phones &amp; quick browsing.</string>
+    <string name="density_standard_title">Standard</string>
+    <string name="density_standard_desc">Default balanced sizing and spacing.</string>
+    <string name="density_expanded_title">Expanded</string>
+    <string name="density_expanded_desc">Larger posters and touch targets; ideal for car screens and 4K TVs.</string>
+    <string name="density_tv_grid">Movies and Series show %1$d posters across.</string>
+    <string name="density_chip">CARDS: %1$s</string>
+    <string name="density_option_selected">%1$s card size, selected. %2$s</string>
+    <string name="density_option">%1$s card size. %2$s</string>
+    <string name="density_dialog_title">Card Density &amp; Size</string>
 </resources>

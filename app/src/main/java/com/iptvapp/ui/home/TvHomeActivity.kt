@@ -1809,10 +1809,12 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.tvRvEpgGuide.layoutManager = LinearLayoutManager(this)
         binding.tvRvEpgGuide.adapter = epgGuideAdapter
 
-        binding.tvRvMoviesFsGrid.layoutManager = GridLayoutManager(this, 5)
+        // Five columns at Standard; Customize Home's Card Density & Size changes them (applyCardDensity).
+        binding.tvRvMoviesFsGrid.layoutManager = GridLayoutManager(this, cardDensity.gridSpan())
         binding.tvRvMoviesFsGrid.adapter = tvVodPosterAdapter
 
-        binding.tvRvSeriesFsGrid.layoutManager = GridLayoutManager(this, 5)
+        binding.tvRvSeriesFsGrid.layoutManager = GridLayoutManager(this, cardDensity.gridSpan())
+        applyGridPosterHeight()
         binding.tvRvSeriesFsGrid.adapter = tvSeriesPosterAdapter
 
         binding.tvRvWhatsOnNow.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
@@ -1943,6 +1945,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     companion object {
+        /** The Movies and Series grid posters' height at Standard (item_tv_vod_poster, item_tv_series_poster). */
+        private const val GRID_POSTER_HEIGHT_DP = 280f
         /** Set by the phone remote's Home from another screen, so this one comes back to its sidebar. */
         const val EXTRA_REMOTE_HOME = "remote_home"
         /** Set by the phone remote's Guide from another screen, so this one opens the guide. */
@@ -2034,7 +2038,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         val playerHadFocus = binding.tvMiniPlayerContainer.isFocused
         com.iptvapp.ui.home.TvHomeMiniLayout.apply(
             homeMiniMode, homeShowing, binding.tvMiniPlayerSection, binding.tvRvHome,
-            resources.getDimensionPixelSize(com.iptvapp.R.dimen.tv_home_row_slot),
+            resources.getDimensionPixelSize(SmartHomeAdapter.tvRowSlotRes(cardDensity)),
             player = binding.tvMiniPlayerContainer, expanded = miniPlayerExpanded,
         )
         // Hero's rows fill the slot (set by the rows' layout listener); the others size themselves.
@@ -2054,6 +2058,29 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         miniPlayJob?.join()
         if (miniHiddenOnHome() && currentMiniUrl.isNotEmpty() && loaded()) binding.tvMiniPlayerContainer.performClick()
     }
+    /** Customize Home's Card Density & Size, read once at start (the snapshot is loaded by then), then followed. */
+    private var cardDensitySeen: com.iptvapp.data.home.CardDensity? = null
+    private var cardDensity: com.iptvapp.data.home.CardDensity
+        get() = cardDensitySeen ?: prefs.cardDensityNow().also { cardDensitySeen = it }
+        set(value) { cardDensitySeen = value }
+
+    /** Applies [cardDensity]: Home's cards, the Hero row slot under the player, and the full-screen grids. */
+    private fun applyCardDensity() {
+        if (::homeAdapter.isInitialized) homeAdapter.density = cardDensity
+        val span = cardDensity.gridSpan()
+        (binding.tvRvMoviesFsGrid.layoutManager as? GridLayoutManager)?.let { if (it.spanCount != span) it.spanCount = span }
+        (binding.tvRvSeriesFsGrid.layoutManager as? GridLayoutManager)?.let { if (it.spanCount != span) it.spanCount = span }
+        applyGridPosterHeight()
+        applyHomeMiniMode()
+    }
+
+    /** Grid posters keep their shape: as the columns narrow or widen, their height follows. */
+    private fun applyGridPosterHeight() {
+        val px = (GRID_POSTER_HEIGHT_DP * cardDensity.scaleMultiplier * resources.displayMetrics.density).toInt()
+        if (::tvVodPosterAdapter.isInitialized) tvVodPosterAdapter.posterHeightPx = px
+        if (::tvSeriesPosterAdapter.isInitialized) tvSeriesPosterAdapter.posterHeightPx = px
+    }
+
     private lateinit var homeAdapter: SmartHomeAdapter
     private val homeHitUi by lazy {
         com.iptvapp.ui.search.SearchHitUi(this, homeRepository,
@@ -2094,7 +2121,7 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     }
 
     private fun setupHome() {
-        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, hidePosterText = true, onLongClick = { row, card ->
+        homeAdapter = SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, cardScale = SmartHomeAdapter.TV_CARD_SCALE, posterScale = SmartHomeAdapter.TV_POSTER_SCALE, hidePosterText = true, initialDensity = cardDensity, onLongClick = { row, card ->
             TopFavoritesMenu.showForCard(this, prefs, tv = true, row, card) { if (homeShowing) refreshHome() }
         }, onCustomize = {
             refocusCustomize = true
@@ -2119,6 +2146,14 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
             rv.post {
                 val wanted = if (com.iptvapp.ui.home.TvHomeMiniLayout.rowsFillSlot(homeMiniMode)) slot else 0
                 if (homeAdapter.rowHeightPx != wanted) homeAdapter.rowHeightPx = wanted
+            }
+        }
+        // Card Density & Size: the cards, the row slot and the Movies and Series grids follow a change.
+        lifecycleScope.launch {
+            prefs.cardDensity.collect { density ->
+                if (density == cardDensity) return@collect
+                cardDensity = density
+                applyCardDensity()
             }
         }
         // The saved mode now (the snapshot is loaded at app start), then any change Customize Home makes.

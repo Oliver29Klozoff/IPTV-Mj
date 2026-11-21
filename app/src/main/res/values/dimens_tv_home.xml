@@ -6,4 +6,8 @@
          TV_CARD_SCALE, TV_POSTER_SCALE and hidePosterText; TvHomeRowSlotTest). The mini player takes the rest of the column. TVs
          are 540dp tall at any resolution, so the same split holds on 720p, 1080p and 4K panels. -->
     <dimen name="tv_home_row_slot">174dp</dimen>
+    <!-- The same slot at Customize Home's Compact and Expanded card sizes (CardDensity; CardDensityTest
+         checks every row fits each one). Compact's channel rows keep most of their text height. -->
+    <dimen name="tv_home_row_slot_compact">160dp</dimen>
+    <dimen name="tv_home_row_slot_expanded">207dp</dimen>
 </resources>
