@@ -295,6 +295,17 @@ interface VodDao {
         LIMIT :limit
     """)
     suspend fun getInProgressVodRecent(limit: Int): List<VodEntity>
+    // The same with its own cut-off ([maxRatio] of the length watched counts as finished): Home's
+    // Continue Watching, where Customize Home → Smart Rows can make it 90%.
+    @Query("""
+        SELECT * FROM vod_streams
+        WHERE watchedMs > 0 AND durationMs > 0
+          AND CAST(watchedMs AS REAL) / durationMs < :maxRatio
+          AND dismissedFromContinueWatching = 0
+        ORDER BY lastWatchedAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getInProgressVodBelow(limit: Int, maxRatio: Double): List<VodEntity>
     // Smart Home's Recommended: unwatched movies from the categories watched most (the three
     // with the most started or finished movies), best rated and newest first.
     @Query("""
@@ -432,7 +443,7 @@ interface SeriesDao {
         LIMIT 20
     """)
     fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
-    // The same, at Home's chosen row length (Customize Home → Smart Rows).
+    // The same, at Home's chosen row length and finished cut-off (Customize Home → Smart Rows).
     @Query("""
         SELECT s.*, ew.season AS lastSeason, ew.episode AS lastEpisode,
                ew.watchedMs AS lastEpisodeWatchedMs, ew.durationMs AS lastEpisodeDurationMs
@@ -449,11 +460,11 @@ interface SeriesDao {
           AND s.dismissedFromContinueWatching = 0
           AND ew.durationMs > 0
           AND ew.watchedMs > 0
-          AND CAST(ew.watchedMs AS REAL) / ew.durationMs < 0.95
+          AND CAST(ew.watchedMs AS REAL) / ew.durationMs < :maxRatio
         ORDER BY ew.rid DESC
         LIMIT :limit
     """)
-    suspend fun getInProgressSeriesLimited(limit: Int): List<InProgressSeriesRow>
+    suspend fun getInProgressSeriesLimited(limit: Int, maxRatio: Double): List<InProgressSeriesRow>
     // Smart Home's Recommended (series): unwatched series from the categories of the series
     // watched most, best rated first. Same idea as VodDao.getRecommended.
     @Query("""

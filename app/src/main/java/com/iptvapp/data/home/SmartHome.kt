@@ -371,17 +371,16 @@ class SmartHome @Inject constructor(
         return ids.chunked(500).flatMap { db.epgDao().getProgramsBetween(it, serverIndex, nowMs, toMs) }
     }
 
-    // Movies and series partway through, most recently watched first. With [hideCompleted], anything
-    // watched 90% or more is left out (SmartRows.isFinished); twice as many are read so the row stays full.
+    // Movies and series partway through, most recently watched first. The cut-off is in the queries,
+    // so the row fills from everything unfinished: 90% with [hideCompleted] (SmartRows), otherwise
+    // MKTV's own 95% "watched" mark.
     private suspend fun continueWatching(primaryLabel: String, limit: Int, hideCompleted: Boolean): List<HomeCard> {
-        val read = if (hideCompleted) limit * 2 else limit
-        val movies = db.vodDao().getInProgressVodRecent(read)
-            .filter { !hideCompleted || !SmartRows.isFinished(it.watchedMs, it.durationMs) }
+        val maxRatio = SmartRows.finishedRatio(hideCompleted)
+        val movies = db.vodDao().getInProgressVodBelow(limit, maxRatio)
             .map { vod ->
                 vod.lastWatchedAt to HomeCard(SearchHit.Movie(vod, null, primaryLabel), progress = percent(vod.watchedMs, vod.durationMs))
             }
-        val series = db.seriesDao().getInProgressSeriesLimited(read)
-            .filter { !hideCompleted || !SmartRows.isFinished(it.lastEpisodeWatchedMs, it.lastEpisodeDurationMs) }
+        val series = db.seriesDao().getInProgressSeriesLimited(limit, maxRatio)
             .mapIndexed { i, row ->
                 val hit = SearchHit.Series(row.series, null, primaryLabel)
                 // Rows without a recorded time keep their query order (most recent first).

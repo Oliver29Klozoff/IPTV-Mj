@@ -27,6 +27,12 @@ object SmartRows {
     /** A saved limit, or the default when there is none or it isn't one of [LIMITS]. */
     fun normalizeLimit(v: Int?): Int = v?.takeIf { it in LIMITS } ?: DEFAULT_LIMIT
 
+    /** MKTV's own "watched" mark (Continue Watching's cut-off without the Smart Rows rule). */
+    const val WATCHED_PERCENT = 95
+
+    /** The share of an item's length that counts as finished for Continue Watching. */
+    fun finishedRatio(hideCompleted: Boolean): Double = (if (hideCompleted) COMPLETED_PERCENT else WATCHED_PERCENT) / 100.0
+
     /** Watched [COMPLETED_PERCENT] or more of it. Unknown length counts as not finished. */
     fun isFinished(watchedMs: Long, durationMs: Long): Boolean =
         durationMs > 0 && watchedMs * 100 >= durationMs * COMPLETED_PERCENT

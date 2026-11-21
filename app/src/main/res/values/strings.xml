@@ -57,9 +57,9 @@
     <string name="smart_rows_collapse_on">● Hide empty rows: ON</string>
     <string name="smart_rows_collapse_off">○ Hide empty rows: OFF</string>
     <string name="smart_rows_finished_on">● Hide finished items (90%% watched): ON</string>
-    <string name="smart_rows_finished_off">○ Hide finished items (90%% watched): OFF</string>
+    <string name="smart_rows_finished_off">○ Hide finished items (90%% watched): OFF, 95%% still counts as watched</string>
     <string name="smart_rows_collapse_description">Hide empty rows. %1$s. Press to switch.</string>
-    <string name="smart_rows_finished_description">Leave movies and episodes watched 90 percent or more out of Continue Watching. %1$s. Press to switch.</string>
+    <string name="smart_rows_finished_description">Leave movies and episodes watched 90 percent or more out of Continue Watching. %1$s. When off, 95 percent still counts as watched. Press to switch.</string>
     <string name="smart_rows_on">On</string>
     <string name="smart_rows_off">Off</string>
     <string name="smart_rows_limit_heading">CARDS PER ROW</string>

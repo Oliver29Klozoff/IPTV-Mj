@@ -127,17 +127,18 @@ class SmartRowsTest {
 
     @Test
     fun continueWatchingLeavesOutFinishedItemsUnlessAskedNotTo() = runBlocking {
-        db.vodDao().upsertVod(listOf(movie(1, percent = 50, at = 3), movie(2, percent = 92, at = 2), movie(3, percent = 89, at = 1)))
+        db.vodDao().upsertVod(listOf(movie(1, percent = 50, at = 4), movie(2, percent = 92, at = 3), movie(3, percent = 89, at = 2), movie(4, percent = 97, at = 1)))
         val titles = row(home.rows(now), "continue").cards.map { it.hit.title }
         assertEquals(listOf("Movie 1", "Movie 3"), titles)
+        // Off: back to MKTV's own 95% "watched" mark, so the 97% one still stays out.
         prefs.setSmartRows(SmartRows.Settings(hideCompleted = false))
         assertEquals(listOf("Movie 1", "Movie 2", "Movie 3"), row(home.rows(now), "continue").cards.map { it.hit.title })
     }
 
     @Test
     fun finishedItemsDontLeaveTheRowShort() = runBlocking {
-        // The ten most recent are all finished; the row still fills with the next ten.
-        db.vodDao().upsertVod((1..10).map { movie(it, percent = 93, at = 100L + it) } + (11..30).map { movie(it, percent = 40, at = it.toLong()) })
+        // The twenty most recent are all finished; the row still fills from the older unfinished ones.
+        db.vodDao().upsertVod((1..20).map { movie(it, percent = 93, at = 100L + it) } + (21..40).map { movie(it, percent = 40, at = it.toLong()) })
         prefs.setSmartRows(SmartRows.Settings(limit = 10))
         val cards = row(home.rows(now), "continue").cards
         assertEquals(10, cards.size)
