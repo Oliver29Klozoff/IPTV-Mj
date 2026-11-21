@@ -60,6 +60,8 @@ class SmartHomeLayoutTest {
         prefs = PreferencesManager(context)
         runBlocking {
             prefs.saveCredentials("http://provider.test", "u", "p")
+            // These tests cover the rows' own empty-row choice; Smart Rows' rules are in SmartRowsTest.
+            prefs.setSmartRows(SmartRows.Settings(autoCollapseEmpty = false))
             // Two other providers, both on.
             prefs.saveExtraServersWithNick(listOf(
                 listOf("http://a.test", "a", "pa", "Backup A", "", "true", "xtream", ""),

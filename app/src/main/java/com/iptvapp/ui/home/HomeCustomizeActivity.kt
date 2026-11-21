@@ -22,6 +22,7 @@ import com.iptvapp.R
 import com.iptvapp.data.home.CardDensity
 import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeLayoutStore
+import com.iptvapp.data.home.SmartRows
 import com.iptvapp.data.home.TopFavorites
 import com.iptvapp.data.home.TopFavoritesStore
 import com.iptvapp.data.home.TvHomeMiniMode
@@ -88,6 +89,9 @@ class HomeCustomizeActivity : AppCompatActivity() {
 
         binding.btnCustomizeDone.setOnClickListener { finish() }
         binding.btnCustomizeAdd.setOnClickListener { addRow() }
+        smartRules = prefs.smartRowsNow()
+        binding.btnCustomizeSmartRows.setOnClickListener { showSmartRowsDialog() }
+        binding.btnCustomizeSmartRows.contentDescription = "Smart Rows: show or hide groups of rows, empty rows, finished items and cards per row"
         binding.btnCustomizeStart.setOnClickListener { pickStart() }
         binding.btnCustomizeReset.setOnClickListener { confirmReset() }
         if (tv) {
@@ -342,7 +346,7 @@ class HomeCustomizeActivity : AppCompatActivity() {
             else -> parts += "${what ?: "Items"} you pick · ${s.items.size}"
         }
         if (HomeLayout.styles(s.contentType).size > 1) parts += s.style.label
-        if (s.showWhenEmpty) parts += "Shown when empty"
+        if (SmartRows.keepsEmpty(smartRules, s)) parts += "Shown when empty"
         if (!s.visible) parts += "Hidden"
         return parts.joinToString(" · ")
     }
@@ -396,8 +400,14 @@ class HomeCustomizeActivity : AppCompatActivity() {
                     .show()
             }
         }
-        labels += if (s.showWhenEmpty) "When empty: show a hint" else "When empty: hide the row"
-        actions += { change(s.id, R.id.btnSectionEdit) { HomeLayout.setShowWhenEmpty(it, s.id, !s.showWhenEmpty) } }
+        if (smartRules.autoCollapseEmpty) {
+            // Smart Rows' rule wins over the row's own choice while it is on.
+            labels += getString(R.string.smart_rows_when_empty_overridden)
+            actions += { showSmartRowsDialog() }
+        } else {
+            labels += if (s.showWhenEmpty) "When empty: show a hint" else "When empty: hide the row"
+            actions += { change(s.id, R.id.btnSectionEdit) { HomeLayout.setShowWhenEmpty(it, s.id, !s.showWhenEmpty) } }
+        }
         if (s.isCustom) {
             labels += "Delete row"
             actions += {
@@ -582,6 +592,87 @@ class HomeCustomizeActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    // ── Smart Rows ──────────────────────────────────────────────────────
+
+    private var smartRules = SmartRows.Settings()
+
+    /**
+     * Smart Rows: Show all / Hide all for the live TV rows and for the movies and series rows,
+     * the empty-row and finished-item rules, and cards per row. Choices are held until Save, then
+     * saved together; Cancel changes nothing. A group choice changes only those rows' Shown/Hidden.
+     */
+    private fun showSmartRowsDialog() {
+        val b = com.iptvapp.databinding.DialogSmartRowsBinding.inflate(layoutInflater)
+        var rules = smartRules
+        var live: Boolean? = null
+        var vod: Boolean? = null
+        b.tvSmartRowsLiveList.text = HomeLayout.LIVE_BUILTINS.joinToString(", ") { it.title }
+        b.tvSmartRowsVodList.text = HomeLayout.VOD_BUILTINS.joinToString(", ") { it.title }
+        val limits = listOf(b.btnSmartLimit10, b.btnSmartLimit20, b.btnSmartLimit30).zip(SmartRows.LIMITS)
+
+        fun groupChip(chip: View, group: String, label: Int, chosen: Boolean) {
+            chip.isActivated = chosen
+            val text = getString(R.string.smart_rows_group_description, group, getString(label))
+            chip.contentDescription = if (chosen) getString(R.string.smart_rows_group_chosen, text) else text
+        }
+        fun render() {
+            groupChip(b.btnSmartLiveShow, "Live TV", R.string.smart_rows_show_all, live == true)
+            groupChip(b.btnSmartLiveHide, "Live TV", R.string.smart_rows_hide_all, live == false)
+            groupChip(b.btnSmartVodShow, "Movies and series", R.string.smart_rows_show_all, vod == true)
+            groupChip(b.btnSmartVodHide, "Movies and series", R.string.smart_rows_hide_all, vod == false)
+            b.btnSmartCollapse.isActivated = rules.autoCollapseEmpty
+            b.btnSmartCollapse.setText(if (rules.autoCollapseEmpty) R.string.smart_rows_collapse_on else R.string.smart_rows_collapse_off)
+            b.btnSmartCollapse.contentDescription = getString(R.string.smart_rows_collapse_description,
+                getString(if (rules.autoCollapseEmpty) R.string.smart_rows_on else R.string.smart_rows_off))
+            b.btnSmartHideFinished.isActivated = rules.hideCompleted
+            b.btnSmartHideFinished.setText(if (rules.hideCompleted) R.string.smart_rows_finished_on else R.string.smart_rows_finished_off)
+            b.btnSmartHideFinished.contentDescription = getString(R.string.smart_rows_finished_description,
+                getString(if (rules.hideCompleted) R.string.smart_rows_on else R.string.smart_rows_off))
+            for ((chip, n) in limits) {
+                chip.isActivated = n == rules.limit
+                chip.text = getString(if (n == SmartRows.DEFAULT_LIMIT) R.string.smart_rows_limit_default else R.string.smart_rows_limit, n)
+                chip.contentDescription = getString(R.string.smart_rows_limit_description, n) +
+                    if (n == rules.limit) ", selected" else ""
+            }
+        }
+        // A group chip pressed again clears the choice: that group stays as it is.
+        b.btnSmartLiveShow.setOnClickListener { live = if (live == true) null else true; render() }
+        b.btnSmartLiveHide.setOnClickListener { live = if (live == false) null else false; render() }
+        b.btnSmartVodShow.setOnClickListener { vod = if (vod == true) null else true; render() }
+        b.btnSmartVodHide.setOnClickListener { vod = if (vod == false) null else false; render() }
+        b.btnSmartCollapse.setOnClickListener { rules = rules.copy(autoCollapseEmpty = !rules.autoCollapseEmpty); render() }
+        b.btnSmartHideFinished.setOnClickListener { rules = rules.copy(hideCompleted = !rules.hideCompleted); render() }
+        for ((chip, n) in limits) chip.setOnClickListener { rules = rules.copy(limit = n); render() }
+        render()
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.smart_rows_title)
+            .setView(b.root)
+            .setPositiveButton(R.string.smart_rows_save) { _, _ -> saveSmartRows(rules, live, vod) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        // The remote starts on the first choice, not on the dialog's buttons.
+        b.btnSmartLiveShow.requestFocus()
+        dialog.setOnDismissListener { binding.btnCustomizeSmartRows.requestFocus() }
+    }
+
+    private fun saveSmartRows(rules: SmartRows.Settings, live: Boolean?, vod: Boolean?) {
+        val rulesChanged = rules != smartRules
+        smartRules = rules
+        if (live != null || vod != null) {
+            change {
+                var l = it
+                if (live != null) l = HomeLayout.setGroupVisibility(l, HomeLayout.LIVE_BUILTINS, live)
+                if (vod != null) l = HomeLayout.setGroupVisibility(l, HomeLayout.VOD_BUILTINS, vod)
+                l
+            }
+        }
+        // The rows' detail lines mention the empty-row rule, which the diff of the rows can't see.
+        if (rulesChanged) adapter.notifyItemRangeChanged(0, adapter.itemCount)
+        if (rulesChanged) lifecycleScope.launch(NonCancellable) { prefs.setSmartRows(rules) }
+        Toast.makeText(this, R.string.smart_rows_updated, Toast.LENGTH_SHORT).show()
     }
 
     private fun confirmReset() {

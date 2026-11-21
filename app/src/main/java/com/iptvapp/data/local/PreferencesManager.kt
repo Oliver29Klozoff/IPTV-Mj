@@ -385,6 +385,11 @@ class PreferencesManager @Inject constructor(
         val HOME_PERSONA_PHONE = stringPreferencesKey("home_persona_phone")
         // Home card size (CardDensity id): compact, standard or expanded. Absent = standard.
         val CARD_DENSITY = stringPreferencesKey("home_card_density")
+        // Smart Rows (SmartRows): cards per automatic row (10, 20 or 30; absent = 20), hiding every
+        // empty row (absent = on), and leaving 90%-watched items out of Continue Watching (absent = on).
+        val SMART_ROW_LIMIT = intPreferencesKey("home_smart_row_limit")
+        val AUTO_COLLAPSE_EMPTY_ROWS = booleanPreferencesKey("home_auto_collapse_empty_rows")
+        val CONTINUE_WATCHING_HIDE_COMPLETED = booleanPreferencesKey("home_continue_watching_hide_completed")
         val TOP_FAVORITES = stringPreferencesKey("top_favorites")
         // Notify when a favorite team's game starts (GameAlerts). On by default; only teams the viewer picked.
         val GAME_ALERTS = booleanPreferencesKey("game_alerts")
@@ -672,6 +677,27 @@ class PreferencesManager @Inject constructor(
         .map(readPictureMode)
     suspend fun setPictureMode(v: Int) = context.dataStore.edit {
         it[Keys.PICTURE_MODE] = com.iptvapp.util.PictureMode.normalize(v)
+    }
+
+    /** Customize Home → Smart Rows: how the automatic rows fill (SmartRows), shared by TV and phone. */
+    // Declared before smartRows: property initializers run in order.
+    private val readSmartRows = { p: Preferences ->
+        com.iptvapp.data.home.SmartRows.Settings(
+            limit = com.iptvapp.data.home.SmartRows.normalizeLimit(p[Keys.SMART_ROW_LIMIT]),
+            autoCollapseEmpty = p[Keys.AUTO_COLLAPSE_EMPTY_ROWS] ?: true,
+            hideCompleted = p[Keys.CONTINUE_WATCHING_HIDE_COMPLETED] ?: true,
+        )
+    }
+    val smartRows: Flow<com.iptvapp.data.home.SmartRows.Settings> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(readSmartRows)
+        .distinctUntilChanged()
+    fun smartRowsNow(): com.iptvapp.data.home.SmartRows.Settings = PrefsSnapshot.read(context, readSmartRows)
+    /** Saves all three Smart Rows settings in one write. */
+    suspend fun setSmartRows(s: com.iptvapp.data.home.SmartRows.Settings) = context.dataStore.edit {
+        it[Keys.SMART_ROW_LIMIT] = com.iptvapp.data.home.SmartRows.normalizeLimit(s.limit)
+        it[Keys.AUTO_COLLAPSE_EMPTY_ROWS] = s.autoCollapseEmpty
+        it[Keys.CONTINUE_WATCHING_HIDE_COMPLETED] = s.hideCompleted
     }
 
     /** Home's card size (Customize Home → Card Density & Size): Standard until changed. TV and phone share it. */

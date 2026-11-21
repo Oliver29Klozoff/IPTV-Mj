@@ -217,6 +217,9 @@ interface VodDao {
     // capped to a small row instead of the full catalog.
     @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC LIMIT 20")
     fun getRecentlyAddedVod(): Flow<List<VodEntity>>
+    // Home's Recently Added Movies at its chosen length (Customize Home → Smart Rows).
+    @Query("SELECT * FROM vod_streams ORDER BY added DESC, name ASC LIMIT :limit")
+    suspend fun getRecentlyAddedVodLimited(limit: Int): List<VodEntity>
     @Query("SELECT * FROM vod_streams WHERE isFavorite = 1 ORDER BY name ASC")
     fun getFavoriteVod(): Flow<List<VodEntity>>
     // Home rows (HomeLayout): bounded reads, never the whole catalog.
@@ -429,6 +432,28 @@ interface SeriesDao {
         LIMIT 20
     """)
     fun getInProgressSeries(): Flow<List<InProgressSeriesRow>>
+    // The same, at Home's chosen row length (Customize Home → Smart Rows).
+    @Query("""
+        SELECT s.*, ew.season AS lastSeason, ew.episode AS lastEpisode,
+               ew.watchedMs AS lastEpisodeWatchedMs, ew.durationMs AS lastEpisodeDurationMs
+        FROM series s
+        INNER JOIN (
+            SELECT ew1.rowid AS rid, ew1.seriesId, ew1.season, ew1.episode, ew1.watchedMs, ew1.durationMs
+            FROM episode_watched ew1
+            WHERE ew1.rowid = (
+                SELECT MAX(ew2.rowid) FROM episode_watched ew2
+                WHERE ew2.seriesId = ew1.seriesId
+            )
+        ) ew ON ew.seriesId = s.seriesId
+        WHERE s.isHidden = 0
+          AND s.dismissedFromContinueWatching = 0
+          AND ew.durationMs > 0
+          AND ew.watchedMs > 0
+          AND CAST(ew.watchedMs AS REAL) / ew.durationMs < 0.95
+        ORDER BY ew.rid DESC
+        LIMIT :limit
+    """)
+    suspend fun getInProgressSeriesLimited(limit: Int): List<InProgressSeriesRow>
     // Smart Home's Recommended (series): unwatched series from the categories of the series
     // watched most, best rated first. Same idea as VodDao.getRecommended.
     @Query("""
@@ -609,6 +634,15 @@ interface RecordingDao {
         LIMIT 20
     """)
     suspend fun getForHome(): List<RecordingEntity>
+    // The same, at Home's chosen row length (Customize Home → Smart Rows).
+    @Query("""
+        SELECT * FROM recordings
+        WHERE status IN ('RECORDING', 'COMPRESSING', 'SCHEDULED', 'DONE')
+        ORDER BY CASE status WHEN 'RECORDING' THEN 0 WHEN 'COMPRESSING' THEN 1 WHEN 'SCHEDULED' THEN 2 ELSE 3 END,
+                 CASE WHEN status = 'SCHEDULED' THEN scheduledStartMs ELSE -scheduledStartMs END
+        LIMIT :limit
+    """)
+    suspend fun getForHomeLimited(limit: Int): List<RecordingEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(recording: RecordingEntity): Long
     @Query("UPDATE recordings SET status = :status WHERE id = :id")
