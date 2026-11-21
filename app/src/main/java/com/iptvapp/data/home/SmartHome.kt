@@ -233,6 +233,7 @@ class SmartHome @Inject constructor(
         val recentCards = recent.take(limit).map { channelCard(it, null) }
 
         val builtinCards: Map<HomeLayout.Builtin, List<HomeCard>> = mapOf(
+            // Picked by hand, like rows people make: Smart Rows' cards per row (automatic rows) doesn't cut it.
             HomeLayout.Builtin.TOP_FAVORITES to topCards,
             HomeLayout.Builtin.CONTINUE to (continueRow?.await() ?: emptyList()),
             HomeLayout.Builtin.ON_NOW to onNow,
