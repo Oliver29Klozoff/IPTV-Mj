@@ -1,5 +1,12 @@
 # IPTV App - Changelog
 
+## v7.94 - 2026-11-21
+- **New**: Customize Home → SMART ROWS… sets rules for Home's automatic rows. Show or hide all the
+  Live TV rows or all the movie and series rows at once, pick 10, 20 or 30 cards per row, hide
+  empty rows (on by default, so rows with nothing in them stay off Home), and leave movies and
+  episodes watched 90% or more out of Continue Watching (on by default). Reset Home puts these back
+  to their defaults.
+
 ## v7.93 - 2026-11-21
 - **New**: Card size in Customize Home → Card Density & Size. Compact fits more cards on screen,
   Expanded makes cards, text and touch targets bigger (good for car screens and far-away TVs), and

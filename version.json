@@ -1,7 +1,7 @@
 {
-  "versionCode": 631,
-  "versionName": "7.93",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.93/MKTV.apk",
-  "apkSha256": "78f1e14fe3e797cb518cd8bcd28e1b7bc2267232f92c1704c2d7073509a8fab9",
-  "changelog": "Pick Compact, Standard or Expanded card sizes for Home in Customize Home."
+  "versionCode": 632,
+  "versionName": "7.94",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.94/MKTV.apk",
+  "apkSha256": "6fca5cfd8d6b4a9012c409a779409c3083d243ef1eacd4a20cd4eab7d0cdb19b",
+  "changelog": "Smart Rows in Customize Home: show or hide row groups, 10/20/30 cards, hide empty rows and finished items."
 }
