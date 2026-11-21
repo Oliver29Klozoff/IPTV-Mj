@@ -88,6 +88,8 @@ class SmartHome @Inject constructor(
         private const val NEXT_MS = 4 * 60 * 60_000L
         /** Channels On Now and Starting Soon look at: favorites first, then recently watched. */
         private const val GUIDE_CHANNELS = 60
+        // Each followed series is one request to its provider, so New Episodes stays at 8 cards
+        // whatever Smart Rows' cards per row says (that is a maximum, not a target).
         private const val FOLLOWED_SERIES = 8
         private const val NEW_EPISODES_TTL_MS = 30 * 60_000L
 
