@@ -455,7 +455,7 @@ class SmartHome @Inject constructor(
                 if (episodes == null) return@async null
                 cardFor(series, episodes, primaryLabel, nowMs)
             }
-        }.awaitAll().filterNotNull()
+        }.awaitAll().filterNotNull().take(prefs.smartRows.first().limit)
         if (cards.isEmpty()) null else rowFor(section, order, cards)
     }
 
