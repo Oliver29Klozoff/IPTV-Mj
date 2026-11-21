@@ -589,9 +589,11 @@ class HomeCustomizeActivity : AppCompatActivity() {
         val extra = if (made > 0) " The ${if (made == 1) "row" else "$made rows"} you made will be removed from Home." else ""
         AlertDialog.Builder(this)
             .setTitle("Reset Home?")
-            .setMessage("Home goes back to MKTV's usual rows and order.$extra Your channels, favorites, movies, series, recordings and watch progress are not touched.")
+            .setMessage("Home goes back to MKTV's usual rows, order and card size.$extra Your channels, favorites, movies, series, recordings and watch progress are not touched.")
             .setPositiveButton("Reset") { _, _ ->
                 change { HomeLayout.reset(it) }
+                // The card size is part of how Home ships too.
+                setDensity(CardDensity.STANDARD)
                 binding.btnCustomizeReset.requestFocus()
             }
             .setNegativeButton(android.R.string.cancel, null)
