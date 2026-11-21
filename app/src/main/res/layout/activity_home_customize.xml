@@ -55,6 +55,59 @@
             android:orientation="horizontal" />
     </HorizontalScrollView>
 
+    <!-- Card Density & Size (CardDensity): three choices, the selected one outlined. On a short
+         screen this block is hidden and the CARDS chip below opens the same choice. -->
+    <LinearLayout
+        android:id="@+id/densityBlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:letterSpacing="0.12"
+            android:text="@string/card_density_heading"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/densityChipsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="2dp">
+
+            <TextView
+                android:id="@+id/btnDensityCompact"
+                style="@style/DensityChip"
+                android:layout_marginStart="0dp"
+                android:text="@string/density_compact_title" />
+
+            <TextView
+                android:id="@+id/btnDensityStandard"
+                style="@style/DensityChip"
+                android:text="@string/density_standard_title" />
+
+            <TextView
+                android:id="@+id/btnDensityExpanded"
+                style="@style/DensityChip"
+                android:text="@string/density_expanded_title" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvDensityDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="10dp"
+            android:importantForAccessibility="no"
+            android:textColor="@color/rack_text_muted"
+            android:textSize="12sp" />
+    </LinearLayout>
+
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -80,6 +133,12 @@
             <TextView
                 android:id="@+id/btnCustomizeStart"
                 style="@style/HomeEditHeaderChip" />
+
+            <!-- Short screens only: Card Density & Size, in place of the three choices above. -->
+            <TextView
+                android:id="@+id/btnCustomizeDensity"
+                style="@style/HomeEditHeaderChip"
+                android:visibility="gone" />
 
             <!-- TV only: Home Mini Player Display (Hero, Compact or Off). -->
             <TextView

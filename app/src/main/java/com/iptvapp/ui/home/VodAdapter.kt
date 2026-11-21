@@ -182,9 +182,21 @@ class TvVodPosterAdapter(
     private val providerLabel: (VodEntity) -> String? = { null }
 ) : LatestOnlyListAdapter<VodEntity, TvVodPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
+    /** The poster's height in pixels (Customize Home → Card Density & Size); 0 keeps the layout's 280dp. */
+    var posterHeightPx = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            @Suppress("NotifyDataSetChanged")
+            notifyDataSetChanged()
+        }
+
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvVodPosterBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(item: VodEntity) {
+            if (posterHeightPx > 0) binding.frameVodPoster.layoutParams.let { lp ->
+                if (lp.height != posterHeightPx) { lp.height = posterHeightPx; binding.frameVodPoster.layoutParams = lp }
+            }
             binding.tvVodName.text = item.name
             val rating = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
             val source = providerLabel(item)

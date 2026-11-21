@@ -149,9 +149,21 @@ class TvSeriesPosterAdapter(
     private val onSeriesLongClick: (SeriesEntity) -> Unit = {}
 ) : LatestOnlyListAdapter<SeriesEntity, TvSeriesPosterAdapter.ViewHolder>(PosterDiffCallback()) {
 
+    /** The poster's height in pixels (Customize Home → Card Density & Size); 0 keeps the layout's 280dp. */
+    var posterHeightPx = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            @Suppress("NotifyDataSetChanged")
+            notifyDataSetChanged()
+        }
+
     inner class ViewHolder(val binding: com.iptvapp.databinding.ItemTvSeriesPosterBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(item: SeriesEntity) {
+            if (posterHeightPx > 0) binding.frameSeriesPoster.layoutParams.let { lp ->
+                if (lp.height != posterHeightPx) { lp.height = posterHeightPx; binding.frameSeriesPoster.layoutParams = lp }
+            }
             binding.tvSeriesName.text = item.name
             binding.tvSeriesRating.text = if (!item.rating.isNullOrBlank()) "★ ${item.rating}" else ""
             Glide.with(binding.ivSeriesPoster)

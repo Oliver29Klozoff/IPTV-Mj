@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.iptvapp.R
+import com.iptvapp.data.home.CardDensity
 import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeLayoutStore
 import com.iptvapp.data.home.TopFavorites
@@ -32,6 +33,7 @@ import com.iptvapp.databinding.ItemHomeSectionEditBinding
 import com.iptvapp.databinding.ItemPersonaCardBinding
 import com.iptvapp.util.isLargeScreenDevice
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -110,6 +112,7 @@ class HomeCustomizeActivity : AppCompatActivity() {
             binding.btnCustomizeSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
         }
         buildPersonaCards()
+        setupDensity()
         binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"
     }
@@ -163,7 +166,6 @@ class HomeCustomizeActivity : AppCompatActivity() {
             card.tvPersonaTitle.setText(p.titleRes)
             card.tvPersonaDesc.text = getString(if (tv) p.tvDescRes else p.phoneDescRes)
             if (short) card.tvPersonaDesc.visibility = View.GONE
-            card.root.nextFocusDownId = R.id.btnCustomizeDone
             card.root.setOnClickListener { pickPersona(p) }
             parent.addView(card.root)
             personaCards[p] = card
@@ -186,8 +188,88 @@ class HomeCustomizeActivity : AppCompatActivity() {
                 getString(p.titleRes), card.tvPersonaDesc.text,
             )
         }
-        // Up from the button row lands on the style in use.
-        val up = personaCards[persona]?.root?.id ?: View.NO_ID
+        linkFocus()
+    }
+
+    // ── Card Density & Size ─────────────────────────────────────────────
+
+    private var density = CardDensity.STANDARD
+    private val densityChips by lazy {
+        linkedMapOf(
+            CardDensity.COMPACT to binding.btnDensityCompact,
+            CardDensity.STANDARD to binding.btnDensityStandard,
+            CardDensity.EXPANDED to binding.btnDensityExpanded,
+        )
+    }
+    /** A short screen (a phone held sideways) gets the CARDS chip instead of the three choices, so the rows keep room. */
+    private val shortScreen by lazy { resources.configuration.screenHeightDp < 480 }
+
+    private fun setupDensity() {
+        density = prefs.cardDensityNow()
+        if (shortScreen) {
+            binding.densityBlock.visibility = View.GONE
+            binding.btnCustomizeDensity.visibility = View.VISIBLE
+            binding.btnCustomizeDensity.setOnClickListener { pickDensityDialog() }
+        }
+        for ((d, chip) in densityChips) chip.setOnClickListener { setDensity(d) }
+        renderDensity()
+    }
+
+    private fun setDensity(d: CardDensity) {
+        if (d == density) return
+        density = d
+        renderDensity()
+        // Saved even if Done is pressed straight away; Home rebuilds its cards when it shows again.
+        lifecycleScope.launch(NonCancellable) { prefs.setCardDensity(d) }
+    }
+
+    private fun describe(d: CardDensity): String {
+        val text = getString(d.descResId)
+        return if (tv) text + " " + getString(R.string.density_tv_grid, d.gridSpan()) else text
+    }
+
+    private fun renderDensity() {
+        for ((d, chip) in densityChips) {
+            val selected = d == density
+            chip.isActivated = selected
+            chip.contentDescription = getString(
+                if (selected) R.string.density_option_selected else R.string.density_option,
+                getString(d.titleResId), describe(d),
+            )
+        }
+        binding.tvDensityDescription.text = describe(density)
+        val name = getString(density.titleResId)
+        binding.btnCustomizeDensity.text = getString(R.string.density_chip, name.uppercase())
+        binding.btnCustomizeDensity.contentDescription = getString(R.string.density_option_selected, name, describe(density))
+        linkFocus()
+    }
+
+    private fun pickDensityDialog() {
+        val options = CardDensity.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.density_dialog_title)
+            .setSingleChoiceItems(options.map { getString(it.titleResId) }.toTypedArray(), options.indexOf(density)) { dlg, which ->
+                dlg.dismiss()
+                setDensity(options[which])
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * The remote's Up and Down between the viewing styles, the card sizes and the button row: Down
+     * from a style goes to the selected size, Down from a size to the buttons; Up comes back the
+     * same way, each time to the one selected.
+     */
+    private fun linkFocus() {
+        val styleId = personaCards[persona]?.root?.id ?: View.NO_ID
+        val sizeId = if (shortScreen) View.NO_ID else densityChips[density]?.id ?: View.NO_ID
+        for (card in personaCards.values) card.root.nextFocusDownId = if (sizeId != View.NO_ID) sizeId else R.id.btnCustomizeDone
+        for (chip in densityChips.values) {
+            chip.nextFocusUpId = styleId
+            chip.nextFocusDownId = R.id.btnCustomizeDone
+        }
+        val up = if (sizeId != View.NO_ID) sizeId else styleId
         val bar = binding.btnCustomizeDone.parent as ViewGroup
         for (i in 0 until bar.childCount) bar.getChildAt(i).nextFocusUpId = up
     }

@@ -2063,6 +2063,8 @@ class HomeActivity : AppCompatActivity() {
         super.onResume()
         // Channel menus label Add/Remove Top Favorites from this copy of the list.
         lifecycleScope.launch { runCatching { com.iptvapp.data.home.TopFavoritesStore.load(prefs) } }
+        // Back from Customize Home: Card Density & Size may have changed (the adapter rebuilds its cards only then).
+        lifecycleScope.launch { homeAdapter.density = prefs.cardDensity.first() }
         // Here rather than onNewIntent: a phone Guide press that had to recreate this screen
         // arrives through onCreate instead.
         if (intent.getBooleanExtra(TvHomeActivity.EXTRA_REMOTE_GUIDE, false)) {
@@ -5112,7 +5114,8 @@ class HomeActivity : AppCompatActivity() {
     private var homeRefreshJob: kotlinx.coroutines.Job? = null
     private val homeAdapter by lazy {
         SmartHomeAdapter(onClick = { card -> homeHitUi.open(card.hit) }, onCustomize = { HomeCustomizeActivity.open(this, tv = false) },
-            onLongClick = { row, card -> TopFavoritesMenu.showForCard(this, prefs, tv = false, row, card) { refreshHome() } })
+            onLongClick = { row, card -> TopFavoritesMenu.showForCard(this, prefs, tv = false, row, card) { refreshHome() } },
+            initialDensity = prefs.cardDensityNow())
     }
     private val homeHitUi by lazy {
         com.iptvapp.ui.search.SearchHitUi(this, repository,

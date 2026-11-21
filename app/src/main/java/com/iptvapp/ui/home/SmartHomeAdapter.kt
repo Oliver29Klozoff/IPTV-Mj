@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.iptvapp.data.home.CardDensity
 import com.iptvapp.data.home.HomeCard
 import com.iptvapp.data.home.HomeLayout
 import com.iptvapp.data.home.HomeRow
@@ -36,10 +37,25 @@ class SmartHomeAdapter(
      * The focused poster's title and line show next to its row's name instead.
      */
     private val hidePosterText: Boolean = false,
+    /** Card size (Customize Home → Card Density & Size); see [density]. */
+    initialDensity: CardDensity = CardDensity.STANDARD,
 ) : ListAdapter<HomeRow, RecyclerView.ViewHolder>(RowDiff) {
 
     // Each row keeps its own scroll position while the list refreshes.
     private val pool = RecyclerView.RecycledViewPool()
+
+    /**
+     * The cards' size. A change drops the shared pool and rebinds every row: each card's size is
+     * set when it is made, and the size is part of its view type, so no card of the old size is reused.
+     */
+    var density: CardDensity = initialDensity
+        set(value) {
+            if (field == value) return
+            field = value
+            pool.clear()
+            @Suppress("NotifyDataSetChanged")
+            notifyDataSetChanged()
+        }
 
     inner class RowHolder(val b: ItemHomeRowBinding) : RecyclerView.ViewHolder(b.root) {
         val cards = CardAdapter(
@@ -103,6 +119,7 @@ class SmartHomeAdapter(
         if (!holder.itemView.hasFocus()) holder.showFocused(null)
         holder.b.tvHomeRowTitle.text = row.title
         holder.b.tvHomeRowTitle.contentDescription = "${row.title}, row"
+        holder.cards.density = density
         holder.cards.style = row.style
         holder.cards.showsNext = row.id == HomeLayout.Builtin.TOP_FAVORITES.id
         holder.cards.submitList(row.cards)
@@ -133,6 +150,14 @@ class SmartHomeAdapter(
                 notifyDataSetChanged()
             }
 
+        var density = CardDensity.STANDARD
+            set(value) {
+                if (field == value) return
+                field = value
+                @Suppress("NotifyDataSetChanged")
+                notifyDataSetChanged()
+            }
+
         var style = HomeLayout.Style.WIDE
             set(value) {
                 if (field == value) return
@@ -144,19 +169,25 @@ class SmartHomeAdapter(
 
         inner class CardHolder(val b: ItemHomeCardBinding) : RecyclerView.ViewHolder(b.root)
 
-        override fun getItemViewType(position: Int) = style.ordinal
+        override fun getItemViewType(position: Int) = cardViewType(style, density)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CardHolder {
             val b = ItemHomeCardBinding.inflate(LayoutInflater.from(parent.context), parent, false)
             val d = parent.resources.displayMetrics.density
-            val cardStyle = HomeLayout.Style.entries[viewType]
+            val cardStyle = HomeLayout.Style.entries[viewType / CardDensity.entries.size]
+            val dens = CardDensity.entries[viewType % CardDensity.entries.size]
             val (imageWidth, imageHeight) = when (cardStyle) {
                 HomeLayout.Style.WIDE -> 144 to 81
                 HomeLayout.Style.POSTER -> 92 to 138
                 HomeLayout.Style.COMPACT -> 104 to 58
             }
             val logoLike = cardStyle != HomeLayout.Style.POSTER
-            val scale = if (cardStyle == HomeLayout.Style.POSTER) posterScale else scale
+            val scale = (if (cardStyle == HomeLayout.Style.POSTER) posterScale else scale) * dens.scaleMultiplier
+            val cardPad = (dens.cardPaddingDp * d).toInt()
+            b.root.setPadding(cardPad, cardPad, cardPad, cardPad)
+            b.tvHomeCardTitle.textSize = dens.titleSp
+            b.tvHomeCardLine.textSize = dens.lineSp
+            b.tvHomeCardNext.textSize = dens.nextSp
             b.homeCardImageFrame.layoutParams = b.homeCardImageFrame.layoutParams.apply {
                 width = (imageWidth * scale * d).toInt()
                 height = (imageHeight * scale * d).toInt()
@@ -244,6 +275,17 @@ class SmartHomeAdapter(
         const val TV_POSTER_SCALE = 0.95f
         private const val TYPE_ROW = 0
         private const val TYPE_CUSTOMIZE = 1
+
+        /** A card's view type: its style and its density, so a card is only reused at its own size. */
+        fun cardViewType(style: HomeLayout.Style, density: CardDensity) = style.ordinal * CardDensity.entries.size + density.ordinal
+
+        /** The TV home's single-row slot (Hero) under the player for [density]: each holds that size's tallest row whole (CardDensityTest). */
+        @androidx.annotation.DimenRes
+        fun tvRowSlotRes(density: CardDensity): Int = when (density) {
+            CardDensity.COMPACT -> com.iptvapp.R.dimen.tv_home_row_slot_compact
+            CardDensity.STANDARD -> com.iptvapp.R.dimen.tv_home_row_slot
+            CardDensity.EXPANDED -> com.iptvapp.R.dimen.tv_home_row_slot_expanded
+        }
 
         /** A card's title (the series for an episode) and the line under it. */
         private fun titleAndLine(context: android.content.Context, card: HomeCard): Pair<String, String> {
