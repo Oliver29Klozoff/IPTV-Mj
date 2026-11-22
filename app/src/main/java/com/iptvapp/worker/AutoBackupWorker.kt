@@ -60,6 +60,7 @@ class AutoBackupWorker @AssistedInject constructor(
                     put("uiFontScale", a.textSize.scale.toDouble())
                     put("extendedOsdTimeout", a.extendedOsd)
                     put("highContrastFocus", a.highContrastFocus)
+                    prefs.seniorPrevCardDensityId()?.let { put("seniorPrevCardDensity", it) }
                 }
                 put("externalPlayer", prefs.externalPlayer.first())
                 put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())

@@ -90,6 +90,13 @@ class AccessibilityPreferencesTest {
 
         prefs.setAccessibility(AccessibilitySettings(highContrastFocus = true))
         assertEquals(AccessibilitySettings(highContrastFocus = true), prefs.accessibility.first())
+
+        // A restored Senior Mode still knows which card size to put back.
+        prefs.setAccessibility(AccessibilitySettings.SENIOR, CardDensity.COMPACT.id)
+        assertEquals(CardDensity.COMPACT.id, prefs.seniorPrevCardDensityId())
+        prefs.setSeniorMode(false)
+        assertEquals(CardDensity.COMPACT, prefs.cardDensity.first())
+        assertEquals(null, prefs.seniorPrevCardDensityId())
     }
 
     @Test

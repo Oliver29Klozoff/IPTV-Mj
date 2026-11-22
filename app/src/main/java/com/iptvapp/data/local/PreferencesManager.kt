@@ -777,13 +777,21 @@ class PreferencesManager @Inject constructor(
             it.remove(Keys.SENIOR_PREV_CARD_DENSITY)
         }
     }
-    /** All four as given (a restore); the card size is left alone. */
-    suspend fun setAccessibility(s: com.iptvapp.data.accessibility.AccessibilitySettings) = context.dataStore.edit {
+    /** The card size Senior Mode will put back when switched off (null: none remembered). */
+    suspend fun seniorPrevCardDensityId(): String? =
+        context.dataStore.data.catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }.first()[Keys.SENIOR_PREV_CARD_DENSITY]
+
+    /**
+     * All four as given, and the card size to put back when Senior Mode goes off (a restore).
+     * The current card size is left alone.
+     */
+    suspend fun setAccessibility(s: com.iptvapp.data.accessibility.AccessibilitySettings, prevCardDensityId: String? = null) = context.dataStore.edit {
         it[Keys.SENIOR_MODE] = s.seniorMode
         it[Keys.UI_FONT_SCALE] = s.textSize.scale
         it[Keys.EXTENDED_OSD_TIMEOUT] = s.extendedOsd
         it[Keys.HIGH_CONTRAST_FOCUS] = s.highContrastFocus
-        if (!s.seniorMode) it.remove(Keys.SENIOR_PREV_CARD_DENSITY)
+        if (s.seniorMode && prevCardDensityId != null) it[Keys.SENIOR_PREV_CARD_DENSITY] = com.iptvapp.data.home.CardDensity.fromId(prevCardDensityId).id
+        else it.remove(Keys.SENIOR_PREV_CARD_DENSITY)
     }
     suspend fun setUiFontScale(level: com.iptvapp.data.accessibility.TextSizeLevel) = context.dataStore.edit {
         it[Keys.UI_FONT_SCALE] = level.scale

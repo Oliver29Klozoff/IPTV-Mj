@@ -1210,10 +1210,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         // Also follows a restore, which writes these settings from a backup.
         lifecycleScope.launch {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
-                prefs.accessibility.collect { settings ->
+                kotlinx.coroutines.flow.combine(prefs.accessibility, restoringBackup) { s, restoring -> s to restoring }.collect { (settings, restoring) ->
                     renderAccessibility(settings)
                     com.iptvapp.util.AccessibilityEngine.refreshFocus(this@SettingsActivity, settings.highContrastFocus)
-                    if (builtWith != null && settings.screenSignature != builtWith) {
+                    if (!restoring && builtWith != null && settings.screenSignature != builtWith) {
                         // Screens are built from the in-memory copy of the settings: let it catch up first.
                         kotlinx.coroutines.withTimeoutOrNull(1_000) {
                             while (prefs.accessibilityNow() != settings) kotlinx.coroutines.delay(16)
@@ -4895,6 +4895,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 put("uiFontScale", a.textSize.scale.toDouble())
                 put("extendedOsdTimeout", a.extendedOsd)
                 put("highContrastFocus", a.highContrastFocus)
+                prefs.seniorPrevCardDensityId()?.let { put("seniorPrevCardDensity", it) }
             }
             put("externalPlayer", prefs.externalPlayer.first())
             put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
@@ -5179,7 +5180,20 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         }
     }
 
+    // A restore that changes the text size rebuilds this screen only once everything is restored:
+    // a rebuild part way through would cancel the rest of the restore.
+    private val restoringBackup = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     private suspend fun applyBackupJson(json: JSONObject) {
+        restoringBackup.value = true
+        try {
+            applyBackupJsonNow(json)
+        } finally {
+            restoringBackup.value = false
+        }
+    }
+
+    private suspend fun applyBackupJsonNow(json: JSONObject) {
         val serverUrl = json.optString("serverUrl", "")
         val username  = json.optString("username", "")
         val password  = json.optString("password", "")
@@ -5217,7 +5231,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 textSize = com.iptvapp.data.accessibility.TextSizeLevel.fromScale(json.optDouble("uiFontScale", 1.0).toFloat()),
                 extendedOsd = json.optBoolean("extendedOsdTimeout", false),
                 highContrastFocus = json.optBoolean("highContrastFocus", false),
-            ))
+            ), json.optString("seniorPrevCardDensity", "").ifEmpty { null })
         }
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
