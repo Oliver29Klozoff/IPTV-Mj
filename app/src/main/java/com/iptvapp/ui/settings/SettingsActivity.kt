@@ -1213,7 +1213,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 prefs.accessibility.collect { settings ->
                     renderAccessibility(settings)
                     com.iptvapp.util.AccessibilityEngine.refreshFocus(this@SettingsActivity, settings.highContrastFocus)
-                    if (settings.screenSignature != builtWith) {
+                    if (builtWith != null && settings.screenSignature != builtWith) {
                         // Screens are built from the in-memory copy of the settings: let it catch up first.
                         kotlinx.coroutines.withTimeoutOrNull(1_000) {
                             while (prefs.accessibilityNow() != settings) kotlinx.coroutines.delay(16)
