@@ -83,6 +83,20 @@
 
                 </LinearLayout>
 
+                <!-- Who's watching: the active profile's avatar; OK opens the profile switcher. The
+                     first stop of the sidebar's Up / Down (TvHomeActivity.moveSidebarFocus). -->
+                <TextView
+                    android:id="@+id/btnTvProfile"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/profile_avatar_bg"
+                    android:clickable="true"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:gravity="center"
+                    android:textSize="19sp"
+                    android:contentDescription="@string/profile_switch_title" />
+
             </LinearLayout>
 
             <View

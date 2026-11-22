@@ -210,7 +210,9 @@ class UniversalSearch @Inject constructor(
         val series = async { series(q, primaryLabel, englishOnly) }
         val recordings = async { db.recordingDao().search(q).map { SearchHit.Recording(it) } }
         val all = withFeeds(listOf(channels, programs, movies, series, recordings).awaitAll().flatten())
-        withContext(Dispatchers.Default) { capPerKind(rank(all, q)) }
+        // A Kids profile: nothing adult (title or category), whichever list it came from.
+        val guard = com.iptvapp.data.profile.KidsGuard.forActive(db, prefs.kidsSafeMode.first())
+        withContext(Dispatchers.Default) { capPerKind(rank(if (guard == null) all else all.filter(guard::allows), q)) }
     }
 
     /** Channel and programme hits with their copy's feed score, looked up once for the lot. */

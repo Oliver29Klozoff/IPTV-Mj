@@ -1308,6 +1308,7 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
     @Inject lateinit var okHttpClient: okhttp3.OkHttpClient
     @Inject lateinit var playbackHandoffManager: com.iptvapp.sync.PlaybackHandoffManager
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
     @Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     @Inject lateinit var castRelay: CastRelayManager
     private lateinit var categoryAdapter: CategoryAdapter
@@ -1479,6 +1480,16 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
                 combinedFavoriteAdapter.lcnMode = mode
             }
         }
+        // Viewing profiles: the active one's avatar in the top bar opens "Who's watching?"; a Kids
+        // profile has no Settings button (that button only opens Settings).
+        binding.btnPhoneProfile.setOnClickListener { com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher) }
+        lifecycleScope.launch {
+            com.iptvapp.data.profile.ProfileStore.active(prefs).collect { com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.btnPhoneProfile, it) }
+        }
+        lifecycleScope.launch {
+            prefs.kidsSafeMode.collect { kids -> binding.btnMenu.visibility = if (kids) View.GONE else View.VISIBLE }
+        }
+        com.iptvapp.ui.profile.ProfileUi.askAtStartIfWanted(this, prefs, profileSwitcher)
         setupTabs()
         setupSearch()
         setupMenu()

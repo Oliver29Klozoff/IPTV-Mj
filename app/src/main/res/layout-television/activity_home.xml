@@ -26,6 +26,19 @@
             android:src="@android:drawable/ic_menu_sort_by_size"
             app:tint="#FFFFFF" />
 
+        <!-- Who's watching: the active profile's avatar; opens the profile switcher. -->
+        <TextView
+            android:id="@+id/btnPhoneProfile"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/profile_avatar_bg"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:textSize="17sp"
+            android:contentDescription="@string/profile_switch_title" />
+
         <TextView
             android:id="@+id/tvTitle"
             android:layout_width="0dp"

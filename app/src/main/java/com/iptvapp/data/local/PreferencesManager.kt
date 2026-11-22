@@ -396,6 +396,13 @@ class PreferencesManager @Inject constructor(
         val EXTENDED_OSD_TIMEOUT = booleanPreferencesKey("accessibility_extended_osd_timeout")
         val HIGH_CONTRAST_FOCUS = booleanPreferencesKey("accessibility_high_contrast_focus")
         val SENIOR_PREV_CARD_DENSITY = stringPreferencesKey("accessibility_senior_prev_card_density")
+        // Viewing profiles (data/profile): the list (JSON), whose data is live now, whether that
+        // profile is a Kids one (so every screen can filter without parsing the list), and
+        // "Who's watching?" at start (absent = ask once there are two or more profiles).
+        val PROFILES_JSON = stringPreferencesKey("profiles_json")
+        val ACTIVE_PROFILE_ID = stringPreferencesKey("profiles_active_id")
+        val ACTIVE_PROFILE_KIDS = booleanPreferencesKey("profiles_active_kids")
+        val ASK_PROFILE_ON_START = booleanPreferencesKey("profiles_ask_on_start")
         // Settings → Channel Numbers: which number channels show (LcnMode id; absent = custom_first)
         // and whether the player tunes by typed digits (absent = on).
         val LCN_MODE = stringPreferencesKey("channel_lcn_mode")
@@ -808,6 +815,54 @@ class PreferencesManager @Inject constructor(
     suspend fun setHighContrastFocus(enabled: Boolean) = context.dataStore.edit {
         it[Keys.HIGH_CONTRAST_FOCUS] = enabled
     }
+
+    // ── Viewing profiles (ProfileStore / ProfileSwitcher own the rules) ───────────────────────
+    val profilesJson: Flow<String?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.PROFILES_JSON] }
+        .distinctUntilChanged()
+    fun profilesJsonNow(): String? = PrefsSnapshot.read(context) { it[Keys.PROFILES_JSON] }
+    suspend fun setProfilesJson(json: String) = context.dataStore.edit { it[Keys.PROFILES_JSON] = json }
+
+    val activeProfileId: Flow<String> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.ACTIVE_PROFILE_ID] ?: com.iptvapp.data.profile.Profile.PRIMARY_ID }
+        .distinctUntilChanged()
+    fun activeProfileIdNow(): String =
+        PrefsSnapshot.read(context) { it[Keys.ACTIVE_PROFILE_ID] } ?: com.iptvapp.data.profile.Profile.PRIMARY_ID
+
+    /** The profile now active is a Kids profile: adult categories and Settings are hidden. */
+    val kidsSafeMode: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.ACTIVE_PROFILE_KIDS] ?: false }
+        .distinctUntilChanged()
+    fun kidsSafeModeNow(): Boolean = PrefsSnapshot.read(context) { it[Keys.ACTIVE_PROFILE_KIDS] } ?: false
+    /** The active profile was made, or stopped being, a Kids profile in its editor. */
+    suspend fun setActiveProfileKids(kids: Boolean) = context.dataStore.edit { it[Keys.ACTIVE_PROFILE_KIDS] = kids }
+
+    /** "Who's watching?" at start: null = not chosen (ask once there are two or more profiles). */
+    val askProfileOnStart: Flow<Boolean?> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.ASK_PROFILE_ON_START] }
+        .distinctUntilChanged()
+    suspend fun setAskProfileOnStart(ask: Boolean) = context.dataStore.edit { it[Keys.ASK_PROFILE_ON_START] = ask }
+
+    /** One write: [activeId] and its Kids flag, the profile settings to remove and those to set. */
+    internal suspend fun switchProfilePrefs(
+        activeId: String,
+        kids: Boolean,
+        removeNames: Set<String>,
+        apply: (androidx.datastore.preferences.core.MutablePreferences) -> Unit,
+    ) = context.dataStore.edit { p ->
+        p.asMap().keys.filter { it.name in removeNames }.forEach { p.remove(it) }
+        apply(p)
+        p[Keys.ACTIVE_PROFILE_ID] = activeId
+        p[Keys.ACTIVE_PROFILE_KIDS] = kids
+    }
+
+    /** Every saved setting, for a profile's snapshot (ProfileSwitcher keeps only its own keys). */
+    internal suspend fun allPrefs(): Preferences =
+        context.dataStore.data.catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }.first()
 
     /** Settings → Channel Numbers → Numbering (LcnMode): Custom first until changed. */
     val lcnMode: Flow<com.iptvapp.data.channel.LcnMode> = context.dataStore.data

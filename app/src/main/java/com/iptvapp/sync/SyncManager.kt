@@ -35,7 +35,12 @@ class SyncManager @Inject constructor(
         signInIfNeeded().uid
     } catch (e: Exception) { "" }
 
+    // Cloud sync carries the Primary profile's favorites and history only: another profile's would
+    // replace them in the cloud (and on every device that pulls).
+    private suspend fun notPrimary(): Boolean = prefs.activeProfileId.first() != com.iptvapp.data.profile.Profile.PRIMARY_ID
+
     suspend fun syncUp(): String = withContext(Dispatchers.IO) {
+        if (notPrimary()) return@withContext context.getString(com.iptvapp.R.string.profile_sync_primary_only)
         try {
             val user = signInIfNeeded()
             val favChannelIds  = db.channelDao().getFavoriteChannelIds()
@@ -182,6 +187,7 @@ class SyncManager @Inject constructor(
     }
 
     suspend fun syncDown(): String = withContext(Dispatchers.IO) {
+        if (notPrimary()) return@withContext context.getString(com.iptvapp.R.string.profile_sync_primary_only)
         try {
             signInIfNeeded()
             val stored = prefs.getSyncGistId()

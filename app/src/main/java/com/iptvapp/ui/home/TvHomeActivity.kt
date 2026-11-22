@@ -540,6 +540,7 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                 combinedFavoriteAdapter.lcnMode = mode
             }
         }
+        com.iptvapp.ui.profile.ProfileUi.askAtStartIfWanted(this, prefs, profileSwitcher)
         setupSidebar()
         setupSearch()
         setupMoviesFullScreen()
@@ -1979,6 +1980,7 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
 
     @javax.inject.Inject lateinit var smartHome: com.iptvapp.data.home.SmartHome
     @javax.inject.Inject lateinit var homeRepository: com.iptvapp.data.repository.XtreamRepository
+    @javax.inject.Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
     @javax.inject.Inject lateinit var smartChannels: com.iptvapp.data.smart.SmartChannelStore
     private var homeShowing = false
     // Customize Home → Home Mini Player Display. Read before the first showHome (setupHome), so a
@@ -2772,10 +2774,20 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private fun moveSidebarFocus(up: Boolean) {
         // The sidebar's shown entries as they are laid out now (Customize Sidebar's order), then
         // Settings, pinned under them. Up from the top and Down from Settings stay put.
-        val buttons = TvSidebarLayout.shown(binding.tvSidebarButtons) +
+        // The profile avatar sits above them all (Up from the first entry reaches it).
+        val entries = TvSidebarLayout.shown(binding.tvSidebarButtons)
+        val buttons = listOf(binding.btnTvProfile).filter { it.visibility == View.VISIBLE } + entries +
             listOf(binding.btnTvSettings).filter { it.visibility == View.VISIBLE }
         val idx = buttons.indexOfFirst { it == currentFocus }
-        if (idx < 0) { buttons.firstOrNull()?.requestFocus(); return }
+        if (idx < 0) { (entries.firstOrNull() ?: buttons.firstOrNull())?.requestFocus(); return }
+        // The avatar takes focus only when Up reaches it (it isn't focusable otherwise, so the
+        // sidebar still opens on its first entry); it stops being focusable once focus leaves.
+        val next = buttons.getOrNull(if (up) idx - 1 else idx + 1)
+        if (next === binding.btnTvProfile) {
+            binding.btnTvProfile.isFocusable = true
+            binding.btnTvProfile.requestFocus()
+            return
+        }
         buttons.getOrNull(if (up) idx - 1 else idx + 1)?.requestFocus()
     }
 
@@ -2859,6 +2871,15 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         }
         binding.btnTvSettings.setOnClickListener {
             startActivity(Intent(this, com.iptvapp.ui.settings.SettingsActivity::class.java))
+        }
+        // Viewing profiles: the avatar at the top opens "Who's watching?"; Kids has no Settings.
+        binding.btnTvProfile.setOnClickListener { com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher) }
+        binding.btnTvProfile.setOnFocusChangeListener { v, focused -> if (!focused) v.isFocusable = false }
+        lifecycleScope.launch {
+            com.iptvapp.data.profile.ProfileStore.active(prefs).collect { com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.btnTvProfile, it) }
+        }
+        lifecycleScope.launch {
+            prefs.kidsSafeMode.collect { kids -> binding.btnTvSettings.visibility = if (kids) View.GONE else View.VISIBLE }
         }
         binding.tvBtnCatBack.setOnClickListener { showSidebar() }
         binding.tvBtnChanBack.setOnClickListener {
