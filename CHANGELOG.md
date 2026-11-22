@@ -1,5 +1,19 @@
 # IPTV App - Changelog
 
+## v7.97 - 2026-11-22
+- **New**: Settings → Channel Numbers. Numbering shows your own channel numbers first, then the
+  provider's (Custom first, the default), 1, 2, 3… down each list (Sequential), only the
+  provider's numbers (Provider), or no numbers (Hidden). Channel lists, Quick Peek and the guide
+  show them.
+- **New**: Type a channel number on the remote while watching live TV. A "CH 206 _" card shows
+  the channel's name as you type; it tunes 1.4 s after the last digit, or at once with OK. Back
+  cancels and Delete takes off a digit. Can be turned off in Settings → Channel Numbers.
+- **New**: Edit Channel Number in a channel's long-press menu, for any channel on TV and phone
+  (Save or Reset to Provider). Giving a number that another channel had moves it.
+- **New**: Auto-Number Favorites numbers your favorites 1, 2, 3… in their Favorites order.
+- **Fixed**: Your own channel numbers were wiped every time the channel list refreshed. They now
+  stay, and backups include them and the numbering settings.
+
 ## v7.96 - 2026-11-22
 - **New**: Settings → Accessibility → High-Visibility / Senior Mode. One switch makes text 30%
   bigger on every screen, keeps the channel banner up 6.5 s (was 2.5 s) and the player controls

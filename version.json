@@ -1,7 +1,7 @@
 {
-  "versionCode": 634,
-  "versionName": "7.96",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.96/MKTV.apk",
-  "apkSha256": "e7b3ae6dfb44d9b38bb93b1b19f2b856f37b9209bda8f7aea9229740e79a4167",
-  "changelog": "High-Visibility / Senior Mode: bigger text, longer banners, bold focus outline and bigger tap targets."
+  "versionCode": 635,
+  "versionName": "7.97",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.97/MKTV.apk",
+  "apkSha256": "61bc74d24ff62bf5e2bf25d801e910d74c175e10e378ad1c2a89863aa15b86a4",
+  "changelog": "Channel Numbers: your own, sequential or provider numbering, tune by typing a number on the remote, Auto-Number Favorites."
 }
