@@ -72,12 +72,28 @@ object AccessibilityEngine {
 
     private fun watchFocus(activity: Activity, prefs: PreferencesManager) {
         val decor = activity.window?.decorView ?: return
-        if (decor.getTag(R.id.a11y_focus_watch) != null) return
+        if (!watchWindow(decor, prefs)) return
+        // A dialog or menu opens in a window of its own and takes the focus from the screen's:
+        // watch it too (Android 10 and later can list the app's windows; older ones go without).
+        decor.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+            if (!hasFocus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) decor.post {
+                for (window in android.view.inspector.WindowInspector.getGlobalWindowViews()) {
+                    if (window === decor || !watchWindow(window, prefs)) continue
+                    window.findFocus()?.let { if (!it.isInTouchMode && prefs.highContrastFocusNow()) FocusRing.add(it) }
+                }
+            }
+        }
+    }
+
+    /** Rings follow the focus in the window under [decor]; false if it was already watched. */
+    private fun watchWindow(decor: View, prefs: PreferencesManager): Boolean {
+        if (decor.getTag(R.id.a11y_focus_watch) != null) return false
         decor.setTag(R.id.a11y_focus_watch, true)
         decor.viewTreeObserver.addOnGlobalFocusChangeListener { old, new ->
             old?.let { FocusRing.remove(it) }
             if (new != null && !new.isInTouchMode && prefs.highContrastFocusNow()) FocusRing.add(new)
         }
+        return true
     }
 
     /** Buttons, switches, chips and clickable list rows that size to their content grow to [minPx]. */
