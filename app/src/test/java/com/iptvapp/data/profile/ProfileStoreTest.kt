@@ -183,6 +183,16 @@ class ProfileStoreTest {
     }
 
     @Test
+    fun anotherProfilesFavoritesNeverChangeTheHouseholdChannelNumbers() = runBlocking {
+        repository.assignCustomChannelNumber(1, 206)
+        val kid = add("Kids", kids = true)
+        switcher.switchTo(kid.id)
+        repository.toggleChannelFavorite(1) // on
+        repository.toggleChannelFavorite(1) // off: Primary's number stays
+        assertEquals(206, db.channelDao().getChannelById(1)?.customNum)
+    }
+
+    @Test
     fun aSwitchCutShortIsFinishedAtNextStart() = runBlocking {
         db.channelDao().setFavorite(1, true)
         val kid = add("Kids", kids = true)

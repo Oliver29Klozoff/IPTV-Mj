@@ -706,6 +706,10 @@ class XtreamRepository @Inject constructor(
         // the number is free for reuse by the next favorite in that genre instead of climbing
         // forever. Scoped to US only: the vast majority of non-US categories already have small,
         // usable provider numbers.
+        // Channel numbers are the household's (every profile sees them): only Primary's favorites
+        // hand them out or take them back, so a Kids profile un-favoriting a channel can't wipe
+        // the number Primary gave it.
+        if (prefs.activeProfileId.first() != com.iptvapp.data.profile.Profile.PRIMARY_ID) return
         if (ch.customNum == null && nowFavorite && isUsCategory(ch.categoryId)) {
             val categoryName = db.categoryDao().getCategoryById(ch.categoryId ?: "")?.categoryName
             val blockStart = genreNumberBlockStart(categoryName)
