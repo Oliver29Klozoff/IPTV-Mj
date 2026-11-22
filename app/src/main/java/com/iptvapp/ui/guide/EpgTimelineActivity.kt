@@ -869,12 +869,15 @@ class TimelineAdapter(
     /** Settings → Channel Numbers, read when the guide opens. */
     var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
 
-    /** The number [row] shows (null: none). Sequential counts down the guide's own rows. */
+    /**
+     * The number [row] shows (null: none). Sequential numbers belong to the channel lists, where
+     * typing one tunes that place; the guide's rows aren't a list the remote tunes by, so it
+     * shows none then rather than numbers that would tune something else.
+     */
     fun numberOf(row: GuideRow): Int? {
-        val position = if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) rows.indexOf(row) else -1
-        val channel = row.channel
-        return if (channel != null) com.iptvapp.data.channel.ChannelNumbering.displayNumber(lcnMode, channel, position)
-        else com.iptvapp.ui.channel.ChannelNumberBadge.numberForOtherProvider(lcnMode, position)
+        if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) return null
+        val channel = row.channel ?: return null
+        return com.iptvapp.data.channel.ChannelNumbering.displayNumber(lcnMode, channel, -1)
     }
 
     fun updateStartMs(newStartMs: Long) {

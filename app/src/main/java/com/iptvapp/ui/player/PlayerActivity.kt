@@ -7425,7 +7425,10 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                 KeyEvent.KEYCODE_DEL -> {
                     swallowKeyUp = code
                     channelNumberBuffer = channelNumberBuffer.dropLast(1)
-                    if (channelNumberBuffer.isEmpty()) cancelDigitTune() else showDigitEntry()
+                    if (channelNumberBuffer.isEmpty()) cancelDigitTune() else {
+                        showDigitEntry()
+                        scheduleDigitTune()
+                    }
                     return true
                 }
             }
@@ -7440,6 +7443,11 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             executeDigitTune()
             return
         }
+        scheduleDigitTune()
+    }
+
+    /** Tunes [ChannelNumbering.TUNE_DELAY_MS] after the last change to the digits. */
+    private fun scheduleDigitTune() {
         digitJumpJob?.cancel()
         digitJumpJob = lifecycleScope.launch {
             delay(com.iptvapp.data.channel.ChannelNumbering.TUNE_DELAY_MS)

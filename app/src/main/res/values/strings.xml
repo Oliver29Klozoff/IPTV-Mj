@@ -118,7 +118,7 @@
     <string name="lcn_mode_custom_first">Custom first</string>
     <string name="lcn_mode_custom_first_desc">The number you gave a channel, otherwise the provider\'s.</string>
     <string name="lcn_mode_sequential">Sequential</string>
-    <string name="lcn_mode_sequential_desc">1, 2, 3… down each list. Typing a number picks that place in the list you\'re watching from.</string>
+    <string name="lcn_mode_sequential_desc">1, 2, 3… down each channel list. Typing a number picks that place in the list you're watching from. The guide shows no numbers.</string>
     <string name="lcn_mode_provider_raw">Provider</string>
     <string name="lcn_mode_provider_raw_desc">The provider\'s own numbers. Yours are kept but not used.</string>
     <string name="lcn_mode_off">Hidden</string>
