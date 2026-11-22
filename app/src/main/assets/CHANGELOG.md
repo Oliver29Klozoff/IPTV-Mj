@@ -1,5 +1,15 @@
 # IPTV App - Changelog
 
+## v7.98 - 2026-11-22
+- **New**: Viewing profiles. Up to 6 people (or rooms) each get their own favorites, watch history
+  and progress, recent channels, Home layout and viewing style, sidebar, card size, theme and Top
+  Favorites. Switch from the avatar at the top of the TV sidebar or next to the phone's menu
+  button. With two or more profiles, MKTV asks "Who's watching?" when it opens (can be turned
+  off). Primary keeps everything you had before.
+- **New**: Kids profiles hide adult categories, channels, movies and series everywhere (lists,
+  search and Home rows), and hide Settings. There are no PINs: anyone can switch profiles.
+- **Changed**: Cloud sync and automatic backups use the Primary profile only.
+
 ## v7.97 - 2026-11-22
 - **New**: Settings → Channel Numbers. Numbering shows your own channel numbers first, then the
   provider's (Custom first, the default), 1, 2, 3… down each list (Sequential), only the

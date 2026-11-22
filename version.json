@@ -1,7 +1,7 @@
 {
-  "versionCode": 635,
-  "versionName": "7.97",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.97/MKTV.apk",
-  "apkSha256": "61bc74d24ff62bf5e2bf25d801e910d74c175e10e378ad1c2a89863aa15b86a4",
-  "changelog": "Channel Numbers: your own, sequential or provider numbering, tune by typing a number on the remote, Auto-Number Favorites."
+  "versionCode": 636,
+  "versionName": "7.98",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.98/MKTV.apk",
+  "apkSha256": "cdb0fbb959ecc170218388cf699ab33fc10ef62dcae5ad8be124dc7b102366fa",
+  "changelog": "Viewing profiles: each person gets their own favorites, history and Home; Kids profiles hide adult content."
 }
