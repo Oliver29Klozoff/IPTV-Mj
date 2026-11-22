@@ -71,4 +71,28 @@
     <string name="smart_rows_save">Save</string>
     <string name="smart_rows_updated">Smart rows updated</string>
     <string name="smart_rows_when_empty_overridden">When empty: hidden (Smart Rows hides empty rows)</string>
+    <!-- Base theme and accents: Settings → Appearance and Customize Home → THEME… (AppBaseTheme, ThemePalette) -->
+    <string name="theme_oled_black">OLED Pure Black</string>
+    <string name="theme_oled_black_desc">True #000000: pixels switch off on OLED screens. No glow in a dark room, less power.</string>
+    <string name="theme_midnight_navy">Midnight Navy</string>
+    <string name="theme_midnight_navy_desc">Deep slate blue for a studio look.</string>
+    <string name="theme_charcoal_dark">Charcoal Dark</string>
+    <string name="theme_charcoal_dark_desc">Soft neutral grey, easier on LCD screens.</string>
+    <string name="theme_base_heading">BASE THEME</string>
+    <string name="theme_accent_heading">ACCENT</string>
+    <string name="theme_curated_heading">CURATED</string>
+    <string name="theme_preview_heading">PREVIEW</string>
+    <string name="theme_preview_title">MKTV Live 4K</string>
+    <string name="theme_preview_subtitle">Now · Championship Night · 62%</string>
+    <string name="theme_preview_play">PLAY</string>
+    <string name="theme_preview_description">Preview: %1$s with the %2$s accent</string>
+    <string name="theme_option">%1$s theme. %2$s</string>
+    <string name="theme_option_selected">%1$s theme, selected. %2$s</string>
+    <string name="theme_accent_option">%1$s accent</string>
+    <string name="theme_accent_option_selected">%1$s accent, selected</string>
+    <string name="theme_custom_accent">your own</string>
+    <string name="btn_customize_theme">THEME…</string>
+    <string name="theme_dialog_title">Theme &amp; Accents</string>
+    <string name="theme_save">Save</string>
+    <string name="theme_updated">Theme updated</string>
 </resources>

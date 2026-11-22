@@ -309,7 +309,10 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
             SettingSearchEntry("Clear Favorite Channels", 1, null, R.id.btnClearFavoriteChannels),
             SettingSearchEntry("Accent Color", 1, null, R.id.accentColorRow),
-            SettingSearchEntry("AMOLED Black", 1, null, R.id.cbAmoledBlack),
+            SettingSearchEntry("Base Theme", 1, null, R.id.baseThemeRow),
+            SettingSearchEntry("OLED Pure Black", 1, null, R.id.baseThemeRow),
+            SettingSearchEntry("Midnight Navy", 1, null, R.id.baseThemeRow),
+            SettingSearchEntry("Charcoal Dark", 1, null, R.id.baseThemeRow),
             SettingSearchEntry("Force TV Mode", 1, null, R.id.switchForceTvMode),
             SettingSearchEntry("Mosaic", 1, null, R.id.btnOpenMosaic),
             SettingSearchEntry("Add Provider", 2, null, R.id.btnAddServer),
@@ -523,6 +526,7 @@ class SettingsActivity : AppCompatActivity() {
     // now matching the rest of the OLED/cyan reskin instead of the old blue.
     private var currentAccentColor = "#06B6D4"
     private var currentAccentColorEnd = ""
+    private var currentBaseTheme = com.iptvapp.data.theme.AppBaseTheme.DEFAULT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -537,7 +541,10 @@ class SettingsActivity : AppCompatActivity() {
             binding.tvBackupStatus, binding.tvAutoBackupPath, binding.tvReportStatus,
             binding.tvSyncStatus, binding.tvTraktStatus, binding.tvTraktSyncStatus
         )
-        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
+        // The saved base theme before the first frame (Customize Home can change it too; see onResume).
+        currentBaseTheme = prefs.baseThemeNow()
+        com.iptvapp.util.ThemeEngine.apply(this, binding.root, currentBaseTheme)
+        setupBaseThemePicker()
         workManager = WorkManager.getInstance(this)
 
 
@@ -679,12 +686,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.cbEnglishOnlyMovies.setOnCheckedChangeListener { _, isChecked ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setEnglishOnlyMovies(isChecked) }
-        }
-
-        binding.cbAmoledBlack.setOnCheckedChangeListener { _, isChecked ->
-            if (isLoadingSettings) return@setOnCheckedChangeListener
-            lifecycleScope.launch { prefs.setAmoledBlack(isChecked) }
-            Toast.makeText(this, "Restart the app for AMOLED Black to fully apply", Toast.LENGTH_LONG).show()
         }
 
         // Every phone-vs-TV routing decision (Splash's home-screen pick, Settings' own class
@@ -992,7 +993,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         // SOLID — one swatch per color; the selected one gets a frame in its own color.
-        container.addView(sectionLabel("SOLID", 0))
+        container.addView(sectionLabel("SOLID", 12))
         val solids = FlowLayout(this).apply {
             spacingPx = dp(4)
             layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -1094,7 +1095,8 @@ class SettingsActivity : AppCompatActivity() {
                 dashed = false
             ) { pickGradient(gradient) })
         }
-        val customSelected = accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty()
+        val customSelected = accentPalette.none { it == currentAccentColor } && accentGradients.none { it.second == currentAccentColor && it.third == currentAccentColorEnd } && currentAccentColorEnd.isEmpty() &&
+            com.iptvapp.data.theme.ThemePalette.presetFor(currentAccentColor, currentAccentColorEnd) == null
         val customDot = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = dp(3).toFloat()
             if (customSelected) {
@@ -1112,6 +1114,53 @@ class SettingsActivity : AppCompatActivity() {
             dashed = !customSelected
         ) { showCustomColorPickerDialog() })
         container.addView(chips)
+
+        // CURATED (first): the named presets, solid or gradient, saved like any other pick.
+        container.addView(sectionLabel(getString(R.string.theme_curated_heading), 0), 0)
+        container.addView(com.iptvapp.ui.theme.ThemePicker.buildCuratedAccents(this, currentAccentColor, currentAccentColorEnd) { preset ->
+            val end = preset.end
+            if (end != null) pickGradient(Triple(preset.name, preset.start, end)) else pickSolid(preset.start)
+        }, 1)
+        // The chosen theme card is framed in the accent, and the preview shows it.
+        setupBaseThemePicker()
+    }
+
+    // Base theme (Settings → Appearance): three cards, then the preview under the accent picker.
+    // A pick is saved and painted onto this screen at once; Home and TV Home repaint on their
+    // next resume, so nothing restarts.
+    private fun setupBaseThemePicker() {
+        com.iptvapp.ui.theme.ThemePicker.buildBaseThemes(
+            binding.baseThemeRow, currentBaseTheme,
+            com.iptvapp.ui.theme.ThemePicker.accentOf(currentAccentColor, currentAccentColorEnd)
+        ) { theme ->
+            if (theme == currentBaseTheme) return@buildBaseThemes
+            currentBaseTheme = theme
+            lifecycleScope.launch { prefs.setBaseTheme(theme) }
+            com.iptvapp.util.ThemeEngine.apply(this, binding.root, theme)
+            setupBaseThemePicker()
+            // The rebuilt cards replace the focused one: keep the remote on the new choice.
+            binding.baseThemeRow.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(theme))?.requestFocus()
+        }
+        paintThemePreview()
+    }
+
+    private fun paintThemePreview() {
+        com.iptvapp.ui.theme.ThemePicker.paintPreview(
+            binding.themePreviewSettings.root, currentBaseTheme,
+            com.iptvapp.ui.theme.ThemePicker.accentOf(currentAccentColor, currentAccentColorEnd),
+            com.iptvapp.ui.theme.ThemePicker.accentName(this, currentAccentColor, currentAccentColorEnd)
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back from Customize Home → THEME…: the base theme may have changed there.
+        val saved = prefs.baseThemeNow()
+        if (saved != currentBaseTheme) {
+            currentBaseTheme = saved
+            com.iptvapp.util.ThemeEngine.apply(this, binding.root, saved)
+            setupBaseThemePicker()
+        }
     }
 
     private fun showCustomColorPickerDialog() {
@@ -3027,7 +3076,6 @@ class SettingsActivity : AppCompatActivity() {
                 binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
                 binding.cbEnglishOnlyMovies.isChecked = prefs.englishOnlyMovies.first()
-                binding.cbAmoledBlack.isChecked = prefs.amoledBlack.first()
                 binding.switchForceTvMode.isChecked = isForceTvModeEnabled()
                 binding.switchSilentSelfUpdate.isChecked = prefs.silentSelfUpdateEnabled.first()
                 binding.cbShowMovies.isChecked = prefs.showMovies.first()
@@ -3683,6 +3731,8 @@ class SettingsActivity : AppCompatActivity() {
             // The cards were built with the accent as it was a moment ago; if loadSettings has
             // read a different saved one since, this brings them in line.
             applyRackAccent(ll)
+            // Built after the screen was themed: give the new cards the base theme too.
+            com.iptvapp.util.ThemeEngine.applySurfaceTheme(ll, currentBaseTheme, isScreen = false)
         }
     }
 
@@ -4753,7 +4803,9 @@ class SettingsActivity : AppCompatActivity() {
             // (unlike Trakt/GitHub tokens below, which are live credentials).
             put("accentColor", prefs.accentColor.first())
             put("accentColorEnd", prefs.accentColorEnd.first())
-            put("amoledBlack", prefs.amoledBlack.first())
+            put("baseTheme", prefs.baseTheme.first().id)
+            // Older builds read only this: on for OLED Pure Black, the closest they have.
+            put("amoledBlack", prefs.baseTheme.first() == com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
             put("externalPlayer", prefs.externalPlayer.first())
             put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
             put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
@@ -5060,7 +5112,7 @@ class SettingsActivity : AppCompatActivity() {
             val end = json.optString("accentColorEnd", "")
             if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)
         }
-        if (json.has("amoledBlack")) prefs.setAmoledBlack(json.optBoolean("amoledBlack", false))
+        if (json.has("baseTheme")) prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.fromId(json.optString("baseTheme")))
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
         if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))

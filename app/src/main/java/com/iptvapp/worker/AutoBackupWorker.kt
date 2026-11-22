@@ -52,7 +52,9 @@ class AutoBackupWorker @AssistedInject constructor(
                 // includes — previously missing here too.
                 put("accentColor", prefs.accentColor.first())
                 put("accentColorEnd", prefs.accentColorEnd.first())
-                put("amoledBlack", prefs.amoledBlack.first())
+                put("baseTheme", prefs.baseTheme.first().id)
+                // Older builds read only this: on for OLED Pure Black, the closest they have.
+                put("amoledBlack", prefs.baseTheme.first() == com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
                 put("externalPlayer", prefs.externalPlayer.first())
                 put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
                 put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())

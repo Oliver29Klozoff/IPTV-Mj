@@ -1442,7 +1442,8 @@ class HomeActivity : AppCompatActivity() {
                 binding.miniLaterRow?.visibility = View.GONE
             }
         })
-        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
+        // The base theme before the first frame; onResume repaints it after a change in Settings.
+        com.iptvapp.util.ThemeEngine.apply(this, binding.root, prefs.baseThemeNow())
         WindowInsetsControllerCompat(window, binding.root).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -2073,6 +2074,8 @@ class HomeActivity : AppCompatActivity() {
         }
         // Back from watching something: Continue Watching and Recently Watched have moved on.
         if (binding.tabLayout.selectedTabPosition == TAB_HOME && binding.rvChannels.adapter === homeAdapter) refreshHome()
+        // Back from Settings or Customize Home: the base theme may have changed (painted in place).
+        com.iptvapp.util.ThemeEngine.apply(this, binding.root, prefs.baseThemeNow())
         lifecycleScope.launch {
             val endHex = prefs.accentColorEnd.first()
             applyAccent(

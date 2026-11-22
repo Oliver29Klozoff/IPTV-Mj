@@ -2207,6 +2207,28 @@
                         style="@style/Rack.GroupBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
+                        <!-- baseThemeRow is filled by ThemePicker.buildBaseThemes. -->
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Base theme" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="The dark behind every screen. Changes right away, no restart." />
+                            <LinearLayout
+                                android:id="@+id/baseThemeRow"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:orientation="vertical" />
+                        </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row.Stacked"
                             android:layout_width="match_parent"
@@ -2227,32 +2249,18 @@
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="12dp"
                                 android:orientation="vertical" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="AMOLED black" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Pure black backgrounds. Restart the app to apply it everywhere." />
-                            </LinearLayout>
-                            <CheckBox
-                                android:id="@+id/cbAmoledBlack"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="@string/theme_preview_heading" />
+                            <include
+                                android:id="@+id/themePreviewSettings"
+                                layout="@layout/view_theme_preview"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp" />
                         </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row.Toggle"

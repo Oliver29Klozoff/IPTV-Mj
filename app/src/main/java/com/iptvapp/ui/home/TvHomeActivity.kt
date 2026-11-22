@@ -532,7 +532,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // telling Android the screen should stay awake (PlayerActivity/MultiViewActivity already
         // had this; this screen didn't).
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
+        // The base theme before the first frame; onResume repaints it after a change in Settings.
+        com.iptvapp.util.ThemeEngine.apply(this, binding.root, prefs.baseThemeNow())
         setupAdapters()
         setupSidebar()
         setupSearch()
@@ -995,6 +996,8 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // Back from watching something: Continue Watching and Recently Watched have moved on.
         if (homeShowing) refreshHome()
         com.iptvapp.update.UpdateChecker(this).resumeCheck(lifecycleScope)
+        // Back from Settings or Customize Home: the base theme may have changed (painted in place).
+        com.iptvapp.util.ThemeEngine.apply(this, binding.root, prefs.baseThemeNow())
         lifecycleScope.launch { applyAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         // Cheap, always-visible reminder of which server/account is currently active.
         lifecycleScope.launch {
