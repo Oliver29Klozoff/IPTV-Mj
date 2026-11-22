@@ -5112,7 +5112,13 @@ class SettingsActivity : AppCompatActivity() {
             val end = json.optString("accentColorEnd", "")
             if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)
         }
-        if (json.has("baseTheme")) prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.fromId(json.optString("baseTheme")))
+        if (json.has("baseTheme")) {
+            prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.fromId(json.optString("baseTheme")))
+        } else if (json.optBoolean("amoledBlack", false)) {
+            // A backup from before base themes: AMOLED black on is OLED Pure Black. Off leaves the
+            // theme as it is (off was the plain default, which no longer exists as its own look).
+            prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
+        }
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
         if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))

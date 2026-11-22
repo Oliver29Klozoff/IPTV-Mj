@@ -714,7 +714,12 @@ class PreferencesManager @Inject constructor(
         it[Keys.CARD_DENSITY] = density.id
     }
 
-    /** Settings → Appearance → Base theme (AppBaseTheme), shared by TV and phone. */
+    /**
+     * Settings → Appearance → Base theme (AppBaseTheme), shared by TV and phone. Unset (a new
+     * install or an update from before base themes) is OLED Pure Black whatever the old AMOLED
+     * black checkbox said: on it was this look already, and the plain look off gave isn't one of
+     * the three themes, so updating and installing start the same way.
+     */
     val baseTheme: Flow<com.iptvapp.data.theme.AppBaseTheme> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map { com.iptvapp.data.theme.AppBaseTheme.fromId(it[Keys.BASE_THEME]) }
