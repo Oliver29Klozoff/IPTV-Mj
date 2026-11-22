@@ -4953,7 +4953,7 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                 putExtra("stream_id", streamId)
                 putExtra("stream_ids", streamIds)
                 com.iptvapp.ui.channel.ChannelNumberBadge.keysOf(binding.tvRvContent.adapter, prefs.lcnModeNow())?.let {
-                    putExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_KEYS, it)
+                    putExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_TOKEN, com.iptvapp.ui.channel.ChannelNumberBadge.remember(it))
                 }
                 putExtra("is_vod", isVod)
                 putExtra("resume_ms", resumeMs)

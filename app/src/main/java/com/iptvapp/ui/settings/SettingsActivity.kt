@@ -5365,8 +5365,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         }
         // Your own channel numbers: on the channels loaded now, and the rest once this provider's
         // channels load (a fresh install restores before its first channel list arrives). A
-        // restore that changed the login leaves the loaded list alone (another provider's channels,
-        // whose streamIds mean other channels) and waits for the restored login's list.
+        // restore that changed the login numbers nothing in the loaded list (another provider's
+        // channels, whose streamIds mean other channels): it clears that list's numbers, which a
+        // refresh would otherwise keep by streamId, and waits for the restored login's list.
+        if (!catalogIsThisLogin) db.channelDao().clearAllCustomNums()
         json.optJSONObject("customChannelNumbers")?.let { obj ->
             val existingIds = if (catalogIsThisLogin) db.channelDao().getAllChannelIds().toSet() else emptySet()
             val numbers = obj.keys().asSequence().mapNotNull { key: String ->
@@ -5375,9 +5377,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 if (n > 0) id to n else null
             }.toList()
             val (ready, waiting) = numbers.partition { it.first in existingIds }
-            if (catalogIsThisLogin) db.withTransaction {
+            db.withTransaction {
+                // Another login's numbers never carry over (a refresh keeps numbers by streamId).
                 db.channelDao().clearAllCustomNums()
-                ready.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
+                if (catalogIsThisLogin) ready.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
             }
             repository.setPendingCustomChannelNumbers(waiting)
         }

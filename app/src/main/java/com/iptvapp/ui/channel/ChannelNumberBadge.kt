@@ -34,10 +34,26 @@ object ChannelNumberBadge {
         if (mode == LcnMode.SEQUENTIAL && position >= 0) position + 1 else null
 
     /**
-     * Player extra: the list on screen when the player opened, as "serverIndex:streamId" in row
-     * order, so Sequential numbers typed in the player mean the places that list showed.
+     * Player extra: a token for the list on screen when the player opened ([remember]), so
+     * Sequential numbers typed in the player mean the places that list showed. The list itself
+     * stays in memory here: a long one would not fit through an Intent.
      */
-    const val EXTRA_SEQUENTIAL_KEYS = "lcn_sequential_keys"
+    const val EXTRA_SEQUENTIAL_TOKEN = "lcn_sequential_token"
+
+    private var rememberedToken = 0L
+    private var rememberedKeys: List<String> = emptyList()
+
+    /** Keeps [keys] for the player; returns the token to send with it. */
+    @Synchronized
+    fun remember(keys: List<String>): Long {
+        rememberedToken += 1
+        rememberedKeys = keys
+        return rememberedToken
+    }
+
+    /** The list sent with [token], or null when it's gone (a newer list, or the app was restarted). */
+    @Synchronized
+    fun recall(token: Long): List<String>? = if (token == rememberedToken && token != 0L) rememberedKeys else null
 
     fun parseKey(key: String): Pair<Int, Int>? {
         val parts = key.split(':')
@@ -47,15 +63,12 @@ object ChannelNumberBadge {
         return server to id
     }
 
-    /** Larger lists aren't sent (an Intent has to stay well under Binder's 1 MB). */
-    private const val MAX_SEQUENTIAL_KEYS = 10_000
-
     /**
      * The rows of [adapter] (a channel list) as player keys: only in Sequential numbering, and
-     * null when it isn't a channel list or is too long to send.
+     * null when it isn't a channel list.
      */
-    fun keysOf(adapter: androidx.recyclerview.widget.RecyclerView.Adapter<*>?, mode: LcnMode): Array<String>? =
-        if (mode != LcnMode.SEQUENTIAL || (adapter?.itemCount ?: 0) > MAX_SEQUENTIAL_KEYS) null else when (adapter) {
+    fun keysOf(adapter: androidx.recyclerview.widget.RecyclerView.Adapter<*>?, mode: LcnMode): List<String>? =
+        if (mode != LcnMode.SEQUENTIAL) null else when (adapter) {
         is com.iptvapp.ui.home.ChannelAdapter -> adapter.currentList.map { "-1:${it.streamId}" }
         is com.iptvapp.ui.home.LiveChannelAdapter -> adapter.currentList.map { "${it.serverIndex}:${it.streamId}" }
         is com.iptvapp.ui.home.CombinedFavoriteAdapter -> adapter.currentOrder().map {
@@ -65,7 +78,7 @@ object ChannelNumberBadge {
             }
         }
         else -> null
-    }?.takeIf { it.isNotEmpty() }?.toTypedArray()
+    }?.takeIf { it.isNotEmpty() }
 
     /** True when the payloads ask for nothing but new numbers. */
     fun onlyNumbers(payloads: List<Any>): Boolean = payloads.isNotEmpty() && payloads.all { it == PAYLOAD }

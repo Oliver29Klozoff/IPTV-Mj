@@ -7488,9 +7488,12 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private suspend fun resolveTypedChannel(num: Int): Any? {
         val mode = prefs.lcnModeNow()
         if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) {
-            // The list the numbers were shown on, when Home sent it (it can mix providers).
-            intent.getStringArrayExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_KEYS)?.takeIf { homeSequentialList && it.isNotEmpty() }?.let { keys ->
-                val (server, id) = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(keys.asList(), num)
+            // The list the numbers were shown on, when Home sent it (it can mix providers). Gone
+            // (the app was restarted under the player): no guessing at another list's places.
+            val token = intent.getLongExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_TOKEN, 0L)
+            if (homeSequentialList && token != 0L) {
+                val keys = com.iptvapp.ui.channel.ChannelNumberBadge.recall(token) ?: return null
+                val (server, id) = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(keys, num)
                     ?.let { com.iptvapp.ui.channel.ChannelNumberBadge.parseKey(it) } ?: return null
                 return withContext(Dispatchers.IO) {
                     if (server == -1) repository.getChannelById(id) else repository.getMergedChannelByIndexAndId(server, id)
