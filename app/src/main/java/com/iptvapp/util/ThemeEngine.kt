@@ -96,16 +96,32 @@ object ThemeEngine {
         return (lp.height in 1..limit.toInt()) || (lp.width in 1..limit.toInt())
     }
 
-    /** New rows of [list] (scrolled in, rebound, loaded later) are themed as they attach. */
+    /**
+     * Rows of [list] are themed as they attach (scrolled in, loaded later), and the rows on
+     * screen again after each layout pass, since a row rebound in place (a refresh, a changed
+     * item) can paint its layout colour back without detaching. Repainting a row already in the
+     * theme only compares tags.
+     */
     private fun watchRows(list: RecyclerView, theme: AppBaseTheme) {
         val watching = list.getTag(R.id.theme_engine_theme) != null
         list.setTag(R.id.theme_engine_theme, theme)
         if (watching) return
+        fun current() = list.getTag(R.id.theme_engine_theme) as? AppBaseTheme
         list.addOnChildAttachStateChangeListener(object : RecyclerView.OnChildAttachStateChangeListener {
             override fun onChildViewAttachedToWindow(child: View) {
-                (list.getTag(R.id.theme_engine_theme) as? AppBaseTheme)?.let { paint(child, it) }
+                current()?.let { paint(child, it) }
             }
             override fun onChildViewDetachedFromWindow(child: View) {}
+        })
+        // Registered only while the list is on screen, so recycled row lists leave none behind.
+        val relayout = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            val t = current() ?: return@OnGlobalLayoutListener
+            for (i in 0 until list.childCount) paint(list.getChildAt(i), t)
+        }
+        if (list.isAttachedToWindow) list.viewTreeObserver.addOnGlobalLayoutListener(relayout)
+        list.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { v.viewTreeObserver.addOnGlobalLayoutListener(relayout) }
+            override fun onViewDetachedFromWindow(v: View) { v.viewTreeObserver.removeOnGlobalLayoutListener(relayout) }
         })
     }
 }

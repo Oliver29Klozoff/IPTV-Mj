@@ -3141,6 +3141,13 @@ class SettingsActivity : AppCompatActivity() {
                 // build, restored backup) shows the default instead of crashing Settings.
                 currentAccentColor = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
                 currentAccentColorEnd = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
+                // Also after a backup restore, which can bring a different base theme.
+                prefs.baseTheme.first().let { saved ->
+                    if (saved != currentBaseTheme) {
+                        currentBaseTheme = saved
+                        com.iptvapp.util.ThemeEngine.apply(this@SettingsActivity, binding.root, saved)
+                    }
+                }
                 setupAccentPicker()
                 // Also sets the Sort channels label, with its value in the accent.
                 applyAccentToSettings()
