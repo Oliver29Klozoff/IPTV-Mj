@@ -5183,6 +5183,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     // A restore that changes the text size rebuilds this screen only once everything is restored:
     // a rebuild part way through would cancel the rest of the restore.
     private val restoringBackup = kotlinx.coroutines.flow.MutableStateFlow(false)
+    override val rebuildsForTextSize: Boolean get() = !restoringBackup.value
 
     private suspend fun applyBackupJson(json: JSONObject) {
         restoringBackup.value = true
