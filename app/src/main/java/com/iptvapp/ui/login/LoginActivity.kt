@@ -507,6 +507,21 @@ class LoginActivity : com.iptvapp.ui.MktvActivity() {
             prefs.setPendingFavoriteChannelIds(ids.toSet())
         }
 
+        // Settings → Channel Numbers, and your own channel numbers: given out once this login's
+        // channels load (the same wait as the favorites above).
+        json.optString("lcnMode", "").takeIf { it.isNotEmpty() }?.let {
+            prefs.setLcnMode(com.iptvapp.data.channel.LcnMode.fromId(it))
+        }
+        if (json.has("directNumberTuning")) prefs.setDirectNumberTuning(json.optBoolean("directNumberTuning", true))
+        json.optJSONObject("customChannelNumbers")?.let { obj ->
+            val numbers = obj.keys().asSequence().mapNotNull { key: String ->
+                val id = key.toIntOrNull() ?: return@mapNotNull null
+                val n = obj.optInt(key, 0)
+                if (n > 0) id to n else null
+            }.toList()
+            repository.setPendingCustomChannelNumbers(numbers)
+        }
+
         // App start already scheduled background work from the settings it had then (none, on a
         // fresh install); bring it in line with the restored ones now, not at the next start.
         com.iptvapp.worker.BackgroundWork.syncAll(applicationContext, prefs)
