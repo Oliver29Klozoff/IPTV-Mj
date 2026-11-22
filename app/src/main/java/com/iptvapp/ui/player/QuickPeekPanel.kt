@@ -306,7 +306,9 @@ class QuickPeekPanel(
 
     private fun mergedRow(c: MergedChannelEntity, mode: com.iptvapp.data.channel.LcnMode, position: Int) = QuickPeek.Row(
         QuickPeek.Key(c.serverIndex, c.streamId),
-        com.iptvapp.data.channel.ChannelNumbering.displayNumber(mode, null, c.num, position) ?: 0,
+        // Typing a number reaches only main-provider channels: another provider's shows one in
+        // Sequential only (a place in this list), as on Home.
+        com.iptvapp.ui.channel.ChannelNumberBadge.numberForOtherProvider(mode, position) ?: 0,
         c.name, c.streamIcon, c.isFavorite, c.categoryId
     )
 

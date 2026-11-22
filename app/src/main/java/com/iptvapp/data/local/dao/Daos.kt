@@ -12,7 +12,9 @@ data class ChannelUserData(
     val favOrder: Int,
     val isHidden: Boolean,
     val favoriteFolderId: Int?,
-    val manualGenre: String?
+    val manualGenre: String?,
+    // Your own channel number (Edit Channel Number, Auto-Number Favorites): kept across refreshes.
+    val customNum: Int? = null
 )
 
 data class WatchHistoryEntry(
@@ -139,7 +141,7 @@ interface ChannelDao {
     suspend fun bulkClearFavorite(streamIds: List<Int>)
     @Query("SELECT * FROM channels WHERE categoryId = :categoryId AND streamId != :excludeStreamId AND isHidden = 0 ORDER BY viewCount DESC, name ASC LIMIT 20")
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>>
-    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden, favoriteFolderId, manualGenre FROM channels")
+    @Query("SELECT streamId, isFavorite, lastWatched, viewCount, favOrder, isHidden, favoriteFolderId, manualGenre, customNum FROM channels")
     suspend fun getUserData(): List<ChannelUserData>
     @Query("SELECT streamId, lastWatched, viewCount FROM channels WHERE lastWatched IS NOT NULL")
     suspend fun getWatchHistoryForBackup(): List<WatchHistoryEntry>

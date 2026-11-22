@@ -169,19 +169,29 @@ class XtreamRepository @Inject constructor(
         )
     }
 
-    /** Gives restored numbers to the channels now loaded; the rest keep waiting. */
-    private suspend fun applyPendingCustomChannelNumbers() {
+    /** Restored numbers still waiting, for this login (none for another login's). */
+    private suspend fun pendingCustomNumbers(): List<Pair<Int, Int>>? {
         val pending = prefs.pendingCustomChannelNumbers.first()
-        if (pending.isEmpty()) return
+        if (pending.isEmpty()) return emptyList()
         val c = creds()
         // Another login now: those streamIds mean other channels there.
-        if ("owner:${c.serverUrl}|${c.username}" !in pending) { prefs.setPendingCustomChannelNumbers(emptySet()); return }
-        val numbers = pending.filterNot { it.startsWith("owner:") }.mapNotNull { entry ->
+        if ("owner:${c.serverUrl}|${c.username}" !in pending) return null
+        return pending.filterNot { it.startsWith("owner:") }.mapNotNull { entry ->
             val (id, n) = entry.split('|').takeIf { it.size == 2 } ?: return@mapNotNull null
             val streamId = id.toIntOrNull() ?: return@mapNotNull null
             val num = n.toIntOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null
             streamId to num
         }
+    }
+
+    /** Channels with a restored number still waiting: kept through the USA-only filter. */
+    private suspend fun pendingCustomNumberIds(): Set<Int> =
+        pendingCustomNumbers().orEmpty().map { it.first }.toSet()
+
+    /** Gives restored numbers to the channels now loaded; the rest keep waiting. */
+    private suspend fun applyPendingCustomChannelNumbers() {
+        if (prefs.pendingCustomChannelNumbers.first().isEmpty()) return
+        val numbers = pendingCustomNumbers() ?: run { prefs.setPendingCustomChannelNumbers(emptySet()); return }
         val existingIds = db.channelDao().getAllChannelIds().toSet()
         val (ready, waiting) = numbers.partition { it.first in existingIds }
         ready.forEach { (id, n) -> assignCustomChannelNumber(id, n) }
@@ -404,15 +414,17 @@ class XtreamRepository @Inject constructor(
             val userData = db.channelDao().getUserData().associateBy { it.streamId }
             // Favorites / folders still waiting to be applied (a backup restore, or a provider switched to
             // primary) must survive the filter too, or they'd never find their channel.
+            // So must restored channel numbers waiting for their channels (this login's only).
             val pendingPrimary = prefs.pendingFavoriteChannelIds.first().mapNotNull { it.toIntOrNull() }.toSet() +
-                prefs.pendingPrimaryChannelFolders.first().mapNotNull { it.substringBefore("|").toIntOrNull() }
+                prefs.pendingPrimaryChannelFolders.first().mapNotNull { it.substringBefore("|").toIntOrNull() } +
+                pendingCustomNumberIds()
             val list = keepUsaOnlyIfSet(
                 response.body() ?: emptyList(), usaOnly,
                 customized = { s ->
                     val u = userData[s.streamId]
                     s.streamId in pendingPrimary ||
                         u != null && (u.isFavorite || u.isHidden || u.favoriteFolderId != null || u.manualGenre != null ||
-                            u.lastWatched != null || u.viewCount > 0)
+                            u.customNum != null || u.lastWatched != null || u.viewCount > 0)
                 }
             ) {
                 val cats = api.getLiveCategories(b.apiUrl(), c.username, c.password)
@@ -442,7 +454,9 @@ class XtreamRepository @Inject constructor(
                     favOrder = prev?.favOrder ?: 0,
                     isHidden = prev?.isHidden ?: false,
                     favoriteFolderId = prev?.favoriteFolderId,
-                    manualGenre = prev?.manualGenre
+                    manualGenre = prev?.manualGenre,
+                    // Your own number survives the refresh (it used to be wiped by every one).
+                    customNum = prev?.customNum
                 )
             })
             // Rows whose streamId the server no longer returns (channel removed upstream, or —
