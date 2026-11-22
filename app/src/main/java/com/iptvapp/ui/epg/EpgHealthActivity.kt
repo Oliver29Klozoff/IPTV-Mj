@@ -44,7 +44,7 @@ import javax.inject.Inject
  * guide now" runs the normal guide refresh, once (an already running one is kept).
  */
 @AndroidEntryPoint
-class EpgHealthActivity : AppCompatActivity() {
+class EpgHealthActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var repair: EpgRepairRepository
     @Inject lateinit var repository: XtreamRepository

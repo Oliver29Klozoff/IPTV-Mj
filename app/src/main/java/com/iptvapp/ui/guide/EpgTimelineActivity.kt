@@ -47,7 +47,7 @@ private fun programKey(row: GuideRow, program: EpgEntity) =
     "${row.serverIndex}:${row.streamId}:${program.startTimestamp}"
 
 @AndroidEntryPoint
-class EpgTimelineActivity : AppCompatActivity() {
+class EpgTimelineActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var binding: ActivityEpgTimelineBinding
     private val viewModel: HomeViewModel by viewModels()
@@ -926,6 +926,11 @@ class TimelineAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_epg_timeline_row, parent, false)
+        // Settings → Accessibility → Text size: rows grow with the text, so the time, title and
+        // channel name never clip.
+        val textBoost = parent.resources.configuration.fontScale /
+            android.content.res.Resources.getSystem().configuration.fontScale.coerceAtLeast(0.1f)
+        if (textBoost > 1.01f) view.layoutParams?.let { it.height = (it.height * textBoost).toInt() }
         return ViewHolder(view)
     }
 

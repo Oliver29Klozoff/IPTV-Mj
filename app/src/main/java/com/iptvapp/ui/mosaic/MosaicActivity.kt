@@ -28,7 +28,7 @@ import kotlinx.coroutines.ensureActive
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class MosaicActivity : AppCompatActivity() {
+class MosaicActivity : com.iptvapp.ui.MktvActivity() {
 
     companion object {
         /** A MosaicLayouts JSON list; its first layout opens as a one-off grid. */

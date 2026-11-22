@@ -38,7 +38,7 @@ import javax.inject.Inject
  * Home's Shown/Hidden is Customize Home's HOME TAB (HomeLayout.showHomeTab), so both stay in step.
  */
 @AndroidEntryPoint
-class TvSidebarCustomizeActivity : AppCompatActivity() {
+class TvSidebarCustomizeActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var prefs: PreferencesManager
 

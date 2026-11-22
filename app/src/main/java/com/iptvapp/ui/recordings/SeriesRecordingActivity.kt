@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class SeriesRecordingActivity : AppCompatActivity() {
+class SeriesRecordingActivity : com.iptvapp.ui.MktvActivity() {
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var repository: XtreamRepository
     @Inject lateinit var engine: SeriesRecordingEngine

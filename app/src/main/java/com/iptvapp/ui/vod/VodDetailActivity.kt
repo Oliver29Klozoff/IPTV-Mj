@@ -25,7 +25,7 @@ import javax.inject.Inject
  * single-tap-to-play behavior on the grid untouched for anyone used to it. */
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class VodDetailActivity : AppCompatActivity() {
+class VodDetailActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var binding: ActivityVodDetailBinding
 

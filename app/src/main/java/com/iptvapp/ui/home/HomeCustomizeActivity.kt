@@ -48,7 +48,7 @@ import javax.inject.Inject
  * it up when it shows again. Nothing here changes favorites, progress, or the catalog.
  */
 @AndroidEntryPoint
-class HomeCustomizeActivity : AppCompatActivity() {
+class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var repository: XtreamRepository

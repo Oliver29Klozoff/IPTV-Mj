@@ -2291,6 +2291,150 @@
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- ACCESSIBILITY: wired by SettingsActivity.setupAccessibility. -->
+                <LinearLayout
+                    android:id="@+id/accessibilityGroup"
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/a11y_group_title" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_senior_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_senior_desc" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchSeniorMode"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_text_size_title" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_text_size_desc" />
+                            <RadioGroup
+                                android:id="@+id/rgTextSize"
+                                style="@style/Rack.Segments"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp">
+                                <RadioButton
+                                    android:id="@+id/rbTextStandard"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_standard" />
+                                <RadioButton
+                                    android:id="@+id/rbTextLarge"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_large" />
+                                <RadioButton
+                                    android:id="@+id/rbTextExtraLarge"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_extra_large" />
+                            </RadioGroup>
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_banner_title" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_banner_desc" />
+                            <RadioGroup
+                                android:id="@+id/rgBannerTime"
+                                style="@style/Rack.Segments"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp">
+                                <RadioButton
+                                    android:id="@+id/rbBannerStandard"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_banner_standard" />
+                                <RadioButton
+                                    android:id="@+id/rbBannerExtended"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_banner_extended" />
+                            </RadioGroup>
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_focus_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_focus_desc" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchHighContrastFocus"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
                 <!-- MULTI-VIEW -->
                 <LinearLayout
                     style="@style/Rack.Group"

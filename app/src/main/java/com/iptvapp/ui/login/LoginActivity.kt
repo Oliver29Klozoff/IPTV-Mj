@@ -36,7 +36,7 @@ import org.json.JSONObject
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class LoginActivity : AppCompatActivity() {
+class LoginActivity : com.iptvapp.ui.MktvActivity() {
     private lateinit var binding: ActivityLoginBinding
     private val viewModel: LoginViewModel by viewModels()
 

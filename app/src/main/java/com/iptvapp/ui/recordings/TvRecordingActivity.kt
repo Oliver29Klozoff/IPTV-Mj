@@ -41,7 +41,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class TvRecordingActivity : AppCompatActivity() {
+class TvRecordingActivity : com.iptvapp.ui.MktvActivity() {
 
     companion object {
         // Mirrors RecordingSchedulerActivity's prefill extras — lets PlayerActivity's Record

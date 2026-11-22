@@ -95,4 +95,21 @@
     <string name="theme_dialog_title">Theme &amp; Accents</string>
     <string name="theme_save">Save</string>
     <string name="theme_updated">Theme updated</string>
+    <!-- Settings → Accessibility (AccessibilitySettings) -->
+    <string name="a11y_group_title">Accessibility</string>
+    <string name="a11y_senior_title">High-Visibility / Senior Mode</string>
+    <string name="a11y_senior_desc">Text 30% bigger, the channel banner and player controls stay on screen longer (6.5 s and 12 s), a bold 4 dp focus outline on TV, bigger cards and bigger buttons to tap.</string>
+    <string name="a11y_senior_on">High-Visibility mode on</string>
+    <string name="a11y_senior_off">High-Visibility mode off</string>
+    <string name="a11y_text_size_title">Text size</string>
+    <string name="a11y_text_size_desc">Every screen, on top of the device\'s own text size. Changes right away.</string>
+    <string name="a11y_text_standard">Standard</string>
+    <string name="a11y_text_large">Large +15%</string>
+    <string name="a11y_text_extra_large">Extra Large +30%</string>
+    <string name="a11y_banner_title">Banner time</string>
+    <string name="a11y_banner_desc">How long the channel banner (after a channel change) and the player controls stay up.</string>
+    <string name="a11y_banner_standard">Standard 2.5 s / 5 s</string>
+    <string name="a11y_banner_extended">Extended 6.5 s / 12 s</string>
+    <string name="a11y_focus_title">Bold focus outline</string>
+    <string name="a11y_focus_desc">A thick white outline with a dark edge around whatever the remote is on, easy to follow from across the room.</string>
 </resources>

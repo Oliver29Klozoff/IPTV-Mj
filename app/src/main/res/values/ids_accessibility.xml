@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AccessibilityEngine: the bold focus ring a view is wearing, its layout listener, and the
+         marks that a window or a list is already being watched. -->
+    <item name="a11y_focus_ring" type="id" />
+    <item name="a11y_focus_ring_layout" type="id" />
+    <item name="a11y_focus_watch" type="id" />
+    <item name="a11y_rows_watch" type="id" />
+</resources>

@@ -98,7 +98,7 @@ private const val ONE_STREAM_STALL_MS = 8_000L
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
+class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null
@@ -7030,7 +7030,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.osdEpgProgress.progress = 0
         binding.channelOsd.visibility = View.VISIBLE
         osdHandler.removeCallbacks(hideOsdRunnable)
-        osdHandler.postDelayed(hideOsdRunnable, 2500)
+        osdHandler.postDelayed(hideOsdRunnable, prefs.accessibilityNow().tuneBannerMs)
         if (streamId != -1) {
             osdEpgJob = lifecycleScope.launch {
                 val epg = repository.getEpgForStream(streamId).first()
@@ -7060,7 +7060,8 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
 
     private fun resetHideTimer() {
         hideHandler.removeCallbacks(hideRunnable)
-        hideHandler.postDelayed(hideRunnable, 5000)
+        // 5 s, or 12 s with Settings → Accessibility → Banner time Extended.
+        hideHandler.postDelayed(hideRunnable, prefs.accessibilityNow().playerControlsMs)
     }
 
     /** Selection feedback must not wait for DataStore, provider resolution or EPG. */
@@ -7079,7 +7080,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         binding.channelOsd.visibility = View.VISIBLE
         binding.progressBuffering.visibility = View.VISIBLE
         osdHandler.removeCallbacks(hideOsdRunnable)
-        osdHandler.postDelayed(hideOsdRunnable, 2500)
+        osdHandler.postDelayed(hideOsdRunnable, prefs.accessibilityNow().tuneBannerMs)
     }
     private fun playChannel(channel: ChannelEntity, fromRecentsPick: Boolean = false) {
         showTuneSelection(channel.name, channel.streamIcon)

@@ -74,7 +74,7 @@ import java.util.Locale
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class HomeActivity : AppCompatActivity() {
+class HomeActivity : com.iptvapp.ui.MktvActivity() {
 
     private var searchDebounceJob: kotlinx.coroutines.Job? = null
     private var openPlayerJob: kotlinx.coroutines.Job? = null

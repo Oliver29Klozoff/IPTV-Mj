@@ -31,7 +31,7 @@ import javax.inject.Inject
  * Provider catalogs are not refreshed from this screen.
  */
 @AndroidEntryPoint
-class SmartChannelManageActivity : AppCompatActivity() {
+class SmartChannelManageActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var store: SmartChannelStore
     @Inject lateinit var repository: XtreamRepository

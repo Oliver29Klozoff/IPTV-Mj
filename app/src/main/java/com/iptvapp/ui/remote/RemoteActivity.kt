@@ -53,7 +53,7 @@ import javax.inject.Inject
  * a code to allow that.
  */
 @AndroidEntryPoint
-class RemoteActivity : AppCompatActivity() {
+class RemoteActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var prefs: PreferencesManager

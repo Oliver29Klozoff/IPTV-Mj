@@ -31,6 +31,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -82,7 +83,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var workManager: WorkManager
@@ -314,6 +315,11 @@ class SettingsActivity : AppCompatActivity() {
             SettingSearchEntry("Midnight Navy", 1, null, R.id.baseThemeRow),
             SettingSearchEntry("Charcoal Dark", 1, null, R.id.baseThemeRow),
             SettingSearchEntry("Force TV Mode", 1, null, R.id.switchForceTvMode),
+            SettingSearchEntry("High-Visibility / Senior Mode", 1, null, R.id.switchSeniorMode),
+            SettingSearchEntry("Accessibility", 1, null, R.id.switchSeniorMode),
+            SettingSearchEntry("Text Size / Large Print", 1, null, R.id.rgTextSize),
+            SettingSearchEntry("Banner Display Time", 1, null, R.id.rgBannerTime),
+            SettingSearchEntry("High-Contrast Focus Outline", 1, null, R.id.switchHighContrastFocus),
             SettingSearchEntry("Mosaic", 1, null, R.id.btnOpenMosaic),
             SettingSearchEntry("Add Provider", 2, null, R.id.btnAddServer),
             SettingSearchEntry("Backup", 3, null, R.id.btnBackupSettings),
@@ -545,6 +551,7 @@ class SettingsActivity : AppCompatActivity() {
         currentBaseTheme = prefs.baseThemeNow()
         com.iptvapp.util.ThemeEngine.apply(this, binding.root, currentBaseTheme)
         setupBaseThemePicker()
+        setupAccessibility()
         workManager = WorkManager.getInstance(this)
 
 
@@ -877,6 +884,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         setupSectionToggles()
+        // Rebuilt for a new text size: back on the setting that was changed.
+        intent.getIntExtra(EXTRA_A11Y_RETURN_TO, 0).takeIf { it != 0 }?.let { id ->
+            intent.removeExtra(EXTRA_A11Y_RETURN_TO)
+            jumpToSettingSearchResult(SettingSearchEntry("", 1, null, id))
+        }
         setupBackupRestore()
         setupServers()
         setupSyncSection()
@@ -1161,6 +1173,70 @@ class SettingsActivity : AppCompatActivity() {
             com.iptvapp.util.ThemeEngine.apply(this, binding.root, saved)
             setupBaseThemePicker()
         }
+    }
+
+    // Accessibility (High-Visibility / Senior Mode): the master switch sets the other three; each
+    // can then be changed alone. Saved at once. A new text size rebuilds this screen (other
+    // screens rebuild as they come back) and lands back on the setting that changed.
+    private var renderingAccessibility = false
+    private var lastAccessibilityControl = R.id.switchSeniorMode
+
+    private fun setupAccessibility() {
+        renderAccessibility(prefs.accessibilityNow())
+        binding.switchSeniorMode.setOnCheckedChangeListener { _, on ->
+            if (renderingAccessibility) return@setOnCheckedChangeListener
+            lastAccessibilityControl = R.id.switchSeniorMode
+            lifecycleScope.launch { prefs.setSeniorMode(on) }
+            Toast.makeText(this, if (on) R.string.a11y_senior_on else R.string.a11y_senior_off, Toast.LENGTH_SHORT).show()
+        }
+        binding.rgTextSize.setOnCheckedChangeListener { _, id ->
+            if (renderingAccessibility) return@setOnCheckedChangeListener
+            val level = when (id) {
+                R.id.rbTextLarge -> com.iptvapp.data.accessibility.TextSizeLevel.LARGE
+                R.id.rbTextExtraLarge -> com.iptvapp.data.accessibility.TextSizeLevel.EXTRA_LARGE
+                else -> com.iptvapp.data.accessibility.TextSizeLevel.STANDARD
+            }
+            lastAccessibilityControl = R.id.rgTextSize
+            lifecycleScope.launch { prefs.setUiFontScale(level) }
+        }
+        binding.rgBannerTime.setOnCheckedChangeListener { _, id ->
+            if (renderingAccessibility) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setExtendedOsdTimeout(id == R.id.rbBannerExtended) }
+        }
+        binding.switchHighContrastFocus.setOnCheckedChangeListener { _, on ->
+            if (renderingAccessibility) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setHighContrastFocus(on) }
+        }
+        // Also follows a restore, which writes these settings from a backup.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                prefs.accessibility.collect { settings ->
+                    renderAccessibility(settings)
+                    com.iptvapp.util.AccessibilityEngine.refreshFocus(this@SettingsActivity, settings.highContrastFocus)
+                    if (settings.screenSignature != builtWith) {
+                        // Screens are built from the in-memory copy of the settings: let it catch up first.
+                        kotlinx.coroutines.withTimeoutOrNull(1_000) {
+                            while (prefs.accessibilityNow() != settings) kotlinx.coroutines.delay(16)
+                        }
+                        intent.putExtra(EXTRA_A11Y_RETURN_TO, lastAccessibilityControl)
+                        recreate()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun renderAccessibility(s: com.iptvapp.data.accessibility.AccessibilitySettings) {
+        renderingAccessibility = true
+        binding.switchSeniorMode.isChecked = s.seniorMode
+        binding.rgTextSize.check(when (s.textSize) {
+            com.iptvapp.data.accessibility.TextSizeLevel.STANDARD -> R.id.rbTextStandard
+            com.iptvapp.data.accessibility.TextSizeLevel.LARGE -> R.id.rbTextLarge
+            com.iptvapp.data.accessibility.TextSizeLevel.EXTRA_LARGE -> R.id.rbTextExtraLarge
+        })
+        binding.rgBannerTime.check(if (s.extendedOsd) R.id.rbBannerExtended else R.id.rbBannerStandard)
+        binding.switchHighContrastFocus.isChecked = s.highContrastFocus
+        renderingAccessibility = false
     }
 
     private fun showCustomColorPickerDialog() {
@@ -4775,6 +4851,7 @@ class SettingsActivity : AppCompatActivity() {
         // android:tag values the Rack styles put on views (styles_settings.xml has the full list),
         // read by applyRackAccent / wireToggleRows.
         private const val TAG_TOGGLE_ROW = "toggleRow"
+        private const val EXTRA_A11Y_RETURN_TO = "a11y_return_to"
         private const val TAG_TOGGLE = "toggle"
         private const val TAG_SEGMENT = "segment"
         private const val TAG_ACCENT_FILL = "accentFill"
@@ -4813,6 +4890,12 @@ class SettingsActivity : AppCompatActivity() {
             put("baseTheme", prefs.baseTheme.first().id)
             // Older builds read only this: on for OLED Pure Black, the closest they have.
             put("amoledBlack", prefs.baseTheme.first() == com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
+            prefs.accessibility.first().let { a ->
+                put("seniorMode", a.seniorMode)
+                put("uiFontScale", a.textSize.scale.toDouble())
+                put("extendedOsdTimeout", a.extendedOsd)
+                put("highContrastFocus", a.highContrastFocus)
+            }
             put("externalPlayer", prefs.externalPlayer.first())
             put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
             put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
@@ -5125,6 +5208,16 @@ class SettingsActivity : AppCompatActivity() {
             // A backup from before base themes: AMOLED black on is OLED Pure Black. Off leaves the
             // theme as it is (off was the plain default, which no longer exists as its own look).
             prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
+        }
+        if (json.has("seniorMode")) {
+            // The four settings as they were saved; the card size has its own entry, so it is
+            // not touched here.
+            prefs.setAccessibility(com.iptvapp.data.accessibility.AccessibilitySettings(
+                seniorMode = json.optBoolean("seniorMode", false),
+                textSize = com.iptvapp.data.accessibility.TextSizeLevel.fromScale(json.optDouble("uiFontScale", 1.0).toFloat()),
+                extendedOsd = json.optBoolean("extendedOsdTimeout", false),
+                highContrastFocus = json.optBoolean("highContrastFocus", false),
+            ))
         }
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))

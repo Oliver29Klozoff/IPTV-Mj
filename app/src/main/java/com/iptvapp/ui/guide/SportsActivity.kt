@@ -41,7 +41,7 @@ import javax.inject.Inject
  * player with the code they already use for the guide.
  */
 @AndroidEntryPoint
-class SportsActivity : AppCompatActivity() {
+class SportsActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var prefs: PreferencesManager
