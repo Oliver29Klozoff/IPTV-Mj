@@ -7513,6 +7513,10 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         val num = channelNumberBuffer.toIntOrNull()
         cancelDigitTune()
         if (num == null) return
+        // Sequential with Quick Peek open: the number is a place in its list, which then becomes
+        // the list CH +/- and later numbers use, as picking that row there would.
+        val peekList = if (prefs.lcnModeNow() == com.iptvapp.data.channel.LcnMode.SEQUENTIAL && ::quickPeek.isInitialized)
+            quickPeek.shownChannels() else null
         digitJumpJob = lifecycleScope.launch {
             val target = try { resolveTypedChannel(num) } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -7520,6 +7524,22 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             }
             // The player may have moved on to a movie or replay while the lookup ran.
             if (!digitTuneAvailable()) return@launch
+            fun adoptPeekList(): Boolean {
+                val list = peekList?.takeIf { l -> l.any { it === target } } ?: return false
+                homeSequentialList = false
+                when (target) {
+                    is ChannelEntity -> {
+                        channels = list.filterIsInstance<ChannelEntity>()
+                        currentIndex = channels.indexOfFirst { it.streamId == target.streamId }
+                    }
+                    is com.iptvapp.data.local.entities.MergedChannelEntity -> {
+                        mergedChannels = list.filterIsInstance<com.iptvapp.data.local.entities.MergedChannelEntity>()
+                            .filter { it.serverIndex == target.serverIndex }
+                        mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == target.streamId }
+                    }
+                }
+                return true
+            }
             when (target) {
                 is ChannelEntity -> {
                     if (serverIndex == -1 && currentZapStreamId == target.streamId) { showChannelOsd(); return@launch }
@@ -7531,7 +7551,7 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     showChannelOsd()
                     // A number can reach outside the list CH +/- walks: that list then becomes the
                     // full channel list, so CH +/- carries on from here.
-                    restoreZapListAfterRecall(-1, target.streamId)
+                    if (!adoptPeekList()) restoreZapListAfterRecall(-1, target.streamId)
                 }
                 is com.iptvapp.data.local.entities.MergedChannelEntity -> {
                     if (serverIndex == target.serverIndex && mergedStreamId == target.streamId) { showChannelOsd(); return@launch }
@@ -7542,7 +7562,7 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     if (job != channelSwitchJob || serverIndex != target.serverIndex || mergedStreamId != target.streamId) return@launch
                     showChannelOsd()
                     // Possibly another provider's channel: CH +/- then walks its own category.
-                    restoreZapListAfterRecall(target.serverIndex, target.streamId)
+                    if (!adoptPeekList()) restoreZapListAfterRecall(target.serverIndex, target.streamId)
                 }
                 else -> Toast.makeText(this@PlayerActivity, getString(R.string.channel_not_found, num), Toast.LENGTH_SHORT).show()
             }
