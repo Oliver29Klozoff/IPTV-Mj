@@ -3448,7 +3448,13 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                             playInMiniPlayer(favorite.channel)
                             viewModel.markChannelWatched(favorite.channel.streamId)
                             viewModel.setCurrentlyPlaying(favorite.channel.streamId)
-                        } else onCombinedFavoriteClick(favorite)
+                        } else {
+                            onCombinedFavoriteClick(favorite)
+                            // Full screen only once that channel is the one loaded (a failed tune stays on Home).
+                            val m = (favorite as CombinedFavorite.Merged).channel
+                            openHiddenMiniFullScreen { currentMiniServerIndex == m.serverIndex && currentMiniMergedStreamId == m.streamId }
+                            return@launch
+                        }
                         openHiddenMiniFullScreen()
                         return@launch
                     }

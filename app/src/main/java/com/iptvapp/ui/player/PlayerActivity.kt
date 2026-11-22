@@ -534,6 +534,8 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private var digitJumpJob: Job? = null
     private var digitPreviewJob: Job? = null
     private var swallowKeyUp = KeyEvent.KEYCODE_UNKNOWN
+    // Sequential numbers follow the list Home showed until Quick Peek switches to another list.
+    private var homeSequentialList = true
     private val tuneTrace = TuneTrace({ android.os.SystemClock.elapsedRealtime() }) { android.util.Log.d("TurboTune", it) }
     private var bufferWatchdog: Runnable? = null
 
@@ -7479,7 +7481,7 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         val mode = prefs.lcnModeNow()
         if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) {
             // The list the numbers were shown on, when Home sent it (it can mix providers).
-            intent.getStringArrayExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_KEYS)?.takeIf { it.isNotEmpty() }?.let { keys ->
+            intent.getStringArrayExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_KEYS)?.takeIf { homeSequentialList && it.isNotEmpty() }?.let { keys ->
                 val (server, id) = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(keys.asList(), num)
                     ?.let { com.iptvapp.ui.channel.ChannelNumberBadge.parseKey(it) } ?: return null
                 return withContext(Dispatchers.IO) {
@@ -7975,6 +7977,10 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
 
             override fun tune(primary: ChannelEntity?, merged: com.iptvapp.data.local.entities.MergedChannelEntity?, zapList: List<Any>) {
                 // CH +/- carries on through the list the channel was picked from, as on the home screens.
+                // Sequential numbers now mean places in that list (as Quick Peek shows them), not Home's.
+                if ((primary != null && serverIndex == -1) || (merged != null && merged.serverIndex == serverIndex)) {
+                    homeSequentialList = false
+                }
                 if (primary != null && serverIndex == -1) {
                     channels = zapList.filterIsInstance<ChannelEntity>()
                     currentIndex = channels.indexOfFirst { it.streamId == primary.streamId }
