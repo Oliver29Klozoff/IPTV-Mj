@@ -1,5 +1,16 @@
 # IPTV App - Changelog
 
+## v7.96 - 2026-11-22
+- **New**: Settings → Accessibility → High-Visibility / Senior Mode. One switch makes text 30%
+  bigger on every screen, keeps the channel banner up 6.5 s (was 2.5 s) and the player controls
+  12 s (was 5 s), puts a bold white focus outline around whatever the remote is on, makes Home's
+  cards Expanded and makes buttons easier to tap on phones and car boxes. Switching it off puts it
+  all back, including your previous card size.
+- **New**: Text size (Standard, Large +15%, Extra Large +30%), Banner time and Bold focus outline
+  can also be set on their own. Screens change right away; a playing video keeps playing and picks
+  up a new text size the next time it opens.
+- **Fixed**: Backups now include the Home card size.
+
 ## v7.95 - 2026-11-22
 - **New**: Base themes in Settings → Appearance: OLED Pure Black (true black, pixels off on OLED
   screens), Midnight Navy or Charcoal Dark. Every screen switches right away, no restart, and video

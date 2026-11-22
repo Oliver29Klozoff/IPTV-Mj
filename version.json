@@ -1,7 +1,7 @@
 {
-  "versionCode": 633,
-  "versionName": "7.95",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.95/MKTV.apk",
-  "apkSha256": "8cd7456ff1adf6885d56b490490c964617f24d08d68c758ed3b38009fdd070b4",
-  "changelog": "Base themes (OLED Pure Black, Midnight Navy, Charcoal Dark), curated accents and a live preview."
+  "versionCode": 634,
+  "versionName": "7.96",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.96/MKTV.apk",
+  "apkSha256": "e7b3ae6dfb44d9b38bb93b1b19f2b856f37b9209bda8f7aea9229740e79a4167",
+  "changelog": "High-Visibility / Senior Mode: bigger text, longer banners, bold focus outline and bigger tap targets."
 }
