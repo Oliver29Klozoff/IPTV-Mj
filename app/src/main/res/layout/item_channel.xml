@@ -68,6 +68,19 @@
                      see ChannelQualityTag kdoc. Not a verified stream measurement, just labels
                      what the provider already claims, mainly to tell apart duplicate channels
                      from different providers. -->
+                <!-- Channel number (Settings → Channel Numbers; ChannelNumbering.displayNumber). -->
+                <TextView
+                    android:id="@+id/tvChannelNumber"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:fontFeatureSettings="tnum"
+                    android:maxLines="1"
+                    android:textColor="@color/oled_cyan_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
                 <TextView
                     android:id="@+id/tvQualityBadge"
                     android:layout_width="wrap_content"

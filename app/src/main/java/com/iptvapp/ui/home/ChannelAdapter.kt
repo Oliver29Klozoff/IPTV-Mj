@@ -37,6 +37,22 @@ class ChannelAdapter(
     var isTvMode: Boolean = false
     var onChannelFocused: ((ChannelEntity) -> Unit)? = null
 
+    /** Settings → Channel Numbers: which number each row shows. */
+    var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+        set(value) {
+            if (field == value) return
+            field = value
+            refreshNumbers()
+        }
+
+    /** Every row's number again (rows moved, so Sequential places changed). */
+    fun refreshNumbers() = notifyItemRangeChanged(0, itemCount, com.iptvapp.ui.channel.ChannelNumberBadge.PAYLOAD)
+
+    override fun onCurrentListChanged(previousList: MutableList<ChannelEntity>, currentList: MutableList<ChannelEntity>) {
+        // A changed list moves rows DiffUtil leaves unbound: their places are new numbers.
+        if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) refreshNumbers()
+    }
+
     // Accent for the "how far into the show" bar under each row (v6.84), set by
     // HomeActivity.applyAccent; a gradient accent draws the bar as a gradient. Null keeps the
     // layout's own tint (the TV home never sets it).
@@ -429,8 +445,21 @@ class ChannelAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        val item = getItem(position)
+        holder.bind(item)
+        bindNumber(holder, item, position)
     }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (com.iptvapp.ui.channel.ChannelNumberBadge.onlyNumbers(payloads)) bindNumber(holder, getItem(position), position)
+        else onBindViewHolder(holder, position)
+    }
+
+    private fun bindNumber(holder: ViewHolder, item: ChannelEntity, position: Int) =
+        com.iptvapp.ui.channel.ChannelNumberBadge.bind(
+            holder.binding.tvChannelNumber,
+            com.iptvapp.ui.channel.ChannelNumberBadge.numberFor(lcnMode, item, position)
+        )
 
     // Guarantees the shared live preview player is detached the moment a row is recycled
     // (scrolled off / reused for different data), not just on focus-loss — a row can be

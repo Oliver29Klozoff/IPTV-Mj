@@ -73,6 +73,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.room.withTransaction
 import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -320,6 +321,9 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Text Size / Large Print", 1, null, R.id.rgTextSize),
             SettingSearchEntry("Banner Display Time", 1, null, R.id.rgBannerTime),
             SettingSearchEntry("High-Contrast Focus Outline", 1, null, R.id.switchHighContrastFocus),
+            SettingSearchEntry("Channel Numbers / Numbering (LCN)", 1, null, R.id.rowLcnMode),
+            SettingSearchEntry("Tune by Number / Number Keys", 1, null, R.id.switchDirectNumberTuning),
+            SettingSearchEntry("Auto-Number Favorites", 1, null, R.id.btnAutoNumberFavorites),
             SettingSearchEntry("Mosaic", 1, null, R.id.btnOpenMosaic),
             SettingSearchEntry("Add Provider", 2, null, R.id.btnAddServer),
             SettingSearchEntry("Backup", 3, null, R.id.btnBackupSettings),
@@ -552,6 +556,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         com.iptvapp.util.ThemeEngine.apply(this, binding.root, currentBaseTheme)
         setupBaseThemePicker()
         setupAccessibility()
+        setupChannelNumbers()
         workManager = WorkManager.getInstance(this)
 
 
@@ -1222,6 +1227,70 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                         recreate()
                     }
                 }
+            }
+        }
+    }
+
+    /** Settings → Channel Numbers: the numbering, number entry in the player, Auto-Number Favorites. */
+    private fun setupChannelNumbers() {
+        fun render(mode: com.iptvapp.data.channel.LcnMode) {
+            binding.tvLcnModeValue.text = "${getString(mode.titleResId)} · ${getString(mode.descResId)}"
+        }
+        render(prefs.lcnModeNow())
+        binding.switchDirectNumberTuning.isChecked = prefs.directNumberTuningEnabledNow()
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                launch { prefs.lcnMode.collect { render(it) } }
+                launch {
+                    prefs.directNumberTuning.collect {
+                        if (binding.switchDirectNumberTuning.isChecked != it) binding.switchDirectNumberTuning.isChecked = it
+                    }
+                }
+            }
+        }
+        binding.rowLcnMode.setOnClickListener {
+            val modes = com.iptvapp.data.channel.LcnMode.entries
+            val current = modes.indexOf(prefs.lcnModeNow())
+            val labels = modes.map { "${getString(it.titleResId)}\n${getString(it.descResId)}" }.toTypedArray()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.lcn_mode_title)
+                .setSingleChoiceItems(labels, current) { d, i ->
+                    d.dismiss()
+                    val mode = modes[i]
+                    lifecycleScope.launch { prefs.setLcnMode(mode) }
+                    Toast.makeText(this, getString(R.string.lcn_mode_set, getString(mode.titleResId)), Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+        binding.switchDirectNumberTuning.setOnCheckedChangeListener { _, on ->
+            if (on == prefs.directNumberTuningEnabledNow()) return@setOnCheckedChangeListener
+            lifecycleScope.launch { prefs.setDirectNumberTuning(on) }
+        }
+        binding.btnAutoNumberFavorites.setOnClickListener {
+            lifecycleScope.launch {
+                val count = repository.getFavoriteChannels().first().size
+                if (count == 0) {
+                    Toast.makeText(this@SettingsActivity, R.string.lcn_auto_number_none, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity)
+                    .setTitle(getString(R.string.lcn_auto_number_confirm_title, count))
+                    .setMessage(getString(R.string.lcn_auto_number_confirm_msg, count))
+                    .setPositiveButton(R.string.lcn_auto_number_go) { _, _ ->
+                        val app = applicationContext
+                        lifecycleScope.launch {
+                            // Finishes even if Settings closes: half a renumbering would leave clashing numbers.
+                            val n = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { repository.backfillSequentialFavoriteNumbers() }
+                            Toast.makeText(
+                                app,
+                                if (n == 0) app.getString(R.string.lcn_auto_number_none) else app.getString(R.string.lcn_auto_number_done, n),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
         }
     }
@@ -4898,6 +4967,8 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 put("highContrastFocus", a.highContrastFocus)
                 prefs.seniorPrevCardDensityId()?.let { put("seniorPrevCardDensity", it) }
             }
+            put("lcnMode", prefs.lcnMode.first().id)
+            put("directNumberTuning", prefs.directNumberTuning.first())
             put("externalPlayer", prefs.externalPlayer.first())
             put("tunneledPlaybackEnabled", prefs.tunneledPlaybackEnabled.first())
             put("dv7FallbackEnabled", prefs.dv7FallbackEnabled.first())
@@ -4932,6 +5003,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             if (scope.favorites) {
                 put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
                 put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+                // Your own channel numbers (Edit Channel Number, Auto-Number Favorites), by streamId.
+                put("customChannelNumbers", JSONObject().apply {
+                    db.channelDao().getCustomNumbered().forEach { ch -> ch.customNum?.let { put(ch.streamId.toString(), it) } }
+                })
                 // Folder ids are local autoincrement values (not portable across a restore onto
                 // a different/reset device), so folders are saved by NAME — same approach
                 // SyncManager already uses. Previously omitted entirely, so restoring a backup
@@ -5238,6 +5313,11 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 highContrastFocus = json.optBoolean("highContrastFocus", false),
             ), json.optString("seniorPrevCardDensity", "").ifEmpty { null })
         }
+        // Settings → Channel Numbers.
+        json.optString("lcnMode", "").takeIf { it.isNotEmpty() }?.let {
+            prefs.setLcnMode(com.iptvapp.data.channel.LcnMode.fromId(it))
+        }
+        if (json.has("directNumberTuning")) prefs.setDirectNumberTuning(json.optBoolean("directNumberTuning", true))
         json.optString("externalPlayer", "").takeIf { it.isNotEmpty() }?.let { prefs.setExternalPlayer(it) }
         if (json.has("tunneledPlaybackEnabled")) prefs.setTunneledPlaybackEnabled(json.optBoolean("tunneledPlaybackEnabled", false))
         if (json.has("dv7FallbackEnabled")) prefs.setDv7FallbackEnabled(json.optBoolean("dv7FallbackEnabled", false))
@@ -5279,6 +5359,19 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             ids.filter { it in existingIds }.forEach { db.channelDao().setFavorite(it, true) }
             val missingIds = ids.filter { it !in existingIds }.toSet()
             if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
+        }
+        // Your own channel numbers, on the channels this provider still has.
+        json.optJSONObject("customChannelNumbers")?.let { obj ->
+            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            val numbers = obj.keys().asSequence().mapNotNull { key: String ->
+                val id = key.toIntOrNull() ?: return@mapNotNull null
+                val n = obj.optInt(key, 0)
+                if (id in existingIds && n > 0) id to n else null
+            }.toList()
+            db.withTransaction {
+                db.channelDao().clearAllCustomNums()
+                numbers.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
+            }
         }
 
         // Folders matched/created by NAME, same approach syncDown() uses — ids are local

@@ -1471,6 +1471,14 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
             notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         setupRecyclerViews()
+        // Settings → Channel Numbers: the numbers on the channel rows follow the chosen numbering.
+        lifecycleScope.launch {
+            prefs.lcnMode.collect { mode ->
+                channelAdapter.lcnMode = mode
+                liveChannelAdapter.lcnMode = mode
+                combinedFavoriteAdapter.lcnMode = mode
+            }
+        }
         setupTabs()
         setupSearch()
         setupMenu()
@@ -5984,6 +5992,10 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
             "Channels Like This",
             ALL_SOURCES
         )
+        // Settings → Channel Numbers: give this channel its own number.
+        val editNumber = channel.customNum?.let { getString(R.string.lcn_edit_action_with, it) }
+            ?: getString(R.string.lcn_edit_action)
+        options.add(editNumber)
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
@@ -5991,6 +6003,10 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, i ->
+                if (options[i] == editNumber) {
+                    com.iptvapp.ui.channel.ChannelNumberDialog.show(this, channel, repository)
+                    return@setItems
+                }
                 when (options[i]) {
                     ALL_SOURCES -> com.iptvapp.ui.player.ChannelSourcesDialog.show(this, repository, channel.name, smartChannels, currentFocus, -1, channel.streamId) { u, t, s, si, m -> openPlayer(u, t, s, serverIndex = si, mergedStreamId = m) }
                     "📺 Play on TV" -> flingLiveChannelToTv(channel.name, -1, channel.streamId)

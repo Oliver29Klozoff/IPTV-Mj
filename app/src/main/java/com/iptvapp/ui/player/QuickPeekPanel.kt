@@ -276,7 +276,8 @@ class QuickPeekPanel(
                         }
                     }
                 }
-                list.map { primaryRow(it) } to list
+                val mode = prefs.lcnModeNow()
+                list.mapIndexed { i, c -> primaryRow(c, mode, i) } to list
             } else {
                 val list = when (source.kind) {
                     QuickPeek.Kind.FAVORITES -> repository.getMergedAllFavorites().first().filter { it.serverIndex == server }
@@ -291,16 +292,22 @@ class QuickPeekPanel(
                             .sortedBy { it.num }
                     }
                 }
-                list.map { mergedRow(it) } to list
+                val mode = prefs.lcnModeNow()
+                list.mapIndexed { i, c -> mergedRow(c, mode, i) } to list
             }
         }
 
-    private fun primaryRow(c: ChannelEntity) = QuickPeek.Row(
-        QuickPeek.Key(-1, c.streamId), c.customNum ?: c.num, c.name, c.streamIcon, c.isFavorite, c.categoryId
+    // Numbers as Settings → Channel Numbers sets them (0 shows none).
+    private fun primaryRow(c: ChannelEntity, mode: com.iptvapp.data.channel.LcnMode, position: Int) = QuickPeek.Row(
+        QuickPeek.Key(-1, c.streamId),
+        com.iptvapp.data.channel.ChannelNumbering.displayNumber(mode, c, position) ?: 0,
+        c.name, c.streamIcon, c.isFavorite, c.categoryId
     )
 
-    private fun mergedRow(c: MergedChannelEntity) = QuickPeek.Row(
-        QuickPeek.Key(c.serverIndex, c.streamId), c.num, c.name, c.streamIcon, c.isFavorite, c.categoryId
+    private fun mergedRow(c: MergedChannelEntity, mode: com.iptvapp.data.channel.LcnMode, position: Int) = QuickPeek.Row(
+        QuickPeek.Key(c.serverIndex, c.streamId),
+        com.iptvapp.data.channel.ChannelNumbering.displayNumber(mode, null, c.num, position) ?: 0,
+        c.name, c.streamIcon, c.isFavorite, c.categoryId
     )
 
     private fun showLoading() {

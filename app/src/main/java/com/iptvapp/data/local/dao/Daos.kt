@@ -54,6 +54,18 @@ interface ChannelDao {
     suspend fun updateFavOrder(streamId: Int, order: Int)
     @Query("UPDATE channels SET customNum = :customNum WHERE streamId = :streamId")
     suspend fun setCustomNum(streamId: Int, customNum: Int?)
+    // Channels other than [exceptStreamId] already holding custom number [num] (hidden ones too):
+    // giving a number to one channel takes it from these, so a number always means one channel.
+    @Query("SELECT * FROM channels WHERE customNum = :num AND streamId != :exceptStreamId")
+    suspend fun getOthersWithCustomNum(num: Int, exceptStreamId: Int): List<ChannelEntity>
+    // Backups: every channel's own number, and clearing them all before a restore puts them back.
+    @Query("SELECT * FROM channels WHERE customNum IS NOT NULL")
+    suspend fun getCustomNumbered(): List<ChannelEntity>
+    @Query("UPDATE channels SET customNum = NULL WHERE customNum IS NOT NULL")
+    suspend fun clearAllCustomNums()
+    // Auto-Number Favorites frees 1..:last on every channel before numbering the favorites.
+    @Query("UPDATE channels SET customNum = NULL WHERE customNum BETWEEN 1 AND :last")
+    suspend fun clearCustomNumsUpTo(last: Int)
     // Highest custom number assigned so far — the auto-favorite-numbering feature uses
     // this + 1 (or 2 if null) as the next number to hand out, keeping the sequence compact
     // rather than searching for gaps left by cleared/unfavorited channels.

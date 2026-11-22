@@ -533,6 +533,13 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         // had this; this screen didn't).
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setupAdapters()
+        // Settings → Channel Numbers: the numbers on the channel rows follow the chosen numbering.
+        lifecycleScope.launch {
+            prefs.lcnMode.collect { mode ->
+                channelAdapter.lcnMode = mode
+                combinedFavoriteAdapter.lcnMode = mode
+            }
+        }
         setupSidebar()
         setupSearch()
         setupMoviesFullScreen()
@@ -3409,7 +3416,9 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             // not a position within whatever list happens to be on screen right now — typing
             // "105" should always mean channel 105, regardless of what's currently filtered/
             // sorted/displayed.
-            if (digit != null && currentFocus !== binding.tvEtSearch) {
+            // (Settings → Channel Numbers → Sequential: the number is a place in the channel list
+            // on screen, as its rows show it, when one is showing.)
+            if (digit != null && currentFocus !== binding.tvEtSearch && currentFocus !is android.widget.EditText) {
                 // 5 digits, not 4 — this provider's US channels are numbered 34783-46555 (well
                 // past 9999), so a 4-digit cap made them entirely unreachable by number entry.
                 if (channelNumberBuffer.length < 5) channelNumberBuffer += digit
@@ -3422,9 +3431,13 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     channelNumberBuffer = ""
                     binding.tvChannelNumberEntry.visibility = View.GONE
                     if (num == null) return@launch
-                    val channel = viewModel.getChannelByNumber(num)
+                    val mode = prefs.lcnModeNow()
+                    val shown = channelAdapter.currentList.takeIf { binding.tvRvContent.adapter === channelAdapter }.orEmpty()
+                    val channel = if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL && shown.isNotEmpty()) {
+                        com.iptvapp.data.channel.ChannelNumbering.sequentialPick(shown, num)
+                    } else homeRepository.findChannelByNumber(num, mode)
                     if (channel == null) {
-                        Toast.makeText(this@TvHomeActivity, "No channel $num", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@TvHomeActivity, getString(com.iptvapp.R.string.channel_not_found, num), Toast.LENGTH_SHORT).show()
                         return@launch
                     }
                     playInMiniPlayer(channel)
@@ -4976,12 +4989,9 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     // jump straight to the reminder flow (showTvReminderDialog), with no way to bulk-select
     // favorites, hide a channel, or see similar channels on TV at all.
     private fun showTvChannelActionsMenu(channel: ChannelEntity) {
-        // Custom numbering only offered for US channels — see ChannelEntity.customNum's kdoc for
-        // why (this provider's US block is numbered in the tens of thousands, out of reach of
-        // the 5-digit remote entry and awkward to keep straight by number at all).
-        val isUs = viewModel.isUsCategory(
-            viewModel.liveCategories.value.find { it.categoryId == channel.categoryId }?.categoryName
-        )
+        // Any main-provider channel can be given its own number (Settings → Channel Numbers).
+        val editNumber = channel.customNum?.let { getString(com.iptvapp.R.string.lcn_edit_action_with, it) }
+            ?: getString(com.iptvapp.R.string.lcn_edit_action)
         val options = mutableListOf(
             "Set Reminder",
             TopFavoritesMenu.label(-1, channel.streamId),
@@ -4990,9 +5000,7 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             "Channels Like This",
             HomeActivity.ALL_SOURCES
         )
-        if (isUs) {
-            options.add(if (channel.customNum != null) "Change Channel Number (${channel.customNum})" else "Set Channel Number")
-        }
+        options.add(editNumber)
         if (bulkSelectMode && bulkSelectedIds.isNotEmpty()) {
             options.add(0, "✓ Hide ${bulkSelectedIds.size} selected")
             options.add(0, "✓ Add ${bulkSelectedIds.size} selected to favorites")
@@ -5006,8 +5014,8 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     options[i] == "Set Reminder" -> showTvReminderDialog(channel)
                     options[i] == TopFavoritesMenu.ADD || options[i] == TopFavoritesMenu.REMOVE ->
                         TopFavoritesMenu.toggle(this, prefs, -1, channel.streamId, channel.name)
-                    options[i].startsWith("Set Channel Number") || options[i].startsWith("Change Channel Number") ->
-                        showTvSetChannelNumberDialog(channel)
+                    options[i] == editNumber ->
+                        com.iptvapp.ui.channel.ChannelNumberDialog.show(this, channel, homeRepository)
                     options[i] == "Select (bulk add to favorites)" -> {
                         bulkSelectMode = true
                         bulkSelectedIds.add(channel.streamId)
@@ -5047,36 +5055,6 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    // US channels only (see ChannelEntity.customNum's kdoc) — lets a channel be given its own
-    // number, overriding the provider's raw num for sorting and for the remote's number-jump.
-    private fun showTvSetChannelNumberDialog(channel: ChannelEntity) {
-        val input = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(channel.customNum?.toString() ?: "")
-            hint = "Channel number"
-        }
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Set Channel Number — ${channel.name}")
-            .setView(input)
-            .setPositiveButton("Save") { _, _ ->
-                val num = input.text.toString().toIntOrNull()
-                viewModel.setCustomChannelNumber(channel.streamId, num)
-                Toast.makeText(
-                    this,
-                    if (num != null) "${channel.name} set to channel $num" else "Number cleared",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-            .setNeutralButton("Clear") { _, _ ->
-                viewModel.setCustomChannelNumber(channel.streamId, null)
-                Toast.makeText(this, "Number cleared", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-        dialog.show()
-        input.requestFocus()
     }
 
     private fun showTvSimilarChannelsSheet(channel: ChannelEntity) {

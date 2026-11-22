@@ -112,4 +112,42 @@
     <string name="a11y_banner_extended">Extended 6.5 s / 12 s</string>
     <string name="a11y_focus_title">Bold focus outline</string>
     <string name="a11y_focus_desc">A thick white outline with a dark edge around whatever the remote is on, easy to follow from across the room.</string>
+    <!-- Settings → Channel Numbers (LcnMode, ChannelNumbering) -->
+    <string name="lcn_group_title">Channel Numbers</string>
+    <string name="lcn_mode_title">Numbering</string>
+    <string name="lcn_mode_custom_first">Custom first</string>
+    <string name="lcn_mode_custom_first_desc">The number you gave a channel, otherwise the provider\'s.</string>
+    <string name="lcn_mode_sequential">Sequential</string>
+    <string name="lcn_mode_sequential_desc">1, 2, 3… down each list. Typing a number picks that place in the list you\'re watching from.</string>
+    <string name="lcn_mode_provider_raw">Provider</string>
+    <string name="lcn_mode_provider_raw_desc">The provider\'s own numbers. Yours are kept but not used.</string>
+    <string name="lcn_mode_off">Hidden</string>
+    <string name="lcn_mode_off_desc">No numbers on the lists. Typing a number still works.</string>
+    <string name="lcn_direct_tuning_title">Tune by number in the player</string>
+    <string name="lcn_direct_tuning_desc">Type a channel number on the remote while watching live TV. It tunes 1.4 s after the last digit, or at once with OK. Back cancels.</string>
+    <string name="lcn_auto_number_title">Auto-Number Favorites 1..N</string>
+    <string name="lcn_auto_number_desc">Numbers your favorites 1, 2, 3… in their Favorites order, like a cable box line-up.</string>
+    <string name="lcn_auto_number_confirm_title">Number your favorites 1 to %1$d?</string>
+    <string name="lcn_auto_number_confirm_msg">Each favorite gets its place in your Favorites list as its number. Numbers your favorites had before are replaced, and any other channel using 1 to %1$d loses its number.</string>
+    <string name="lcn_auto_number_go">Number them</string>
+    <string name="lcn_auto_number_done">Numbered %1$d favorites from 1 to %1$d</string>
+    <string name="lcn_auto_number_none">No favorites to number yet</string>
+    <string name="lcn_mode_set">Numbering: %1$s</string>
+    <!-- Player number entry -->
+    <string name="lcn_entry_number">CH %1$s _</string>
+    <string name="lcn_entry_preview">Tuning: %1$s</string>
+    <string name="lcn_entry_looking">Looking up…</string>
+    <string name="channel_not_found">No channel %1$d</string>
+    <string name="channel_not_found_short">Not found</string>
+    <!-- Edit Channel Number dialog -->
+    <string name="lcn_edit_action">Edit Channel Number</string>
+    <string name="lcn_edit_action_with">Edit Channel Number (%1$d)</string>
+    <string name="lcn_edit_title">Channel number: %1$s</string>
+    <string name="lcn_edit_hint">Channel number</string>
+    <string name="lcn_edit_save">Save</string>
+    <string name="lcn_edit_reset">Reset to Provider</string>
+    <string name="lcn_edit_saved">%1$s is now channel %2$d</string>
+    <string name="lcn_edit_saved_moved">%1$s is now channel %2$d (taken from %3$s)</string>
+    <string name="lcn_edit_reset_done">%1$s is back to the provider\'s number</string>
+    <string name="lcn_edit_invalid">Enter a number from 1 to 99999</string>
 </resources>

@@ -565,8 +565,45 @@ class XtreamRepository @Inject constructor(
     suspend fun getChannelByNumber(num: Int) =
         db.channelDao().getChannelByCustomNumber(num) ?: db.channelDao().getChannelByNumber(num)
 
-    suspend fun setCustomChannelNumber(streamId: Int, customNum: Int?) =
-        db.channelDao().setCustomNum(streamId, customNum)
+    suspend fun setCustomChannelNumber(streamId: Int, customNum: Int?) {
+        assignCustomChannelNumber(streamId, customNum)
+    }
+
+    /**
+     * Gives channel [streamId] its own number [customNum] (null: back to the provider's). A
+     * number belongs to one channel: any other channel holding it loses it, and is returned so
+     * the screen can say so.
+     */
+    suspend fun assignCustomChannelNumber(streamId: Int, customNum: Int?): List<ChannelEntity> =
+        db.withTransaction {
+            val displaced = if (customNum != null) db.channelDao().getOthersWithCustomNum(customNum, streamId) else emptyList()
+            displaced.forEach { db.channelDao().setCustomNum(it.streamId, null) }
+            db.channelDao().setCustomNum(streamId, customNum)
+            displaced
+        }
+
+    /**
+     * Channel [num] typed on the remote. Provider numbering looks only at the provider's numbers;
+     * every other mode tries your own numbers first (see [getChannelByNumber]). Numbering by
+     * position (Sequential) is the caller's: only it knows which list is on screen.
+     */
+    suspend fun findChannelByNumber(num: Int, mode: com.iptvapp.data.channel.LcnMode): ChannelEntity? =
+        if (mode == com.iptvapp.data.channel.LcnMode.PROVIDER_RAW) db.channelDao().getChannelByNumber(num)
+        else getChannelByNumber(num)
+
+    /**
+     * Settings → Auto-Number Favorites: the favorites (main provider, in Favorites order) become
+     * channels 1..N. Any other channel holding one of those numbers gives it up. Returns N.
+     */
+    suspend fun backfillSequentialFavoriteNumbers(): Int = withContext(Dispatchers.IO) {
+        val numbers = com.iptvapp.data.channel.ChannelNumbering.favoriteNumbers(db.channelDao().getFavoriteChannels().first())
+        if (numbers.isEmpty()) return@withContext 0
+        db.withTransaction {
+            db.channelDao().clearCustomNumsUpTo(numbers.size)
+            numbers.forEach { (streamId, n) -> db.channelDao().setCustomNum(streamId, n) }
+        }
+        numbers.size
+    }
 
     suspend fun isChannelFavorite(streamId: Int): Boolean {
         return db.channelDao().getChannelById(streamId)?.isFavorite ?: false
