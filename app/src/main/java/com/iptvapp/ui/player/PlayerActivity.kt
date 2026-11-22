@@ -964,12 +964,7 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         if (resources.configuration.touchscreen == android.content.res.Configuration.TOUCHSCREEN_NOTOUCH) {
             binding.btnLock.visibility = View.GONE
         }
-        lifecycleScope.launch {
-            playerAccent = com.iptvapp.util.RackAccent.load(prefs)
-            paintPlayButton()
-            if (::quickPeek.isInitialized) quickPeek.setAccent(playerAccent)
-            binding.seekBar.progressTintList = android.content.res.ColorStateList.valueOf(playerAccent.start)
-        }
+        lifecycleScope.launch { applyPlayerAccent(com.iptvapp.util.RackAccent.load(prefs)) }
         binding.btnStats.setOnClickListener {
             statsVisible = !statsVisible
             if (statsVisible) {
@@ -4458,6 +4453,11 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
     override fun onResume() {
         super.onResume()
         updateSendButton()
+        // Back from Settings (Quick Settings, a picture-in-picture trip): the accent may have changed.
+        lifecycleScope.launch {
+            val accent = com.iptvapp.util.RackAccent.load(prefs)
+            if (accent != playerAccent) applyPlayerAccent(accent)
+        }
         applyFrameRateMatch()
         castContext?.sessionManager?.addSessionManagerListener(castSessionListener, CastSession::class.java)
         // If the session started while we were paused (cast picker caused onPause),
@@ -6950,6 +6950,15 @@ class PlayerActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
                 syncSportsPlayback()
             }
         }
+    }
+
+    /** Paints [accent] on the player's controls: Play/Pause, seek bar, live show bar and Quick Peek. */
+    private fun applyPlayerAccent(accent: com.iptvapp.util.RackAccent.Accent) {
+        playerAccent = accent
+        paintPlayButton()
+        if (::quickPeek.isInitialized) quickPeek.setAccent(accent)
+        binding.seekBar.progressTintList = android.content.res.ColorStateList.valueOf(accent.start)
+        if (binding.liveProgramBar.visibility == View.VISIBLE) com.iptvapp.util.RackAccent.paintProgress(binding.liveProgramProgress, accent)
     }
 
     /** The live show's progress bar (v6.99): start — progress in the accent — end, while the overlay is

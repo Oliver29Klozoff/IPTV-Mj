@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ThemeEngine's view tags: a panel's own colour before theming, subtrees it leaves alone,
+         and the theme a RecyclerView paints new rows in. -->
+    <item name="theme_engine_original" type="id" />
+    <item name="theme_engine_skip" type="id" />
+    <item name="theme_engine_theme" type="id" />
+</resources>

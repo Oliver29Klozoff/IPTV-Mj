@@ -532,7 +532,6 @@ class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHook
         // telling Android the screen should stay awake (PlayerActivity/MultiViewActivity already
         // had this; this screen didn't).
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        lifecycleScope.launch { com.iptvapp.util.ThemeUtils.applyAmoledIfEnabled(binding.root, prefs) }
         setupAdapters()
         setupSidebar()
         setupSearch()

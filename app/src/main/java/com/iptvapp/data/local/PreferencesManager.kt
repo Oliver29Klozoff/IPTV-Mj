@@ -385,6 +385,8 @@ class PreferencesManager @Inject constructor(
         val HOME_PERSONA_PHONE = stringPreferencesKey("home_persona_phone")
         // Home card size (CardDensity id): compact, standard or expanded. Absent = standard.
         val CARD_DENSITY = stringPreferencesKey("home_card_density")
+        // App base theme (AppBaseTheme id): oled_black, midnight_navy or charcoal_dark. Absent = oled_black.
+        val BASE_THEME = stringPreferencesKey("app_base_theme")
         // Smart Rows (SmartRows): cards per automatic row (10, 20 or 30; absent = 20), hiding every
         // empty row (absent = on), and leaving 90%-watched items out of Continue Watching (absent = on).
         val SMART_ROW_LIMIT = intPreferencesKey("home_smart_row_limit")
@@ -710,6 +712,23 @@ class PreferencesManager @Inject constructor(
         com.iptvapp.data.home.CardDensity.fromId(PrefsSnapshot.read(context) { it[Keys.CARD_DENSITY] })
     suspend fun setCardDensity(density: com.iptvapp.data.home.CardDensity) = context.dataStore.edit {
         it[Keys.CARD_DENSITY] = density.id
+    }
+
+    /**
+     * Settings → Appearance → Base theme (AppBaseTheme), shared by TV and phone. Unset (a new
+     * install or an update from before base themes) is OLED Pure Black whatever the old AMOLED
+     * black checkbox said: on it was this look already, and the plain look off gave isn't one of
+     * the three themes, so updating and installing start the same way.
+     */
+    val baseTheme: Flow<com.iptvapp.data.theme.AppBaseTheme> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.theme.AppBaseTheme.fromId(it[Keys.BASE_THEME]) }
+        .distinctUntilChanged()
+    /** [baseTheme] now, so a screen opens already in its theme. */
+    fun baseThemeNow(): com.iptvapp.data.theme.AppBaseTheme =
+        com.iptvapp.data.theme.AppBaseTheme.fromId(PrefsSnapshot.read(context) { it[Keys.BASE_THEME] })
+    suspend fun setBaseTheme(theme: com.iptvapp.data.theme.AppBaseTheme) = context.dataStore.edit {
+        it[Keys.BASE_THEME] = theme.id
     }
 
     /** TV Home's mini player (Customize Home → Home Mini Player Display): "hero" until changed. */

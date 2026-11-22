@@ -136,6 +136,12 @@
                 style="@style/HomeEditHeaderChip"
                 android:text="@string/btn_smart_rows" />
 
+            <!-- Theme & Accents: the app's base theme and accent, the same choices as Settings → Appearance. -->
+            <TextView
+                android:id="@+id/btnCustomizeTheme"
+                style="@style/HomeEditHeaderChip"
+                android:text="@string/btn_customize_theme" />
+
             <TextView
                 android:id="@+id/btnCustomizeStart"
                 style="@style/HomeEditHeaderChip" />

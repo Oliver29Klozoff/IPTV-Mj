@@ -92,6 +92,8 @@ class HomeCustomizeActivity : AppCompatActivity() {
         smartRules = prefs.smartRowsNow()
         binding.btnCustomizeSmartRows.setOnClickListener { showSmartRowsDialog() }
         binding.btnCustomizeSmartRows.contentDescription = "Smart Rows: show or hide groups of rows, empty rows, finished items and cards per row"
+        binding.btnCustomizeTheme.setOnClickListener { showThemeDialog() }
+        binding.btnCustomizeTheme.contentDescription = "Theme and accents: the app's base theme and accent color"
         binding.btnCustomizeStart.setOnClickListener { pickStart() }
         binding.btnCustomizeReset.setOnClickListener { confirmReset() }
         if (tv) {
@@ -673,6 +675,88 @@ class HomeCustomizeActivity : AppCompatActivity() {
         if (rulesChanged) adapter.notifyItemRangeChanged(0, adapter.itemCount)
         if (rulesChanged) lifecycleScope.launch(NonCancellable) { prefs.setSmartRows(rules) }
         Toast.makeText(this, R.string.smart_rows_updated, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * THEME…: the base theme and the curated accents (Settings → Appearance has the full accent
+     * picker), with the live preview. Choices are held until Save; Cancel changes nothing. Saved,
+     * this screen repaints at once and Home on its next resume.
+     */
+    private fun showThemeDialog() {
+        val ctx = this
+        fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
+        var theme = prefs.baseThemeNow()
+        lifecycleScope.launch {
+            var start = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
+            var end = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
+            val savedStart = start
+            val savedEnd = end
+            val content = android.widget.LinearLayout(ctx).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(20), dp(12), dp(20), dp(4))
+            }
+            fun heading(res: Int) = android.widget.TextView(ctx).apply {
+                setText(res)
+                textSize = 12f
+                letterSpacing = 0.16f
+                setTextColor(getColor(R.color.rack_text_muted))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(12); bottomMargin = dp(6) }
+            }
+            val themes = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.VERTICAL }
+            val accents = android.widget.FrameLayout(ctx)
+            val preview = layoutInflater.inflate(R.layout.view_theme_preview, content, false)
+            content.addView(heading(R.string.theme_base_heading))
+            content.addView(themes)
+            content.addView(heading(R.string.theme_accent_heading))
+            content.addView(accents)
+            content.addView(heading(R.string.theme_preview_heading))
+            content.addView(preview)
+
+            lateinit var render: (focusTheme: Boolean) -> Unit
+            render = { focusTheme ->
+                val accent = com.iptvapp.ui.theme.ThemePicker.accentOf(start, end)
+                com.iptvapp.ui.theme.ThemePicker.buildBaseThemes(themes, theme, accent) {
+                    theme = it
+                    render(true)
+                }
+                accents.removeAllViews()
+                accents.addView(com.iptvapp.ui.theme.ThemePicker.buildCuratedAccents(ctx, start, end) { preset ->
+                    start = preset.start
+                    end = preset.end ?: ""
+                    render(false)
+                    // The rebuilt chips replace the focused one: keep the remote on the new choice.
+                    (accents.getChildAt(0) as? ViewGroup)?.getChildAt(
+                        com.iptvapp.data.theme.ThemePalette.PRESET_ACCENTS.indexOf(preset)
+                    )?.requestFocus()
+                })
+                com.iptvapp.ui.theme.ThemePicker.paintPreview(preview, theme, accent,
+                    com.iptvapp.ui.theme.ThemePicker.accentName(ctx, start, end))
+                if (focusTheme) themes.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(theme))?.requestFocus()
+            }
+            render(false)
+
+            val dialog = AlertDialog.Builder(ctx)
+                .setTitle(R.string.theme_dialog_title)
+                .setView(android.widget.ScrollView(ctx).apply { addView(content) })
+                .setPositiveButton(R.string.theme_save) { _, _ ->
+                    com.iptvapp.util.ThemeEngine.apply(this@HomeCustomizeActivity, binding.root, theme)
+                    val accentChanged = start != savedStart || end != savedEnd
+                    lifecycleScope.launch(NonCancellable) {
+                        prefs.setBaseTheme(theme)
+                        if (accentChanged) {
+                            if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)
+                        }
+                    }
+                    Toast.makeText(ctx, R.string.theme_updated, Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            // The remote starts on the chosen theme, not on the dialog's buttons.
+            themes.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(theme))?.requestFocus()
+            dialog.setOnDismissListener { binding.btnCustomizeTheme.requestFocus() }
+        }
     }
 
     private fun confirmReset() {
