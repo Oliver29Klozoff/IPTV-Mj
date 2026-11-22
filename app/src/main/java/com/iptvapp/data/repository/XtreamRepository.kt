@@ -156,7 +156,40 @@ class XtreamRepository @Inject constructor(
         prefs.setPendingFavoriteSeriesIds(pending.filter { it !in existing }.toSet())
     }
 
+    /**
+     * Restore: custom channel numbers ([numbers], streamId to number) for channels this provider
+     * hasn't loaded yet. Kept for this login only, and given out once the channels arrive
+     * ([applyPendingCustomChannelNumbers]); an empty list drops any left from before.
+     */
+    suspend fun setPendingCustomChannelNumbers(numbers: List<Pair<Int, Int>>) {
+        if (numbers.isEmpty()) { prefs.setPendingCustomChannelNumbers(emptySet()); return }
+        val c = creds()
+        prefs.setPendingCustomChannelNumbers(
+            setOf("owner:${c.serverUrl}|${c.username}") + numbers.map { (id, n) -> "$id|$n" }
+        )
+    }
+
+    /** Gives restored numbers to the channels now loaded; the rest keep waiting. */
+    private suspend fun applyPendingCustomChannelNumbers() {
+        val pending = prefs.pendingCustomChannelNumbers.first()
+        if (pending.isEmpty()) return
+        val c = creds()
+        // Another login now: those streamIds mean other channels there.
+        if ("owner:${c.serverUrl}|${c.username}" !in pending) { prefs.setPendingCustomChannelNumbers(emptySet()); return }
+        val numbers = pending.filterNot { it.startsWith("owner:") }.mapNotNull { entry ->
+            val (id, n) = entry.split('|').takeIf { it.size == 2 } ?: return@mapNotNull null
+            val streamId = id.toIntOrNull() ?: return@mapNotNull null
+            val num = n.toIntOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null
+            streamId to num
+        }
+        val existingIds = db.channelDao().getAllChannelIds().toSet()
+        val (ready, waiting) = numbers.partition { it.first in existingIds }
+        ready.forEach { (id, n) -> assignCustomChannelNumber(id, n) }
+        setPendingCustomChannelNumbers(waiting)
+    }
+
     private suspend fun applyPendingPrimaryFavorites() {
+        applyPendingCustomChannelNumbers()
         val pendingIds = prefs.pendingFavoriteChannelIds.first()
         if (pendingIds.isNotEmpty()) {
             val existingIds = db.channelDao().getAllChannelIds().toSet()

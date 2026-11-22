@@ -5360,18 +5360,21 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             val missingIds = ids.filter { it !in existingIds }.toSet()
             if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
         }
-        // Your own channel numbers, on the channels this provider still has.
+        // Your own channel numbers: on the channels loaded now, and the rest once this provider's
+        // channels load (a fresh install restores before its first channel list arrives).
         json.optJSONObject("customChannelNumbers")?.let { obj ->
             val existingIds = db.channelDao().getAllChannelIds().toSet()
             val numbers = obj.keys().asSequence().mapNotNull { key: String ->
                 val id = key.toIntOrNull() ?: return@mapNotNull null
                 val n = obj.optInt(key, 0)
-                if (id in existingIds && n > 0) id to n else null
+                if (n > 0) id to n else null
             }.toList()
+            val (ready, waiting) = numbers.partition { it.first in existingIds }
             db.withTransaction {
                 db.channelDao().clearAllCustomNums()
-                numbers.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
+                ready.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
             }
+            repository.setPendingCustomChannelNumbers(waiting)
         }
 
         // Folders matched/created by NAME, same approach syncDown() uses — ids are local

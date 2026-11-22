@@ -246,6 +246,8 @@ class PreferencesManager @Inject constructor(
         // two different providers can reuse the same category id string.
         val FAVORITE_MERGED_CATEGORY_IDS = stringSetPreferencesKey("favorite_merged_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
+        // Restored custom channel numbers ("streamId|number") for channels not loaded yet.
+        val PENDING_CUSTOM_CHANNEL_NUMBERS = stringSetPreferencesKey("pending_custom_channel_numbers")
         // Movie / series favorites carried into the primary on a provider switch (see
         // XtreamRepository.capturePendingPrimaryFavoritesFrom).
         val PENDING_FAV_VOD_IDS = stringSetPreferencesKey("pending_fav_vod_ids")
@@ -1500,6 +1502,12 @@ class PreferencesManager @Inject constructor(
 
     suspend fun clearPendingFavoriteChannelIds() {
         context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = emptySet() }
+    }
+
+    /** Restored custom channel numbers still waiting for their channels: "owner" first, then "streamId|number". */
+    val pendingCustomChannelNumbers: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_CUSTOM_CHANNEL_NUMBERS] ?: emptySet() }
+    suspend fun setPendingCustomChannelNumbers(entries: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_CUSTOM_CHANNEL_NUMBERS] = entries }
     }
 
     val pendingPrimaryChannelFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_PRIMARY_CHANNEL_FOLDERS] ?: emptySet() }

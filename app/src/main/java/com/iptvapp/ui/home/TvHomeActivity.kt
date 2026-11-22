@@ -3432,8 +3432,28 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     binding.tvChannelNumberEntry.visibility = View.GONE
                     if (num == null) return@launch
                     val mode = prefs.lcnModeNow()
+                    val sequential = mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL
+                    // Favorites on screen: the number is that place in Favorites, whichever provider it's on.
+                    val favorites = combinedFavoriteAdapter.currentList.takeIf { binding.tvRvContent.adapter === combinedFavoriteAdapter }.orEmpty()
+                    if (sequential && favorites.isNotEmpty()) {
+                        val favorite = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(favorites, num)
+                        if (favorite == null) {
+                            Toast.makeText(this@TvHomeActivity, getString(com.iptvapp.R.string.channel_not_found, num), Toast.LENGTH_SHORT).show()
+                            return@launch
+                        }
+                        if (favorite is CombinedFavorite.Primary) {
+                            // As a click on it, but waiting for the tune before going full screen.
+                            currentMiniCombinedFavoriteId = favorite.id
+                            combinedFavoriteAdapter.setCurrentlyPlayingId(favorite.id)
+                            playInMiniPlayer(favorite.channel)
+                            viewModel.markChannelWatched(favorite.channel.streamId)
+                            viewModel.setCurrentlyPlaying(favorite.channel.streamId)
+                        } else onCombinedFavoriteClick(favorite)
+                        openHiddenMiniFullScreen()
+                        return@launch
+                    }
                     val shown = channelAdapter.currentList.takeIf { binding.tvRvContent.adapter === channelAdapter }.orEmpty()
-                    val channel = if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL && shown.isNotEmpty()) {
+                    val channel = if (sequential && shown.isNotEmpty()) {
                         com.iptvapp.data.channel.ChannelNumbering.sequentialPick(shown, num)
                     } else homeRepository.findChannelByNumber(num, mode)
                     if (channel == null) {
