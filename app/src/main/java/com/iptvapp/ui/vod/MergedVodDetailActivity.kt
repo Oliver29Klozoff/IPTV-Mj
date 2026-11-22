@@ -20,7 +20,7 @@ import javax.inject.Inject
  * already cached plus resume/favorite/clear-progress, all of which merged VOD tracks the same
  * way primary VOD does. */
 @AndroidEntryPoint
-class MergedVodDetailActivity : AppCompatActivity() {
+class MergedVodDetailActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var binding: ActivityMergedVodDetailBinding
 

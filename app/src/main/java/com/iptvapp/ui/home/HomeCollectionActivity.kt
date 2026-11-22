@@ -41,7 +41,7 @@ import javax.inject.Inject
  * (TopFavoritesStore): channels only, its saved manual order.
  */
 @AndroidEntryPoint
-class HomeCollectionActivity : AppCompatActivity() {
+class HomeCollectionActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var prefs: PreferencesManager
     @Inject lateinit var repository: XtreamRepository

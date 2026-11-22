@@ -33,7 +33,7 @@ import java.util.concurrent.Executors
     androidx.media3.common.util.UnstableApi::class,
     androidx.camera.core.ExperimentalGetImage::class,
 ])
-class CastQrScanActivity : AppCompatActivity() {
+class CastQrScanActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var cameraExecutor: ExecutorService

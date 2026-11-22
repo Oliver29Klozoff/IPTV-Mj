@@ -23,7 +23,7 @@ import javax.inject.Inject
 
 @SuppressLint("CustomSplashScreen")
 @AndroidEntryPoint
-class SplashActivity : AppCompatActivity() {
+class SplashActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject
     lateinit var prefs: PreferencesManager

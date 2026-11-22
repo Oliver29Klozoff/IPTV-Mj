@@ -41,7 +41,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class RecordingSchedulerActivity : AppCompatActivity() {
+class RecordingSchedulerActivity : com.iptvapp.ui.MktvActivity() {
 
     companion object {
         const val EXTRA_PREFILL_STREAM_ID = "prefill_stream_id"

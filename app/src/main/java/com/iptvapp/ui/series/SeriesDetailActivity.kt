@@ -34,7 +34,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class SeriesDetailActivity : AppCompatActivity() {
+class SeriesDetailActivity : com.iptvapp.ui.MktvActivity() {
 
     companion object {
         /** Optional: the season and episode number to open on (an episode picked in search). */

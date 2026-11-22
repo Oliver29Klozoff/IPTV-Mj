@@ -44,7 +44,7 @@ import javax.inject.Inject
  * their own screens from here.
  */
 @AndroidEntryPoint
-class SearchActivity : AppCompatActivity() {
+class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var search: UniversalSearch
     @Inject lateinit var repository: XtreamRepository

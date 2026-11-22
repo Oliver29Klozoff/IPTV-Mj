@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
  * was on screen (it doesn't touch it until the person accepts). Play here, choose among several
  * matches, map the sender's provider to one of this device's, or decline. Back declines.
  */
-class HandoffAcceptActivity : AppCompatActivity() {
+class HandoffAcceptActivity : com.iptvapp.ui.MktvActivity() {
     private var dialog: AlertDialog? = null
     private var txId: String = ""
     private var answered = false

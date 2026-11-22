@@ -35,7 +35,7 @@ import javax.inject.Inject
  * player's Now/Next, recordings), because they change the listings stored for the channel.
  */
 @AndroidEntryPoint
-class EpgFixChannelActivity : AppCompatActivity() {
+class EpgFixChannelActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var repair: EpgRepairRepository
 

@@ -33,7 +33,9 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
-class MultiViewActivity : AppCompatActivity() {
+class MultiViewActivity : com.iptvapp.ui.MktvActivity() {
+    // Playing: a new text size waits for the next time this screen opens (MktvActivity).
+    override val rebuildsForTextSize: Boolean get() = false
 
     private lateinit var binding: ActivityMultiViewBinding
 

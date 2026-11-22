@@ -56,6 +56,8 @@ class IptvApplication : Application(), Configuration.Provider {
         com.iptvapp.handoff.Handoff.init(this)
         // The base theme (Settings → Appearance) on every screen as it comes forward.
         com.iptvapp.util.ThemeEngine.install(this, prefs)
+        // Settings → Accessibility (text size, bold focus, touch targets) on every screen.
+        com.iptvapp.util.AccessibilityEngine.install(this, prefs)
         // The app's theme is DayNight, but every custom screen hardcodes a dark palette
         // regardless of system setting. Left on DayNight, only stock components (AlertDialog,
         // DatePickerDialog, etc.) would follow the system's light/dark setting — on a device

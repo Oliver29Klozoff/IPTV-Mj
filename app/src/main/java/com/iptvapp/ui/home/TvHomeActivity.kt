@@ -51,7 +51,7 @@ import java.util.Date
 import java.util.Locale
 
 @AndroidEntryPoint
-class TvHomeActivity : AppCompatActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
+class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
 
     // Not private: FeatureTourDialog/SpotlightTourController reads real sidebar button views
     // from this binding to point the spotlight tour at actual on-screen UI.

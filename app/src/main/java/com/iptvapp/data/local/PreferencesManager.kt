@@ -387,6 +387,13 @@ class PreferencesManager @Inject constructor(
         val CARD_DENSITY = stringPreferencesKey("home_card_density")
         // App base theme (AppBaseTheme id): oled_black, midnight_navy or charcoal_dark. Absent = oled_black.
         val BASE_THEME = stringPreferencesKey("app_base_theme")
+        // Settings → Accessibility (AccessibilitySettings). Each absent value follows SENIOR_MODE
+        // (absent = off); the card size Senior Mode replaced is kept to put back when it goes off.
+        val SENIOR_MODE = booleanPreferencesKey("accessibility_senior_mode_enabled")
+        val UI_FONT_SCALE = floatPreferencesKey("accessibility_font_scale")
+        val EXTENDED_OSD_TIMEOUT = booleanPreferencesKey("accessibility_extended_osd_timeout")
+        val HIGH_CONTRAST_FOCUS = booleanPreferencesKey("accessibility_high_contrast_focus")
+        val SENIOR_PREV_CARD_DENSITY = stringPreferencesKey("accessibility_senior_prev_card_density")
         // Smart Rows (SmartRows): cards per automatic row (10, 20 or 30; absent = 20), hiding every
         // empty row (absent = on), and leaving 90%-watched items out of Continue Watching (absent = on).
         val SMART_ROW_LIMIT = intPreferencesKey("home_smart_row_limit")
@@ -729,6 +736,71 @@ class PreferencesManager @Inject constructor(
         com.iptvapp.data.theme.AppBaseTheme.fromId(PrefsSnapshot.read(context) { it[Keys.BASE_THEME] })
     suspend fun setBaseTheme(theme: com.iptvapp.data.theme.AppBaseTheme) = context.dataStore.edit {
         it[Keys.BASE_THEME] = theme.id
+    }
+
+    private fun readAccessibility(p: Preferences) = com.iptvapp.data.accessibility.AccessibilitySettings.resolve(
+        p[Keys.SENIOR_MODE], p[Keys.UI_FONT_SCALE], p[Keys.EXTENDED_OSD_TIMEOUT], p[Keys.HIGH_CONTRAST_FOCUS]
+    )
+
+    /** Settings → Accessibility (High-Visibility / Senior Mode and its parts). Off until changed. */
+    val accessibility: Flow<com.iptvapp.data.accessibility.AccessibilitySettings> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { readAccessibility(it) }
+        .distinctUntilChanged()
+    /** [accessibility] now: read as a screen is built, before its first frame. */
+    fun accessibilityNow(): com.iptvapp.data.accessibility.AccessibilitySettings =
+        PrefsSnapshot.read(context) { readAccessibility(it) }
+    fun seniorModeEnabledNow(): Boolean = accessibilityNow().seniorMode
+    fun uiFontScaleNow(): Float = accessibilityNow().textSize.scale
+    fun extendedOsdTimeoutNow(): Boolean = accessibilityNow().extendedOsd
+    fun highContrastFocusNow(): Boolean = accessibilityNow().highContrastFocus
+
+    /**
+     * The master switch, in one write. On: text Extra Large, longer banners, bold focus and
+     * Expanded cards, remembering the card size it replaced. Off: all back to standard and the
+     * cards to that remembered size (Standard if there is none).
+     */
+    suspend fun setSeniorMode(enabled: Boolean) = context.dataStore.edit {
+        val target = if (enabled) com.iptvapp.data.accessibility.AccessibilitySettings.SENIOR
+        else com.iptvapp.data.accessibility.AccessibilitySettings.STANDARD
+        val wasOn = it[Keys.SENIOR_MODE] == true
+        it[Keys.SENIOR_MODE] = enabled
+        it[Keys.UI_FONT_SCALE] = target.textSize.scale
+        it[Keys.EXTENDED_OSD_TIMEOUT] = target.extendedOsd
+        it[Keys.HIGH_CONTRAST_FOCUS] = target.highContrastFocus
+        if (enabled) {
+            // Turning it on while already on keeps the size from before the first time.
+            if (!wasOn) it[Keys.SENIOR_PREV_CARD_DENSITY] = com.iptvapp.data.home.CardDensity.fromId(it[Keys.CARD_DENSITY]).id
+            it[Keys.CARD_DENSITY] = com.iptvapp.data.home.CardDensity.EXPANDED.id
+        } else if (wasOn) {
+            it[Keys.CARD_DENSITY] = com.iptvapp.data.home.CardDensity.fromId(it[Keys.SENIOR_PREV_CARD_DENSITY]).id
+            it.remove(Keys.SENIOR_PREV_CARD_DENSITY)
+        }
+    }
+    /** The card size Senior Mode will put back when switched off (null: none remembered). */
+    suspend fun seniorPrevCardDensityId(): String? =
+        context.dataStore.data.catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }.first()[Keys.SENIOR_PREV_CARD_DENSITY]
+
+    /**
+     * All four as given, and the card size to put back when Senior Mode goes off (a restore).
+     * The current card size is left alone.
+     */
+    suspend fun setAccessibility(s: com.iptvapp.data.accessibility.AccessibilitySettings, prevCardDensityId: String? = null) = context.dataStore.edit {
+        it[Keys.SENIOR_MODE] = s.seniorMode
+        it[Keys.UI_FONT_SCALE] = s.textSize.scale
+        it[Keys.EXTENDED_OSD_TIMEOUT] = s.extendedOsd
+        it[Keys.HIGH_CONTRAST_FOCUS] = s.highContrastFocus
+        if (s.seniorMode && prevCardDensityId != null) it[Keys.SENIOR_PREV_CARD_DENSITY] = com.iptvapp.data.home.CardDensity.fromId(prevCardDensityId).id
+        else it.remove(Keys.SENIOR_PREV_CARD_DENSITY)
+    }
+    suspend fun setUiFontScale(level: com.iptvapp.data.accessibility.TextSizeLevel) = context.dataStore.edit {
+        it[Keys.UI_FONT_SCALE] = level.scale
+    }
+    suspend fun setExtendedOsdTimeout(enabled: Boolean) = context.dataStore.edit {
+        it[Keys.EXTENDED_OSD_TIMEOUT] = enabled
+    }
+    suspend fun setHighContrastFocus(enabled: Boolean) = context.dataStore.edit {
+        it[Keys.HIGH_CONTRAST_FOCUS] = enabled
     }
 
     /** TV Home's mini player (Customize Home → Home Mini Player Display): "hero" until changed. */

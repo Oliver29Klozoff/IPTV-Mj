@@ -35,7 +35,7 @@ import javax.inject.Inject
  * Built in code; every row takes focus so a remote can scroll it.
  */
 @AndroidEntryPoint
-class WatchStatsActivity : AppCompatActivity() {
+class WatchStatsActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var db: IptvDatabase
     @Inject lateinit var prefs: PreferencesManager
