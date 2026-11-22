@@ -60,6 +60,9 @@ class QuickPeekPanel(
     var isOpen = false
         private set
 
+    /** The channels listed now (ChannelEntity / MergedChannelEntity, in row order), while open. */
+    fun shownChannels(): List<Any>? = entities.takeIf { isOpen && it.isNotEmpty() }
+
     private var sources: List<QuickPeek.Source> = emptyList()
     private var sourceIndex = 0
     private var loadedGeneration = -1

@@ -7488,6 +7488,10 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private suspend fun resolveTypedChannel(num: Int): Any? {
         val mode = prefs.lcnModeNow()
         if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) {
+            // Quick Peek open: the numbers are the places in the list it shows.
+            if (::quickPeek.isInitialized) quickPeek.shownChannels()?.let {
+                return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(it, num)
+            }
             // The list the numbers were shown on, when Home sent it (it can mix providers). Gone
             // (the app was restarted under the player): no guessing at another list's places.
             val token = intent.getLongExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_TOKEN, 0L)
