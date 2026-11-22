@@ -31,6 +31,8 @@ class AutoBackupWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        // Automatic backups are the Primary profile's: another profile's would be restored as everyone's.
+        if (prefs.activeProfileId.first() != com.iptvapp.data.profile.Profile.PRIMARY_ID) return Result.success()
         return try {
             val creds = prefs.credentials.first()
             val json = JSONObject().apply {

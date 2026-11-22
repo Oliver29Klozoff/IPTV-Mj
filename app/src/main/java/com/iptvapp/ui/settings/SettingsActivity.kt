@@ -540,6 +540,12 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A Kids profile has no Settings (Home hides the button; this covers any other way in).
+        if (prefs.kidsSafeModeNow()) {
+            Toast.makeText(this, R.string.profile_kids_manage_hidden, Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         // Default accent until loadSettings reads the real one — the Rack drawables are drawn

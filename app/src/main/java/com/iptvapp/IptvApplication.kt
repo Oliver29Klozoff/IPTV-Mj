@@ -45,6 +45,8 @@ class IptvApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var launcherRepository: com.iptvapp.data.repository.XtreamRepository
 
+    @Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -58,6 +60,10 @@ class IptvApplication : Application(), Configuration.Provider {
         com.iptvapp.util.ThemeEngine.install(this, prefs)
         // Settings → Accessibility (text size, bold focus, touch targets) on every screen.
         com.iptvapp.util.AccessibilityEngine.install(this, prefs)
+        // A profile switch the app was stopped in the middle of: finished before Home reads it.
+        CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { profileSwitcher.recoverInterruptedSwitch() }
+        }
         // The app's theme is DayNight, but every custom screen hardcodes a dark palette
         // regardless of system setting. Left on DayNight, only stock components (AlertDialog,
         // DatePickerDialog, etc.) would follow the system's light/dark setting — on a device

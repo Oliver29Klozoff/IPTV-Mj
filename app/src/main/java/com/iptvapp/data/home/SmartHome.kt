@@ -248,9 +248,11 @@ class SmartHome @Inject constructor(
         )
 
         val out = ArrayList<HomeRow>()
+        // A Kids profile: no adult cards in any row (titles, or the category they're filed in).
+        val kidsGuard = com.iptvapp.data.profile.KidsGuard.forActive(db, prefs.kidsSafeMode.first())
         for ((order, s) in visible) {
             val b = s.builtin
-            val cards = when {
+            val built = when {
                 b == HomeLayout.Builtin.NEW_EPISODES -> emptyList()
                 b != null -> builtinCards[b].orEmpty()
                 else -> resolved[s.id]?.let { r ->
@@ -259,6 +261,7 @@ class SmartHome @Inject constructor(
                         r.series.map { HomeCard(SearchHit.Series(it, null, primaryLabel)) }
                 }.orEmpty()
             }
+            val cards = if (kidsGuard == null) built else built.filter { kidsGuard.allows(it.hit) }
             // Empty: kept only when Smart Rows' auto-collapse is off and the row asks to show a hint.
             if (cards.isEmpty() && !SmartRows.keepsEmpty(rules, s)) continue
             out += rowFor(s, order, cards)

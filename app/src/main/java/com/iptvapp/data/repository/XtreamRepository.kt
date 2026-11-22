@@ -253,6 +253,27 @@ class XtreamRepository @Inject constructor(
     suspend fun primaryFavoritesWithLogin(): Pair<List<ChannelEntity>, com.iptvapp.data.local.ServerCredentials> =
         primaryChannelsMutex.withLock { getFavoriteChannels().first() to creds() }
 
+    /**
+     * Runs [block] while no catalog refresh can write favorites, history or progress (a profile
+     * switch swaps them). Every refresh copies those from the rows it is about to replace, so one
+     * spanning the switch would put the old profile's back. Channel and other-provider refreshes
+     * finish first; movie and series downloads are dropped, as on a provider switch, and run
+     * again at their next refresh.
+     */
+    suspend fun <T> withPersonalDataExclusive(block: suspend () -> T): T {
+        primaryCatalog.supersede()
+        primaryChannelsFetch?.cancel()
+        return primaryChannelsMutex.withLock {
+            mergedChannelsRefreshMutex.withLock {
+                mergedVodRefreshMutex.withLock {
+                    mergedSeriesRefreshMutex.withLock {
+                        primaryCatalog.afterIdle { block() }
+                    }
+                }
+            }
+        }
+    }
+
     // supersede() cancels movie and series downloads so a switch does not wait on the old
     // provider, and the channel-list download is cancelled for the same reason. A write that has
     // already started finishes or stops, then the tables are cleared.
@@ -368,8 +389,28 @@ class XtreamRepository @Inject constructor(
         }
     }
 
+    // ── Kids profiles: the lists below leave out what KidsFilter calls adult ──────────────────
+    // Categories by their own name; titles by theirs and by the category they're filed in (ids
+    // are per type: a movie category can share a live category's id).
+
+    private fun adultCategoryIds(type: String): Flow<Set<String>> =
+        db.categoryDao().getCategoriesByType(type).combine(prefs.kidsSafeMode) { cats, kids ->
+            if (!kids) emptySet() else cats.filter { com.iptvapp.util.KidsFilter.isAdult(it.categoryName) }.map { it.categoryId }.toSet()
+        }
+
+    private fun <T> Flow<List<T>>.kidsSafe(name: (T) -> String?, categoryName: (T) -> String? = { null }): Flow<List<T>> =
+        combine(prefs.kidsSafeMode) { list, kids ->
+            if (!kids) list
+            else list.filterNot { com.iptvapp.util.KidsFilter.isAdult(name(it)) || com.iptvapp.util.KidsFilter.isAdult(categoryName(it)) }
+        }
+
+    private fun <T> Flow<List<T>>.kidsSafeIn(type: String, name: (T) -> String?, categoryId: (T) -> String?): Flow<List<T>> =
+        kotlinx.coroutines.flow.combine(this, prefs.kidsSafeMode, adultCategoryIds(type)) { list, kids, adult ->
+            if (!kids) list else list.filterNot { com.iptvapp.util.KidsFilter.isAdult(name(it)) || categoryId(it) in adult }
+        }
+
     fun getLiveCategories(): Flow<List<CategoryEntity>> =
-        db.categoryDao().getCategoriesByType("live")
+        db.categoryDao().getCategoriesByType("live").kidsSafe({ it.categoryName })
 
     // One primary channel-list write at a time: a refresh started by a USA Only change must not be
     // overwritten by an older one finishing after it.
@@ -528,7 +569,7 @@ class XtreamRepository @Inject constructor(
     suspend fun mergedListsUsaOnlyChanged(): Boolean = prefs.listsUsaOnlyMerged() != usaOnlyTag()
 
 
-    fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels()
+    fun getAllChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAllChannels().kidsSafeIn("live", { it.name }, { it.categoryId })
 
     suspend fun getChannelCount(): Int = db.channelDao().getCount()
 
@@ -591,7 +632,7 @@ class XtreamRepository @Inject constructor(
         db.channelDao().getChannelsByCategory(categoryId)
 
     fun searchChannels(query: String): Flow<List<ChannelEntity>> =
-        db.channelDao().searchChannels(ftsQuery(query))
+        db.channelDao().searchChannels(ftsQuery(query)).kidsSafeIn("live", { it.name }, { it.categoryId })
 
     fun getFavoriteChannels(): Flow<List<ChannelEntity>> =
         db.channelDao().getFavoriteChannels()
@@ -665,6 +706,10 @@ class XtreamRepository @Inject constructor(
         // the number is free for reuse by the next favorite in that genre instead of climbing
         // forever. Scoped to US only: the vast majority of non-US categories already have small,
         // usable provider numbers.
+        // Channel numbers are the household's (every profile sees them): only Primary's favorites
+        // hand them out or take them back, so a Kids profile un-favoriting a channel can't wipe
+        // the number Primary gave it.
+        if (prefs.activeProfileId.first() != com.iptvapp.data.profile.Profile.PRIMARY_ID) return
         if (ch.customNum == null && nowFavorite && isUsCategory(ch.categoryId)) {
             val categoryName = db.categoryDao().getCategoryById(ch.categoryId ?: "")?.categoryName
             val blockStart = genreNumberBlockStart(categoryName)
@@ -766,7 +811,7 @@ class XtreamRepository @Inject constructor(
     }
 
     fun getSimilarChannels(categoryId: String, excludeStreamId: Int): Flow<List<ChannelEntity>> =
-        db.channelDao().getSimilarChannels(categoryId, excludeStreamId)
+        db.channelDao().getSimilarChannels(categoryId, excludeStreamId).kidsSafeIn("live", { it.name }, { it.categoryId })
 
     suspend fun setLiveCategoryFavorite(categoryId: String, isFavorite: Boolean) {
         if (isFavorite) {
@@ -910,7 +955,7 @@ class XtreamRepository @Inject constructor(
         return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
-    fun getVodCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("vod")
+    fun getVodCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("vod").kidsSafe({ it.categoryName })
 
     fun getVodByCategory(categoryId: String): Flow<List<VodEntity>> = db.vodDao().getVodByCategory(categoryId)
     fun getFavoriteVod(): Flow<List<VodEntity>> = db.vodDao().getFavoriteVod()
@@ -918,13 +963,13 @@ class XtreamRepository @Inject constructor(
     suspend fun getVodStreamUrl(streamId: Int, containerExtension: String): String =
         urlBuilder().vodStreamUrl(streamId, containerExtension)
 
-    fun getAllVod(): Flow<List<VodEntity>> = db.vodDao().getAllVod()
-    fun getVodFirstPage(): Flow<List<VodEntity>> = db.vodDao().getVodFirstPage()
+    fun getAllVod(): Flow<List<VodEntity>> = db.vodDao().getAllVod().kidsSafeIn("vod", { it.name }, { it.categoryId })
+    fun getVodFirstPage(): Flow<List<VodEntity>> = db.vodDao().getVodFirstPage().kidsSafeIn("vod", { it.name }, { it.categoryId })
 
-    fun getRecentlyAddedVod(): Flow<List<VodEntity>> = db.vodDao().getRecentlyAddedVod()
-    fun getRecentlyAddedMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getRecentlyAdded()
+    fun getRecentlyAddedVod(): Flow<List<VodEntity>> = db.vodDao().getRecentlyAddedVod().kidsSafeIn("vod", { it.name }, { it.categoryId })
+    fun getRecentlyAddedMergedVod(): Flow<List<MergedVodEntity>> = db.mergedVodDao().getRecentlyAdded().kidsSafe({ it.name }, { it.categoryName })
 
-    fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(ftsQuery(query))
+    fun searchVod(query: String): Flow<List<VodEntity>> = db.vodDao().searchVod(ftsQuery(query)).kidsSafeIn("vod", { it.name }, { it.categoryId })
 
     /** Result of falling back to a title search on the joining member's own catalog, when a Watch
      * Party's exact catalog id doesn't resolve there (see WatchPartyContent kdoc — VOD ids are
@@ -1084,7 +1129,7 @@ class XtreamRepository @Inject constructor(
         return results
     }
 
-    fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query))
+    fun searchSeries(query: String): Flow<List<SeriesEntity>> = db.seriesDao().searchSeries(ftsQuery(query)).kidsSafeIn("series", { it.name }, { it.categoryId })
 
     suspend fun fetchSeries(onProgress: (saved: Int, total: Int) -> Unit = { _, _ -> }): Resource<List<Series>> {
         val identity = primaryGuideIdentity()
@@ -1147,7 +1192,7 @@ class XtreamRepository @Inject constructor(
         return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
-    fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries()
+    fun getAllSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getAllSeries().kidsSafeIn("series", { it.name }, { it.categoryId })
     fun getHiddenSeries(): Flow<List<SeriesEntity>> = db.seriesDao().getHiddenSeries()
     // Same selectAll()-driven bulk-select shape as bulkHideChannels above — chunked for the same
     // reason.
@@ -1183,7 +1228,7 @@ class XtreamRepository @Inject constructor(
         return outcome ?: Resource.Error(CatalogRefreshSuperseded.MESSAGE, CatalogRefreshSuperseded())
     }
 
-    fun getSeriesCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("series")
+    fun getSeriesCategories(): Flow<List<CategoryEntity>> = db.categoryDao().getCategoriesByType("series").kidsSafe({ it.categoryName })
 
     suspend fun fetchEpg(streamId: Int): Resource<List<EpgEntity>> {
         val b = urlBuilder(); val c = creds()
@@ -2912,7 +2957,7 @@ class XtreamRepository @Inject constructor(
     fun getMergedVodServerSummaries(): Flow<List<MergedVodServerSummary>> = db.mergedVodDao().getServerSummaries()
 
     fun getMergedVodCategorySummaries(serverIndex: Int): Flow<List<MergedVodCategorySummary>> =
-        db.mergedVodDao().getCategorySummaries(serverIndex)
+        db.mergedVodDao().getCategorySummaries(serverIndex).kidsSafe({ it.categoryName })
 
     fun getMergedVodByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedVodEntity>> =
         db.mergedVodDao().getByServerAndCategory(serverIndex, categoryId)
@@ -2920,7 +2965,7 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedVodByIndexAndId(serverIndex: Int, streamId: Int): MergedVodEntity? =
         db.mergedVodDao().getByIndexAndId(serverIndex, streamId)
 
-    fun searchMergedVod(query: String): Flow<List<MergedVodEntity>> = db.mergedVodDao().search(ftsQuery(query))
+    fun searchMergedVod(query: String): Flow<List<MergedVodEntity>> = db.mergedVodDao().search(ftsQuery(query)).kidsSafe({ it.name }, { it.categoryName })
 
     suspend fun setMergedVodFavorite(vod: MergedVodEntity, isFavorite: Boolean) {
         db.mergedVodDao().setFavorite(vod.serverIndex, vod.streamId, isFavorite)
@@ -3041,7 +3086,7 @@ class XtreamRepository @Inject constructor(
     fun getMergedSeriesServerSummaries(): Flow<List<MergedSeriesServerSummary>> = db.mergedSeriesDao().getServerSummaries()
 
     fun getMergedSeriesCategorySummaries(serverIndex: Int): Flow<List<MergedSeriesCategorySummary>> =
-        db.mergedSeriesDao().getCategorySummaries(serverIndex)
+        db.mergedSeriesDao().getCategorySummaries(serverIndex).kidsSafe({ it.categoryName })
 
     fun getMergedSeriesByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedSeriesEntity>> =
         db.mergedSeriesDao().getByServerAndCategory(serverIndex, categoryId)
@@ -3049,7 +3094,7 @@ class XtreamRepository @Inject constructor(
     suspend fun getMergedSeriesByIndexAndId(serverIndex: Int, seriesId: Int): MergedSeriesEntity? =
         db.mergedSeriesDao().getByIndexAndId(serverIndex, seriesId)
 
-    fun searchMergedSeries(query: String): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().search(ftsQuery(query))
+    fun searchMergedSeries(query: String): Flow<List<MergedSeriesEntity>> = db.mergedSeriesDao().search(ftsQuery(query)).kidsSafe({ it.name }, { it.categoryName })
 
     suspend fun setMergedSeriesFavorite(series: MergedSeriesEntity, isFavorite: Boolean) {
         db.mergedSeriesDao().setFavorite(series.serverIndex, series.seriesId, isFavorite)
@@ -3099,7 +3144,7 @@ class XtreamRepository @Inject constructor(
         }
 
     fun getMergedCategorySummaries(serverIndex: Int): Flow<List<MergedCategorySummary>> =
-        db.mergedChannelDao().getCategorySummaries(serverIndex)
+        db.mergedChannelDao().getCategorySummaries(serverIndex).kidsSafe({ it.categoryName })
 
     fun getMergedChannelsByCategory(serverIndex: Int, categoryId: String?): Flow<List<MergedChannelEntity>> =
         db.mergedChannelDao().getByServerAndCategory(serverIndex, categoryId)
@@ -3108,7 +3153,7 @@ class XtreamRepository @Inject constructor(
         db.mergedChannelDao().getByIndexAndId(serverIndex, streamId)
 
     fun searchMergedChannels(query: String): Flow<List<MergedChannelEntity>> =
-        db.mergedChannelDao().search(ftsQuery(query))
+        db.mergedChannelDao().search(ftsQuery(query)).kidsSafe({ it.name }, { it.categoryName })
 
     /** [searchMergedChannels] over [servers] only, at most [limit]. Empty [servers] finds nothing. */
     suspend fun searchMergedChannelsOn(query: String, servers: Collection<Int>, limit: Int): List<MergedChannelEntity> =
