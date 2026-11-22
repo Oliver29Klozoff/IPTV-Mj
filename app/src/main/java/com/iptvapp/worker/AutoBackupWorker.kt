@@ -55,6 +55,7 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("baseTheme", prefs.baseTheme.first().id)
                 // Older builds read only this: on for OLED Pure Black, the closest they have.
                 put("amoledBlack", prefs.baseTheme.first() == com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
+                put("cardDensity", prefs.cardDensity.first().id)
                 prefs.accessibility.first().let { a ->
                     put("seniorMode", a.seniorMode)
                     put("uiFontScale", a.textSize.scale.toDouble())

@@ -4890,6 +4890,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             put("baseTheme", prefs.baseTheme.first().id)
             // Older builds read only this: on for OLED Pure Black, the closest they have.
             put("amoledBlack", prefs.baseTheme.first() == com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
+            put("cardDensity", prefs.cardDensity.first().id)
             prefs.accessibility.first().let { a ->
                 put("seniorMode", a.seniorMode)
                 put("uiFontScale", a.textSize.scale.toDouble())
@@ -5224,9 +5225,12 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             // theme as it is (off was the plain default, which no longer exists as its own look).
             prefs.setBaseTheme(com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK)
         }
+        // Card size (Customize Home, or Senior Mode's Expanded), then the four accessibility settings
+        // and the size Senior Mode puts back when it goes off.
+        json.optString("cardDensity", "").takeIf { it.isNotEmpty() }?.let {
+            prefs.setCardDensity(com.iptvapp.data.home.CardDensity.fromId(it))
+        }
         if (json.has("seniorMode")) {
-            // The four settings as they were saved; the card size has its own entry, so it is
-            // not touched here.
             prefs.setAccessibility(com.iptvapp.data.accessibility.AccessibilitySettings(
                 seniorMode = json.optBoolean("seniorMode", false),
                 textSize = com.iptvapp.data.accessibility.TextSizeLevel.fromScale(json.optDouble("uiFontScale", 1.0).toFloat()),
