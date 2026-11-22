@@ -7478,6 +7478,14 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private suspend fun resolveTypedChannel(num: Int): Any? {
         val mode = prefs.lcnModeNow()
         if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) {
+            // The list the numbers were shown on, when Home sent it (it can mix providers).
+            intent.getStringArrayExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_KEYS)?.takeIf { it.isNotEmpty() }?.let { keys ->
+                val (server, id) = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(keys.asList(), num)
+                    ?.let { com.iptvapp.ui.channel.ChannelNumberBadge.parseKey(it) } ?: return null
+                return withContext(Dispatchers.IO) {
+                    if (server == -1) repository.getChannelById(id) else repository.getMergedChannelByIndexAndId(server, id)
+                }
+            }
             if (serverIndex != -1 && mergedChannels.isNotEmpty()) return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(mergedChannels, num)
             if (serverIndex == -1 && channels.isNotEmpty()) return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(channels, num)
         }
@@ -7510,7 +7518,14 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                 }
                 is com.iptvapp.data.local.entities.MergedChannelEntity -> {
                     if (serverIndex == target.serverIndex && mergedStreamId == target.streamId) { showChannelOsd(); return@launch }
-                    zapWithBanner { playMergedChannel(target) }
+                    suppressOverlayOnReady = true
+                    playMergedChannel(target)
+                    val job = channelSwitchJob
+                    job?.join()
+                    if (job != channelSwitchJob || serverIndex != target.serverIndex || mergedStreamId != target.streamId) return@launch
+                    showChannelOsd()
+                    // Possibly another provider's channel: CH +/- then walks its own category.
+                    restoreZapListAfterRecall(target.serverIndex, target.streamId)
                 }
                 else -> Toast.makeText(this@PlayerActivity, getString(R.string.channel_not_found, num), Toast.LENGTH_SHORT).show()
             }

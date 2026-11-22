@@ -5274,9 +5274,12 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         val serverUrl = json.optString("serverUrl", "")
         val username  = json.optString("username", "")
         val password  = json.optString("password", "")
+        // Whose channel list is loaded: the login before this restore (custom numbers below).
+        val loginBefore = prefs.credentials.first().let { "${it.serverUrl}|${it.username}" }
         if (serverUrl.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
             prefs.saveCredentials(serverUrl, username, password)
         }
+        val catalogIsThisLogin = prefs.credentials.first().let { "${it.serverUrl}|${it.username}" } == loginBefore
 
         json.optString("epgUrl", "").takeIf { it.isNotEmpty() }?.let { prefs.setEpgUrl(it) }
         json.optString("preferredFormat", "").takeIf { it.isNotEmpty() }?.let { prefs.setPreferredFormat(it) }
@@ -5361,16 +5364,18 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             if (missingIds.isNotEmpty()) prefs.setPendingFavoriteChannelIds(missingIds)
         }
         // Your own channel numbers: on the channels loaded now, and the rest once this provider's
-        // channels load (a fresh install restores before its first channel list arrives).
+        // channels load (a fresh install restores before its first channel list arrives). A
+        // restore that changed the login leaves the loaded list alone (another provider's channels,
+        // whose streamIds mean other channels) and waits for the restored login's list.
         json.optJSONObject("customChannelNumbers")?.let { obj ->
-            val existingIds = db.channelDao().getAllChannelIds().toSet()
+            val existingIds = if (catalogIsThisLogin) db.channelDao().getAllChannelIds().toSet() else emptySet()
             val numbers = obj.keys().asSequence().mapNotNull { key: String ->
                 val id = key.toIntOrNull() ?: return@mapNotNull null
                 val n = obj.optInt(key, 0)
                 if (n > 0) id to n else null
             }.toList()
             val (ready, waiting) = numbers.partition { it.first in existingIds }
-            db.withTransaction {
+            if (catalogIsThisLogin) db.withTransaction {
                 db.channelDao().clearAllCustomNums()
                 ready.forEach { (id, n) -> db.channelDao().setCustomNum(id, n) }
             }
