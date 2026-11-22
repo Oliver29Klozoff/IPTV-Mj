@@ -61,6 +61,8 @@ class AutoBackupWorker @AssistedInject constructor(
                     put("uiFontScale", a.textSize.scale.toDouble())
                     put("extendedOsdTimeout", a.extendedOsd)
                     put("highContrastFocus", a.highContrastFocus)
+                    put("lcnMode", prefs.lcnMode.first().id)
+                    put("directNumberTuning", prefs.directNumberTuning.first())
                     prefs.seniorPrevCardDensityId()?.let { put("seniorPrevCardDensity", it) }
                 }
                 put("externalPlayer", prefs.externalPlayer.first())
@@ -86,6 +88,10 @@ class AutoBackupWorker @AssistedInject constructor(
                 put("autoDeleteRecordingsDays", prefs.autoDeleteRecordingsDays.first())
                 put("favoriteCategoryIds", JSONArray(prefs.favoriteLiveCategoryIds.first().toList()))
                 put("favoriteChannelIds", JSONArray(db.channelDao().getFavoriteChannelIds()))
+                // Your own channel numbers, by streamId (SettingsActivity restores them).
+                put("customChannelNumbers", JSONObject().apply {
+                    db.channelDao().getCustomNumbered().forEach { ch -> ch.customNum?.let { put(ch.streamId.toString(), it) } }
+                })
                 put("watchHistory", JSONArray(db.channelDao().getWatchHistoryForBackup().map {
                     JSONObject().apply {
                         put("streamId", it.streamId)

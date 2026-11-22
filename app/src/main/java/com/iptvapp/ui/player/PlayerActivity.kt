@@ -528,6 +528,14 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
     private var retryJob: Job? = null
     private var osdEpgJob: Job? = null
     private var channelSwitchJob: Job? = null
+    // Number entry (remote digits on live TV): the digits typed so far, the wait before tuning,
+    // the name lookup for the card, and the key whose release must not reach the screen.
+    private var channelNumberBuffer = ""
+    private var digitJumpJob: Job? = null
+    private var digitPreviewJob: Job? = null
+    private var swallowKeyUp = KeyEvent.KEYCODE_UNKNOWN
+    // Sequential numbers follow the list Home showed until Quick Peek switches to another list.
+    private var homeSequentialList = true
     private val tuneTrace = TuneTrace({ android.os.SystemClock.elapsedRealtime() }) { android.util.Log.d("TurboTune", it) }
     private var bufferWatchdog: Runnable? = null
 
@@ -7383,6 +7391,192 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         playChannel(channels[currentIndex])
     }
 
+    // ── Number entry: remote digits on live TV ───────────────────────────────────────────────
+    // Digits show "CH 206 _" with the channel's name, top right; it tunes 1.4 s after the last
+    // digit (ChannelNumbering.TUNE_DELAY_MS), at once on OK or on the fifth digit. Back cancels,
+    // Delete takes off the last digit. Which channel a number means follows Settings → Channel
+    // Numbers (Sequential: a place in the list CH +/- walks here).
+
+    /** Live TV this device tunes itself: not a movie, replay, recording, audio only or a received cast. */
+    private fun digitTuneAvailable(): Boolean =
+        !isVod && !isCatchup && !isRecordingPlayback && !audioOnly && castChannels.isEmpty() &&
+            currentFocus !is android.widget.EditText && prefs.directNumberTuningEnabledNow()
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (event.action == KeyEvent.ACTION_UP && code == swallowKeyUp) {
+            swallowKeyUp = KeyEvent.KEYCODE_UNKNOWN
+            return true
+        }
+        // While digits are being typed, OK and Back belong to the number, not to whatever button
+        // has focus (a focused button would otherwise take OK before onKeyDown sees it).
+        if (channelNumberBuffer.isNotEmpty() && event.action == KeyEvent.ACTION_DOWN) {
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    swallowKeyUp = code
+                    if (event.repeatCount == 0) executeDigitTune()
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
+                    swallowKeyUp = code
+                    if (event.repeatCount == 0) cancelDigitTune()
+                    return true
+                }
+                KeyEvent.KEYCODE_DEL -> {
+                    swallowKeyUp = code
+                    channelNumberBuffer = channelNumberBuffer.dropLast(1)
+                    if (channelNumberBuffer.isEmpty()) cancelDigitTune() else {
+                        showDigitEntry()
+                        scheduleDigitTune()
+                    }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun typeChannelDigit(digit: Char) {
+        channelNumberBuffer = com.iptvapp.data.channel.ChannelNumbering.append(channelNumberBuffer, digit)
+        showDigitEntry()
+        if (channelNumberBuffer.length >= com.iptvapp.data.channel.ChannelNumbering.MAX_DIGITS) {
+            executeDigitTune()
+            return
+        }
+        scheduleDigitTune()
+    }
+
+    /** Tunes [ChannelNumbering.TUNE_DELAY_MS] after the last change to the digits. */
+    private fun scheduleDigitTune() {
+        digitJumpJob?.cancel()
+        digitJumpJob = lifecycleScope.launch {
+            delay(com.iptvapp.data.channel.ChannelNumbering.TUNE_DELAY_MS)
+            executeDigitTune()
+        }
+    }
+
+    /** The card with the digits so far, and the name of the channel they mean once it's looked up. */
+    private fun showDigitEntry() {
+        val typed = channelNumberBuffer
+        binding.tvDigitEntryNumber.text = getString(R.string.lcn_entry_number, typed)
+        binding.tvDigitEntryPreview.text = getString(R.string.lcn_entry_looking)
+        // The channel banner sits in the same corner: the card takes its place while typing.
+        osdHandler.removeCallbacks(hideOsdRunnable)
+        binding.channelOsd.visibility = View.GONE
+        binding.digitEntryCard.visibility = View.VISIBLE
+        digitPreviewJob?.cancel()
+        val num = typed.toIntOrNull() ?: return
+        digitPreviewJob = lifecycleScope.launch {
+            val target = try { resolveTypedChannel(num) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            }
+            if (channelNumberBuffer != typed) return@launch
+            binding.tvDigitEntryPreview.text = when (target) {
+                is ChannelEntity -> getString(R.string.lcn_entry_preview, target.name)
+                is com.iptvapp.data.local.entities.MergedChannelEntity -> getString(R.string.lcn_entry_preview, target.name)
+                else -> getString(R.string.channel_not_found_short)
+            }
+        }
+    }
+
+    /**
+     * The channel [num] means: in Sequential, that place in the list CH +/- walks here (this
+     * provider's, so another provider's list gives one of its channels); otherwise the main
+     * provider's channel with that number (your own first, unless numbering is Provider).
+     */
+    private suspend fun resolveTypedChannel(num: Int): Any? {
+        val mode = prefs.lcnModeNow()
+        if (mode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) {
+            // Quick Peek open: the numbers are the places in the list it shows.
+            if (::quickPeek.isInitialized) quickPeek.shownChannels()?.let {
+                return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(it, num)
+            }
+            // The list the numbers were shown on, when Home sent it (it can mix providers). Gone
+            // (the app was restarted under the player): no guessing at another list's places.
+            val token = intent.getLongExtra(com.iptvapp.ui.channel.ChannelNumberBadge.EXTRA_SEQUENTIAL_TOKEN, 0L)
+            if (homeSequentialList && token != 0L) {
+                val keys = com.iptvapp.ui.channel.ChannelNumberBadge.recall(token) ?: return null
+                val (server, id) = com.iptvapp.data.channel.ChannelNumbering.sequentialPick(keys, num)
+                    ?.let { com.iptvapp.ui.channel.ChannelNumberBadge.parseKey(it) } ?: return null
+                return withContext(Dispatchers.IO) {
+                    if (server == -1) repository.getChannelById(id) else repository.getMergedChannelByIndexAndId(server, id)
+                }
+            }
+            if (serverIndex != -1 && mergedChannels.isNotEmpty()) return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(mergedChannels, num)
+            if (serverIndex == -1 && channels.isNotEmpty()) return com.iptvapp.data.channel.ChannelNumbering.sequentialPick(channels, num)
+        }
+        return withContext(Dispatchers.IO) { repository.findChannelByNumber(num, mode) }
+    }
+
+    private fun executeDigitTune() {
+        val num = channelNumberBuffer.toIntOrNull()
+        cancelDigitTune()
+        if (num == null) return
+        // Sequential with Quick Peek open: the number is a place in its list, which then becomes
+        // the list CH +/- and later numbers use, as picking that row there would.
+        val peekList = if (prefs.lcnModeNow() == com.iptvapp.data.channel.LcnMode.SEQUENTIAL && ::quickPeek.isInitialized)
+            quickPeek.shownChannels() else null
+        digitJumpJob = lifecycleScope.launch {
+            val target = try { resolveTypedChannel(num) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            }
+            // The player may have moved on to a movie or replay while the lookup ran.
+            if (!digitTuneAvailable()) return@launch
+            fun adoptPeekList(): Boolean {
+                val list = peekList?.takeIf { l -> l.any { it === target } } ?: return false
+                homeSequentialList = false
+                when (target) {
+                    is ChannelEntity -> {
+                        channels = list.filterIsInstance<ChannelEntity>()
+                        currentIndex = channels.indexOfFirst { it.streamId == target.streamId }
+                    }
+                    is com.iptvapp.data.local.entities.MergedChannelEntity -> {
+                        mergedChannels = list.filterIsInstance<com.iptvapp.data.local.entities.MergedChannelEntity>()
+                            .filter { it.serverIndex == target.serverIndex }
+                        mergedCurrentIndex = mergedChannels.indexOfFirst { it.streamId == target.streamId }
+                    }
+                }
+                return true
+            }
+            when (target) {
+                is ChannelEntity -> {
+                    if (serverIndex == -1 && currentZapStreamId == target.streamId) { adoptPeekList(); showChannelOsd(); return@launch }
+                    suppressOverlayOnReady = true
+                    playChannel(target)
+                    val job = channelSwitchJob
+                    job?.join()
+                    if (job != channelSwitchJob || serverIndex != -1 || currentZapStreamId != target.streamId) return@launch
+                    showChannelOsd()
+                    // A number can reach outside the list CH +/- walks: that list then becomes the
+                    // full channel list, so CH +/- carries on from here.
+                    if (!adoptPeekList()) restoreZapListAfterRecall(-1, target.streamId)
+                }
+                is com.iptvapp.data.local.entities.MergedChannelEntity -> {
+                    if (serverIndex == target.serverIndex && mergedStreamId == target.streamId) { adoptPeekList(); showChannelOsd(); return@launch }
+                    suppressOverlayOnReady = true
+                    playMergedChannel(target)
+                    val job = channelSwitchJob
+                    job?.join()
+                    if (job != channelSwitchJob || serverIndex != target.serverIndex || mergedStreamId != target.streamId) return@launch
+                    showChannelOsd()
+                    // Possibly another provider's channel: CH +/- then walks its own category.
+                    if (!adoptPeekList()) restoreZapListAfterRecall(target.serverIndex, target.streamId)
+                }
+                else -> Toast.makeText(this@PlayerActivity, getString(R.string.channel_not_found, num), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** Puts the card away and forgets the digits (Back, or once a number has been acted on). */
+    private fun cancelDigitTune() {
+        digitJumpJob?.cancel()
+        digitPreviewJob?.cancel()
+        channelNumberBuffer = ""
+        binding.digitEntryCard.visibility = View.GONE
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         // Audio only shows one button (SHOW PICTURE); channel, number and seek keys have nothing to
         // act on, but volume and media keys must still reach the system and the media session.
@@ -7423,6 +7617,13 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
                 KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> Unit
                 else -> commitSeekPreview()
+            }
+        }
+        // Remote digits on live TV: the number entry card (OK / Back while typing: dispatchKeyEvent).
+        com.iptvapp.data.channel.ChannelNumbering.digitOf(keyCode)?.let { digit ->
+            if (digitTuneAvailable()) {
+                if ((event?.repeatCount ?: 0) == 0) typeChannelDigit(digit)
+                return true
             }
         }
         return when (keyCode) {
@@ -7811,6 +8012,10 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
 
             override fun tune(primary: ChannelEntity?, merged: com.iptvapp.data.local.entities.MergedChannelEntity?, zapList: List<Any>) {
                 // CH +/- carries on through the list the channel was picked from, as on the home screens.
+                // Sequential numbers now mean places in that list (as Quick Peek shows them), not Home's.
+                if ((primary != null && serverIndex == -1) || (merged != null && merged.serverIndex == serverIndex)) {
+                    homeSequentialList = false
+                }
                 if (primary != null && serverIndex == -1) {
                     channels = zapList.filterIsInstance<ChannelEntity>()
                     currentIndex = channels.indexOfFirst { it.streamId == primary.streamId }
@@ -8149,6 +8354,8 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
 
     override fun onStop() {
         super.onStop()
+        // Half-typed channel number: forgotten, not tuned on the way out.
+        cancelDigitTune()
         tuneTrace.cancel()
         osdEpgJob?.cancel()
         channelSwitchJob?.cancel()

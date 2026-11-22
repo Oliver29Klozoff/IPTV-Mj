@@ -927,6 +927,45 @@
             android:progressTint="@color/oled_cyan_primary" />
     </LinearLayout>
 
+    <!-- Channel number entry (remote digits on live TV; PlayerActivity's number entry). Same place
+         as the channel banner, which it replaces while digits are being typed. -->
+    <LinearLayout
+        android:id="@+id/digitEntryCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="20dp"
+        android:background="@drawable/player_osd_card_bg"
+        android:elevation="12dp"
+        android:minWidth="180dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="14dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/tvDigitEntryNumber"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/barlow_condensed_bold"
+            android:fontFeatureSettings="tnum"
+            android:letterSpacing="0.1"
+            android:textColor="@color/oled_cyan_primary"
+            android:textSize="32sp" />
+
+        <TextView
+            android:id="@+id/tvDigitEntryPreview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxWidth="320dp"
+            android:maxLines="1"
+            android:textColor="@color/rack_text"
+            android:textSize="14sp" />
+    </LinearLayout>
+
     <!-- Quick Peek: the mini guide over live TV (PlayerActivity's Quick Peek section). A panel on
          the right with the video still playing beside it: the list's name with Left / Right to
          change it, the channels with what's on, and the highlighted channel's show below.

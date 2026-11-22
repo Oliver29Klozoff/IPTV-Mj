@@ -28,6 +28,26 @@ class LiveChannelAdapter(
     var isTvMode: Boolean = false
     var onChannelFocused: ((LiveChannelRow) -> Unit)? = null
 
+    /** Settings → Channel Numbers: which number each row shows. */
+    var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+        set(value) {
+            if (field == value) return
+            field = value
+            refreshNumbers()
+        }
+
+    fun refreshNumbers() = notifyItemRangeChanged(0, itemCount, com.iptvapp.ui.channel.ChannelNumberBadge.PAYLOAD)
+
+    override fun onCurrentListChanged(previousList: MutableList<LiveChannelRow>, currentList: MutableList<LiveChannelRow>) {
+        if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) refreshNumbers()
+    }
+
+    private fun numberOf(row: LiveChannelRow, position: Int): Int? {
+        val channel = row.channel
+        return if (channel != null) com.iptvapp.ui.channel.ChannelNumberBadge.numberFor(lcnMode, channel, position)
+        else com.iptvapp.ui.channel.ChannelNumberBadge.numberForOtherProvider(lcnMode, position)
+    }
+
     private var epgTextById: Map<String, String> = emptyMap()
     private var epgNextTextById: Map<String, String> = emptyMap()
     private var currentlyPlayingId: String? = null
@@ -324,7 +344,15 @@ class LiveChannelAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        val item = getItem(position)
+        holder.bind(item)
+        com.iptvapp.ui.channel.ChannelNumberBadge.bind(holder.binding.tvChannelNumber, numberOf(item, position))
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (com.iptvapp.ui.channel.ChannelNumberBadge.onlyNumbers(payloads)) {
+            com.iptvapp.ui.channel.ChannelNumberBadge.bind(holder.binding.tvChannelNumber, numberOf(getItem(position), position))
+        } else onBindViewHolder(holder, position)
     }
 
     override fun onViewRecycled(holder: ViewHolder) {

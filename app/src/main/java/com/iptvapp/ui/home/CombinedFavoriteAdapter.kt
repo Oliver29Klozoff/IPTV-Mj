@@ -89,6 +89,9 @@ class CombinedFavoriteAdapter(
      * favOrder sequence (see HomeActivity's exitReorderMode). */
     fun currentOrder(): List<CombinedFavorite> = workingList.ifEmpty { currentList }
 
+    /** The rows as on screen now: the working order while reordering, the list otherwise. */
+    fun shownRows(): List<CombinedFavorite> = if (showDragHandles) workingList else currentList
+
     // Live drag always moves just the ONE row being dragged, via plain notifyItemMoved — trying
     // to reshuffle a whole checked group DURING an active ItemTouchHelper gesture fought its own
     // drag-state tracking (the dragged ViewHolder got invalidated out from under the gesture,
@@ -113,9 +116,12 @@ class CombinedFavoriteAdapter(
     fun finishGroupMoveIfNeeded() {
         val dropPosition = lastDropPosition
         lastDropPosition = -1
-        if (dropPosition < 0 || dropPosition >= workingList.size) return
+        // Sequential numbers follow the rows to their new places once the drag is over (not
+        // during it: rebinding the dragged row mid-gesture fights the drag, as above).
+        val renumber = { if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) refreshNumbers() }
+        if (dropPosition < 0 || dropPosition >= workingList.size) return renumber()
         val draggedId = workingList[dropPosition].id
-        if (reorderSelectedIds.size <= 1 || draggedId !in reorderSelectedIds) return
+        if (reorderSelectedIds.size <= 1 || draggedId !in reorderSelectedIds) return renumber()
         // The dragged row's own id is always excluded from "remainder" below (it's part of the
         // group being pulled out), so it can't be used as the anchor to reinsert next to. Anchor
         // on whichever non-checked row ends up adjacent to the drop slot instead: prefer the next
@@ -460,7 +466,37 @@ class CombinedFavoriteAdapter(
     override fun getItemCount(): Int = if (showDragHandles) workingList.size else super.getItemCount()
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(if (showDragHandles) workingList[position] else getItem(position))
+        val item = if (showDragHandles) workingList[position] else getItem(position)
+        holder.bind(item)
+        bindNumber(holder, item, position)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (com.iptvapp.ui.channel.ChannelNumberBadge.onlyNumbers(payloads)) {
+            bindNumber(holder, if (showDragHandles) workingList[position] else getItem(position), position)
+        } else onBindViewHolder(holder, position)
+    }
+
+    /** Settings → Channel Numbers: which number each row shows. */
+    var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+        set(value) {
+            if (field == value) return
+            field = value
+            refreshNumbers()
+        }
+
+    fun refreshNumbers() = notifyItemRangeChanged(0, itemCount, com.iptvapp.ui.channel.ChannelNumberBadge.PAYLOAD)
+
+    override fun onCurrentListChanged(previousList: MutableList<CombinedFavorite>, currentList: MutableList<CombinedFavorite>) {
+        if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) refreshNumbers()
+    }
+
+    private fun bindNumber(holder: ViewHolder, item: CombinedFavorite, position: Int) {
+        val number = when (item) {
+            is CombinedFavorite.Primary -> com.iptvapp.ui.channel.ChannelNumberBadge.numberFor(lcnMode, item.channel, position)
+            is CombinedFavorite.Merged -> com.iptvapp.ui.channel.ChannelNumberBadge.numberForOtherProvider(lcnMode, position)
+        }
+        com.iptvapp.ui.channel.ChannelNumberBadge.bind(holder.binding.tvChannelNumber, number)
     }
 
     class DiffCallback : DiffUtil.ItemCallback<CombinedFavorite>() {

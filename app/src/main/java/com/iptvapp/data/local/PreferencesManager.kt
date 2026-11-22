@@ -246,6 +246,8 @@ class PreferencesManager @Inject constructor(
         // two different providers can reuse the same category id string.
         val FAVORITE_MERGED_CATEGORY_IDS = stringSetPreferencesKey("favorite_merged_category_ids")
         val PENDING_FAV_CHANNEL_IDS = stringSetPreferencesKey("pending_fav_channel_ids")
+        // Restored custom channel numbers ("streamId|number") for channels not loaded yet.
+        val PENDING_CUSTOM_CHANNEL_NUMBERS = stringSetPreferencesKey("pending_custom_channel_numbers")
         // Movie / series favorites carried into the primary on a provider switch (see
         // XtreamRepository.capturePendingPrimaryFavoritesFrom).
         val PENDING_FAV_VOD_IDS = stringSetPreferencesKey("pending_fav_vod_ids")
@@ -394,6 +396,10 @@ class PreferencesManager @Inject constructor(
         val EXTENDED_OSD_TIMEOUT = booleanPreferencesKey("accessibility_extended_osd_timeout")
         val HIGH_CONTRAST_FOCUS = booleanPreferencesKey("accessibility_high_contrast_focus")
         val SENIOR_PREV_CARD_DENSITY = stringPreferencesKey("accessibility_senior_prev_card_density")
+        // Settings → Channel Numbers: which number channels show (LcnMode id; absent = custom_first)
+        // and whether the player tunes by typed digits (absent = on).
+        val LCN_MODE = stringPreferencesKey("channel_lcn_mode")
+        val DIRECT_NUMBER_TUNING = booleanPreferencesKey("channel_direct_number_tuning")
         // Smart Rows (SmartRows): cards per automatic row (10, 20 or 30; absent = 20), hiding every
         // empty row (absent = on), and leaving 90%-watched items out of Continue Watching (absent = on).
         val SMART_ROW_LIMIT = intPreferencesKey("home_smart_row_limit")
@@ -802,6 +808,23 @@ class PreferencesManager @Inject constructor(
     suspend fun setHighContrastFocus(enabled: Boolean) = context.dataStore.edit {
         it[Keys.HIGH_CONTRAST_FOCUS] = enabled
     }
+
+    /** Settings → Channel Numbers → Numbering (LcnMode): Custom first until changed. */
+    val lcnMode: Flow<com.iptvapp.data.channel.LcnMode> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { com.iptvapp.data.channel.LcnMode.fromId(it[Keys.LCN_MODE]) }
+        .distinctUntilChanged()
+    fun lcnModeNow(): com.iptvapp.data.channel.LcnMode =
+        com.iptvapp.data.channel.LcnMode.fromId(PrefsSnapshot.read(context) { it[Keys.LCN_MODE] })
+    suspend fun setLcnMode(mode: com.iptvapp.data.channel.LcnMode) = context.dataStore.edit { it[Keys.LCN_MODE] = mode.id }
+
+    /** Settings → Channel Numbers → Tune by number in the player. On until changed. */
+    val directNumberTuning: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { it[Keys.DIRECT_NUMBER_TUNING] ?: true }
+        .distinctUntilChanged()
+    fun directNumberTuningEnabledNow(): Boolean = PrefsSnapshot.read(context) { it[Keys.DIRECT_NUMBER_TUNING] ?: true }
+    suspend fun setDirectNumberTuning(enabled: Boolean) = context.dataStore.edit { it[Keys.DIRECT_NUMBER_TUNING] = enabled }
 
     /** TV Home's mini player (Customize Home → Home Mini Player Display): "hero" until changed. */
     val tvHomeMiniPlayerMode: Flow<String> = context.dataStore.data
@@ -1479,6 +1502,12 @@ class PreferencesManager @Inject constructor(
 
     suspend fun clearPendingFavoriteChannelIds() {
         context.dataStore.edit { it[Keys.PENDING_FAV_CHANNEL_IDS] = emptySet() }
+    }
+
+    /** Restored custom channel numbers still waiting for their channels: "owner" first, then "streamId|number". */
+    val pendingCustomChannelNumbers: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_CUSTOM_CHANNEL_NUMBERS] ?: emptySet() }
+    suspend fun setPendingCustomChannelNumbers(entries: Set<String>) {
+        context.dataStore.edit { it[Keys.PENDING_CUSTOM_CHANNEL_NUMBERS] = entries }
     }
 
     val pendingPrimaryChannelFolders: Flow<Set<String>> = context.dataStore.data.map { it[Keys.PENDING_PRIMARY_CHANNEL_FOLDERS] ?: emptySet() }

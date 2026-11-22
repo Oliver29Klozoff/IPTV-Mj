@@ -110,7 +110,7 @@ class EpgTimelineActivity : com.iptvapp.ui.MktvActivity() {
             onProgramClick = { row, program -> onProgramTapped(row, program) },
             onProgramLongPress = { row, program -> showTimerDialog(row, program) },
             onProgramFocused = { row, program -> select(row, program) }
-        )
+        ).also { it.lcnMode = prefs.lcnModeNow() }
 
         // Opening the guide shouldn't pop the keyboard up: on a touch screen the search box was the
         // first thing able to take focus. The screen takes it instead (on a remote, focus still
@@ -623,7 +623,7 @@ class EpgTimelineActivity : com.iptvapp.ui.MktvActivity() {
         val s = epgMs(p.startTimestamp)
         val e = epgMs(p.stopTimestamp)
         val time = SimpleDateFormat("h:mm a", Locale.US)
-        val num = row.channel?.num?.takeIf { it > 0 }
+        val num = adapter.numberOf(row)
         val channel = listOfNotNull(num?.toString(), row.name).joinToString(" ")
         val ch = row.channel
         fun minutes(ms: Long): String {
@@ -866,6 +866,20 @@ class TimelineAdapter(
         notifyDataSetChanged()
     }
 
+    /** Settings → Channel Numbers, read when the guide opens. */
+    var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+
+    /**
+     * The number [row] shows (null: none). Sequential numbers belong to the channel lists, where
+     * typing one tunes that place; the guide's rows aren't a list the remote tunes by, so it
+     * shows none then rather than numbers that would tune something else.
+     */
+    fun numberOf(row: GuideRow): Int? {
+        if (lcnMode == com.iptvapp.data.channel.LcnMode.SEQUENTIAL) return null
+        val channel = row.channel ?: return null
+        return com.iptvapp.data.channel.ChannelNumbering.displayNumber(lcnMode, channel, -1)
+    }
+
     fun updateStartMs(newStartMs: Long) {
         startMs = newStartMs
         notifyDataSetChanged()
@@ -957,9 +971,10 @@ class TimelineAdapter(
         fun bind(row: GuideRow) {
             tvName.text = row.name
             tvName.setOnClickListener { onChannelClick(row) }
-            // Channel number (primary provider only — a merged row's num is just its list
-            // position) and the quality tag the name carries (HD / FHD / 4K), as in the channel list.
-            val num = row.channel?.num?.takeIf { it > 0 }
+            // Channel number (Settings → Channel Numbers; another provider's row only in Sequential,
+            // its num being just its list position) and the quality tag the name carries
+            // (HD / FHD / 4K), as in the channel list.
+            val num = numberOf(row)
             tvNum.visibility = if (num != null) View.VISIBLE else View.GONE
             tvNum.text = num?.toString() ?: ""
             val quality = com.iptvapp.util.ChannelQualityTag.labelFor(row.name)
