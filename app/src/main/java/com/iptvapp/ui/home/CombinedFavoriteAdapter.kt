@@ -89,6 +89,9 @@ class CombinedFavoriteAdapter(
      * favOrder sequence (see HomeActivity's exitReorderMode). */
     fun currentOrder(): List<CombinedFavorite> = workingList.ifEmpty { currentList }
 
+    /** The rows as on screen now: the working order while reordering, the list otherwise. */
+    fun shownRows(): List<CombinedFavorite> = if (showDragHandles) workingList else currentList
+
     // Live drag always moves just the ONE row being dragged, via plain notifyItemMoved — trying
     // to reshuffle a whole checked group DURING an active ItemTouchHelper gesture fought its own
     // drag-state tracking (the dragged ViewHolder got invalidated out from under the gesture,

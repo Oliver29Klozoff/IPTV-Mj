@@ -71,7 +71,7 @@ object ChannelNumberBadge {
         if (mode != LcnMode.SEQUENTIAL) null else when (adapter) {
         is com.iptvapp.ui.home.ChannelAdapter -> adapter.currentList.map { "-1:${it.streamId}" }
         is com.iptvapp.ui.home.LiveChannelAdapter -> adapter.currentList.map { "${it.serverIndex}:${it.streamId}" }
-        is com.iptvapp.ui.home.CombinedFavoriteAdapter -> adapter.currentOrder().map {
+        is com.iptvapp.ui.home.CombinedFavoriteAdapter -> adapter.shownRows().map {
             when (it) {
                 is com.iptvapp.ui.home.CombinedFavorite.Primary -> "-1:${it.channel.streamId}"
                 is com.iptvapp.ui.home.CombinedFavorite.Merged -> "${it.channel.serverIndex}:${it.channel.streamId}"

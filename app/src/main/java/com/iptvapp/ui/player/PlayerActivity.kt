@@ -7542,7 +7542,7 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
             }
             when (target) {
                 is ChannelEntity -> {
-                    if (serverIndex == -1 && currentZapStreamId == target.streamId) { showChannelOsd(); return@launch }
+                    if (serverIndex == -1 && currentZapStreamId == target.streamId) { adoptPeekList(); showChannelOsd(); return@launch }
                     suppressOverlayOnReady = true
                     playChannel(target)
                     val job = channelSwitchJob
@@ -7554,7 +7554,7 @@ class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     if (!adoptPeekList()) restoreZapListAfterRecall(-1, target.streamId)
                 }
                 is com.iptvapp.data.local.entities.MergedChannelEntity -> {
-                    if (serverIndex == target.serverIndex && mergedStreamId == target.streamId) { showChannelOsd(); return@launch }
+                    if (serverIndex == target.serverIndex && mergedStreamId == target.streamId) { adoptPeekList(); showChannelOsd(); return@launch }
                     suppressOverlayOnReady = true
                     playMergedChannel(target)
                     val job = channelSwitchJob
