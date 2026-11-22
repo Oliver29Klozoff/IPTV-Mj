@@ -1,7 +1,7 @@
 {
-  "versionCode": 632,
-  "versionName": "7.94",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.94/MKTV.apk",
-  "apkSha256": "6fca5cfd8d6b4a9012c409a779409c3083d243ef1eacd4a20cd4eab7d0cdb19b",
-  "changelog": "Smart Rows in Customize Home: show or hide row groups, 10/20/30 cards, hide empty rows and finished items."
+  "versionCode": 633,
+  "versionName": "7.95",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.95/MKTV.apk",
+  "apkSha256": "8cd7456ff1adf6885d56b490490c964617f24d08d68c758ed3b38009fdd070b4",
+  "changelog": "Base themes (OLED Pure Black, Midnight Navy, Charcoal Dark), curated accents and a live preview."
 }

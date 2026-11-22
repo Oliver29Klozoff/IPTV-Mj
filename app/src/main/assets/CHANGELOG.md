@@ -1,5 +1,14 @@
 # IPTV App - Changelog
 
+## v7.95 - 2026-11-22
+- **New**: Base themes in Settings → Appearance: OLED Pure Black (true black, pixels off on OLED
+  screens), Midnight Navy or Charcoal Dark. Every screen switches right away, no restart, and video
+  stays black. This replaces the AMOLED black checkbox; OLED Pure Black is the default.
+- **New**: Curated accents (Cyber Cyan, Emerald Sport, Neon Amber, Crimson Red, Royal Purple,
+  Electric Magenta, Sunset Horizon, Ocean Wave) above the existing colors, and a live preview card
+  that shows the theme and accent before you leave Settings.
+- **New**: Customize Home → THEME… picks the base theme and a curated accent from Home.
+
 ## v7.94 - 2026-11-21
 - **New**: Customize Home → SMART ROWS… sets rules for Home's automatic rows. Show or hide all the
   Live TV rows or all the movie and series rows at once, pick 10, 20 or 30 cards per row, hide
