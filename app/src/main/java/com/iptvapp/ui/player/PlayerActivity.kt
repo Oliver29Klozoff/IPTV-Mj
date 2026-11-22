@@ -99,6 +99,8 @@ private const val ONE_STREAM_STALL_MS = 8_000L
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class PlayerActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteControlHooks.Tuner {
+    // Playing: a new text size waits for the next time this screen opens (MktvActivity).
+    override val rebuildsForTextSize: Boolean get() = false
 
     private lateinit var binding: ActivityPlayerBinding
     private var player: ExoPlayer? = null

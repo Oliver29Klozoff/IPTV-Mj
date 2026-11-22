@@ -29,6 +29,8 @@ import kotlinx.coroutines.ensureActive
 @AndroidEntryPoint
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class MosaicActivity : com.iptvapp.ui.MktvActivity() {
+    // Playing: a new text size waits for the next time this screen opens (MktvActivity).
+    override val rebuildsForTextSize: Boolean get() = false
 
     companion object {
         /** A MosaicLayouts JSON list; its first layout opens as a one-off grid. */

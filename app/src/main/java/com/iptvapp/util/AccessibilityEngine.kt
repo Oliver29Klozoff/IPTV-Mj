@@ -64,7 +64,7 @@ object AccessibilityEngine {
 
     /** Built with other settings, and not playing in a corner where a rebuild would interrupt. */
     internal fun needsRebuild(activity: Activity, settings: AccessibilitySettings): Boolean {
-        if (activity !is MktvActivity) return false
+        if (activity !is MktvActivity || !activity.rebuildsForTextSize) return false
         val built = activity.builtWith ?: return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && activity.isInPictureInPictureMode) return false
         return built != settings.screenSignature

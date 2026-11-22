@@ -12,6 +12,12 @@ import com.iptvapp.util.AccessibilityContextWrapper
  */
 abstract class MktvActivity : AppCompatActivity() {
 
+    /**
+     * False on screens that are playing something (player, multi-view, mosaic): rebuilding them
+     * would lose the channel and position, so they get a new text size the next time they open.
+     */
+    open val rebuildsForTextSize: Boolean get() = true
+
     /** AccessibilitySettings.screenSignature this screen was built with. */
     var builtWith: String? = null
         private set
