@@ -23,6 +23,26 @@ import com.iptvapp.data.theme.AppBaseTheme
  */
 object ThemeEngine {
 
+    /**
+     * Themes every screen of the app each time it resumes, so the choice reaches all of them
+     * (guide, detail pages, recordings, the player's panels) and a change in Settings shows on
+     * return without a restart. Runs before the screen's first frame.
+     */
+    fun install(app: android.app.Application, prefs: com.iptvapp.data.local.PreferencesManager) {
+        app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                val content = activity.findViewById<View>(android.R.id.content) ?: return
+                apply(activity, content, prefs.baseThemeNow())
+            }
+            override fun onActivityCreated(activity: Activity, savedInstanceState: android.os.Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+    }
+
     /** The window, status and navigation bars and everything under [root]. */
     fun apply(activity: Activity, root: View, theme: AppBaseTheme) {
         applyWindowTheme(activity, theme)

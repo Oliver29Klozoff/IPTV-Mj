@@ -94,7 +94,6 @@ class HomeCustomizeActivity : AppCompatActivity() {
         binding.btnCustomizeSmartRows.contentDescription = "Smart Rows: show or hide groups of rows, empty rows, finished items and cards per row"
         binding.btnCustomizeTheme.setOnClickListener { showThemeDialog() }
         binding.btnCustomizeTheme.contentDescription = "Theme and accents: the app's base theme and accent color"
-        com.iptvapp.util.ThemeEngine.apply(this, binding.root, prefs.baseThemeNow())
         binding.btnCustomizeStart.setOnClickListener { pickStart() }
         binding.btnCustomizeReset.setOnClickListener { confirmReset() }
         if (tv) {
