@@ -1,5 +1,7 @@
 package com.iptvapp.data.search
 
+import com.iptvapp.data.channel.ChannelNumbering
+import com.iptvapp.data.channel.LcnMode
 import com.iptvapp.data.local.IptvDatabase
 import com.iptvapp.data.local.PreferencesManager
 import com.iptvapp.data.local.entities.ChannelEntity
@@ -132,20 +134,45 @@ class UniversalSearch @Inject constructor(
          * [hits] best first: closest title, then kind, then favorites, then the copy that has
          * played best (feed score, so ESPN on a solid provider beats ESPN on a flaky one), then
          * shorter titles.
+         *
+         * Digits ("206") also match channel numbers under [lcnMode]: the channel numbered
+         * exactly that comes first of all, and channels whose number starts with them rank as
+         * a title starting with them would, lowest number first.
          */
-        fun rank(hits: List<SearchHit>, query: String): List<SearchHit> {
+        fun rank(hits: List<SearchHit>, query: String, lcnMode: LcnMode = LcnMode.OFF): List<SearchHit> {
             val q = MovieSearch.normalizeTitle(query).lowercase()
+            val number = ChannelNumbering.numberQuery(query)?.takeIf { ChannelNumbering.searchesNumbers(lcnMode) }
+            val exact = number?.toIntOrNull()
             return hits.map { hit ->
                 val t = MovieSearch.normalizeTitle(hit.title).lowercase()
                 // An episode is only found when the query named its series and the episode
                 // (see episodes): it is what was asked for, whatever its own title.
-                val score = if (hit is SearchHit.Episode) 0 else MovieSearch.score(t, q)
-                Ranked(hit, score, kindOrder.indexOf(hit.kind), if (isFavorite(hit)) 0 else 1, -feedScoreOf(hit), t.length)
-            }.sortedWith(compareBy<Ranked>({ it.score }, { it.kind }, { it.favorite }, { it.feed }, { it.length }))
+                var score = if (hit is SearchHit.Episode) 0 else MovieSearch.score(t, q)
+                val shown = if (number != null) channelNumberOf(hit, lcnMode) else null
+                val numbered = number != null && shown != null && shown.toString().startsWith(number)
+                if (numbered) score = if (shown == exact) EXACT_NUMBER else minOf(score, 1)
+                Ranked(hit, score, kindOrder.indexOf(hit.kind), if (numbered) shown!! else Int.MAX_VALUE,
+                    if (isFavorite(hit)) 0 else 1, -feedScoreOf(hit), t.length)
+            }.sortedWith(compareBy<Ranked>({ it.score }, { it.kind }, { it.number }, { it.favorite }, { it.feed }, { it.length }))
                 .map { it.hit }
         }
 
-        private data class Ranked(val hit: SearchHit, val score: Int, val kind: Int, val favorite: Int, val feed: Int, val length: Int)
+        /** Ahead of every title score (0 is an exact title). */
+        private const val EXACT_NUMBER = -1
+
+        /** The number search finds a channel result by (main provider only), or null. */
+        fun channelNumberOf(hit: SearchHit, lcnMode: LcnMode): Int? =
+            (hit as? SearchHit.Channel)?.channel?.let { ChannelNumbering.searchableNumber(lcnMode, it) }
+
+        /** Whether [query] is enough to search: 2 characters, or 1 digit when numbers are searched. */
+        fun canSearch(query: String, lcnMode: LcnMode): Boolean {
+            val q = query.trim()
+            return q.length >= 2 || (ChannelNumbering.numberQuery(q) != null && ChannelNumbering.searchesNumbers(lcnMode))
+        }
+
+        private data class Ranked(
+            val hit: SearchHit, val score: Int, val kind: Int, val number: Int, val favorite: Int, val feed: Int, val length: Int,
+        )
 
         /** A copy never played sits between proven and poor ones, as in backup choice. */
         private fun feedScoreOf(hit: SearchHit): Int = when (hit) {
@@ -200,19 +227,22 @@ class UniversalSearch @Inject constructor(
      */
     suspend fun search(query: String, nowMs: Long = System.currentTimeMillis()): List<SearchHit> = coroutineScope {
         val q = query.trim()
-        if (q.length < 2) return@coroutineScope emptyList()
+        val lcnMode = prefs.lcnMode.first()
+        // One digit is a channel number ("7"); one letter is too little to search.
+        if (!canSearch(q, lcnMode)) return@coroutineScope emptyList()
+        val numberOnly = q.length < 2
         val primaryLabel = prefs.serverNickname.first().ifBlank { "Primary" }
         val englishOnly = prefs.englishOnlyMovies.first()
 
         val channels = async { channels(q, primaryLabel) }
         val programs = async { if (q.length >= 3) programs(q, nowMs, primaryLabel) else emptyList() }
-        val movies = async { movies(q, primaryLabel, englishOnly) }
-        val series = async { series(q, primaryLabel, englishOnly) }
-        val recordings = async { db.recordingDao().search(q).map { SearchHit.Recording(it) } }
+        val movies = async { if (numberOnly) emptyList() else movies(q, primaryLabel, englishOnly) }
+        val series = async { if (numberOnly) emptyList() else series(q, primaryLabel, englishOnly) }
+        val recordings = async { if (numberOnly) emptyList() else db.recordingDao().search(q).map { SearchHit.Recording(it) } }
         val all = withFeeds(listOf(channels, programs, movies, series, recordings).awaitAll().flatten())
         // A Kids profile: nothing adult (title or category), whichever list it came from.
         val guard = com.iptvapp.data.profile.KidsGuard.forActive(db, prefs.kidsSafeMode.first())
-        withContext(Dispatchers.Default) { capPerKind(rank(if (guard == null) all else all.filter(guard::allows), q)) }
+        withContext(Dispatchers.Default) { capPerKind(rank(if (guard == null) all else all.filter(guard::allows), q, lcnMode)) }
     }
 
     /** Channel and programme hits with their copy's feed score, looked up once for the lot. */
