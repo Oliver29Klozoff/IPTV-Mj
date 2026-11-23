@@ -239,7 +239,11 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
     private fun show(status: String? = null) {
         renderFilters()
         val visible = results.filter { it.kind in filter.kinds }
-        adapter.submitList(visible) { focusFirstResultIfAsked() }
+        adapter.submitList(visible) {
+            starsToRepaint.forEach { adapter.repaintFavorites(it) }
+            starsToRepaint.clear()
+            focusFirstResultIfAsked()
+        }
         val message = status ?: when {
             visible.isNotEmpty() -> null
             results.isEmpty() -> getString(R.string.search_nothing_found)
@@ -332,11 +336,16 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
      * it started, so those changes are in its results: stop overriding them.
      */
     private fun settleFavoriteChanges(searchNumber: Int) {
-        favoriteChanges.keys.retainAll { key ->
-            (favoriteSavesRunning[key] ?: 0) > 0 || (favoriteSavedAt[key] ?: Int.MAX_VALUE) >= searchNumber
+        val settled = favoriteChanges.keys.filter { key ->
+            (favoriteSavesRunning[key] ?: 0) == 0 && (favoriteSavedAt[key] ?: Int.MAX_VALUE) < searchNumber
         }
-        favoriteSavedAt.keys.retainAll { it in favoriteChanges }
+        settled.forEach { favoriteChanges.remove(it); favoriteSavedAt.remove(it) }
+        // A row whose result is unchanged isn't redrawn by the new list, so its star is (see show).
+        starsToRepaint += settled
     }
+
+    /** Stars to redraw once the next list is on screen. */
+    private val starsToRepaint = HashSet<String>()
 
     /** Back from a film, series or other screen that may have changed a favorite: search again. */
     override fun onRestart() {
