@@ -1,7 +1,7 @@
 {
-  "versionCode": 636,
-  "versionName": "7.98",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.98/MKTV.apk",
-  "apkSha256": "cdb0fbb959ecc170218388cf699ab33fc10ef62dcae5ad8be124dc7b102366fa",
-  "changelog": "Viewing profiles: each person gets their own favorites, history and Home; Kids profiles hide adult content."
+  "versionCode": 637,
+  "versionName": "7.99",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.99/MKTV.apk",
+  "apkSha256": "19793e691b59dfc0f0c9d795f1969c168149d067ecb86895375e888be26b3941",
+  "changelog": "Smoother channel switching: stream checks stop cleanly when you change channel and reuse existing connections."
 }

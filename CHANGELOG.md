@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v7.99 - 2026-11-23
+- **Fixed**: Switching channels quickly no longer leaves a stream check from the channel you
+  left running on and marking that channel as failing.
+- **Changed**: Stream checks reuse the app's existing connections (and follow the DNS over HTTPS
+  setting) instead of opening a fresh network setup every time.
+
 ## v7.98 - 2026-11-22
 - **New**: Viewing profiles. Up to 6 people (or rooms) each get their own favorites, watch history
   and progress, recent channels, Home layout and viewing style, sidebar, card size, theme and Top
