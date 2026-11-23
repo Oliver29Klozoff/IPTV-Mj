@@ -5812,7 +5812,7 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
                     }
                     "Hide Channel" -> if (ch != null) {
                         viewModel.hideChannel(ch.streamId)
-                        Toast.makeText(this, "${ch.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "${ch.name} hidden. Unhide in Settings → Providers & Guide.", Toast.LENGTH_SHORT).show()
                     }
                     else -> {
                         if (options[i].startsWith("✓ Add")) commitBulkLiveFavorites()
@@ -6046,7 +6046,7 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
                     }
                     "Hide Channel" -> {
                         viewModel.hideChannel(channel.streamId)
-                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Providers & Guide.", Toast.LENGTH_SHORT).show()
                     }
                     "Channels Like This" -> showSimilarChannelsSheet(channel)
                     else -> if (options[i].startsWith("✓ Add")) {

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Personalize MKTV (HomeCustomizeActivity) and its card in Settings. -->
+<resources>
+    <string name="studio_title">PERSONALIZE MKTV</string>
+    <string name="studio_done">DONE</string>
+    <string name="studio_done_description">Done. Changes are already saved.</string>
+    <string name="studio_screen_tv">TV</string>
+    <string name="studio_screen_phone">Phone and tablet</string>
+
+    <string name="studio_tab_layout">📐 Layout &amp; Personas</string>
+    <string name="studio_tab_look">🎨 Look &amp; Feel</string>
+    <string name="studio_tab_remote">🎮 Remote &amp; Navigation</string>
+    <string name="studio_tab_access">👓 Accessibility &amp; Profiles</string>
+    <string name="studio_tab_description">%1$s tab</string>
+    <string name="studio_tab_description_open">%1$s tab, open</string>
+
+    <!-- Layout & Personas -->
+    <string name="studio_home_rows_heading">Home rows</string>
+    <string name="studio_persona_chip">STYLE: %1$s</string>
+    <string name="studio_persona_chip_description">Viewing style: %1$s. Change it</string>
+    <string name="studio_home_rows_help_tv">The rows on this TV\'s Home, top to bottom. Changes are saved as you make them.</string>
+    <string name="studio_home_rows_help_phone">The rows on the phone\'s Home, top to bottom. Drag ≡ to move a row. Changes are saved as you make them.</string>
+
+    <!-- Look & Feel -->
+    <string name="studio_preview_heading">Live preview</string>
+    <string name="studio_theme_heading">Base theme</string>
+    <string name="studio_accent_heading">Accent</string>
+    <string name="studio_accent_more">More colors in Settings → Personalize: your own color.</string>
+    <string name="studio_theme_saved">%1$s · %2$s</string>
+
+    <!-- Remote & Navigation -->
+    <string name="studio_numbers_heading">Channel numbers</string>
+    <string name="studio_direct_tuning_on">Type a number to tune: ON</string>
+    <string name="studio_direct_tuning_off">Type a number to tune: OFF</string>
+    <string name="studio_direct_tuning_help">In the player, the remote\'s number keys tune to that channel.</string>
+    <string name="studio_auto_number">Number my favorites 1, 2, 3…</string>
+    <string name="studio_tv_nav_heading">TV sidebar</string>
+    <string name="studio_sidebar">Sidebar order and entries…</string>
+
+    <!-- Accessibility & Profiles -->
+    <string name="studio_profiles_heading">Who\'s watching</string>
+    <string name="studio_profile_switch">Switch or edit profiles…</string>
+    <string name="studio_profile_kids">Kids profile: adult channels and titles are hidden. Profiles are changed from an adult profile.</string>
+    <string name="studio_profile_adult">Each profile keeps its own favorites, history, Home and look.</string>
+    <string name="studio_a11y_heading">Accessibility</string>
+    <string name="studio_senior_on">Senior Mode: ON</string>
+    <string name="studio_senior_off">Senior Mode: OFF</string>
+    <string name="studio_senior_help">Bigger text, a bold focus ring, longer on-screen banners and bigger cards, in one switch.</string>
+    <string name="studio_text_size_heading">Text size</string>
+    <string name="studio_banner_heading">Banners stay on screen</string>
+    <string name="studio_banner_standard">Standard</string>
+    <string name="studio_banner_extended">Longer</string>
+    <string name="studio_focus_on">Bold focus ring: ON</string>
+    <string name="studio_focus_off">Bold focus ring: OFF</string>
+    <string name="studio_option_selected">%1$s, selected</string>
+
+    <!-- Settings → Personalize & Experience -->
+    <string name="settings_studio_heading">Personalize MKTV</string>
+    <string name="settings_studio_open">Open studio</string>
+    <string name="settings_studio_summary">Viewing style: %1$s · Theme: %2$s · Profile: %3$s</string>
+    <string name="settings_studio_switch_profile">Switch profile</string>
+    <string name="settings_studio_profile_kids">%1$s · Kids profile</string>
+</resources>

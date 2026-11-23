@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Customize Home: Home's rows in order, each with Move up / Move down / Shown-Hidden / Edit, and
-     Add row, Start on, Reset and Done along the top (HomeCustomizeActivity). -->
+<!-- Personalize MKTV (HomeCustomizeActivity): a title bar with DONE, four tabs, and one panel per
+     tab (PersonalizeStudio). Only the open tab's panel is shown; the others are GONE. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/customizeRoot"
     android:layout_width="match_parent"
@@ -11,107 +11,55 @@
     android:paddingTop="12dp"
     android:theme="@style/ThemeOverlay.HomeRack">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/barlow_condensed_bold"
-        android:letterSpacing="0.12"
-        android:text="CUSTOMIZE HOME"
-        android:textColor="@color/rack_text"
-        android:textSize="22sp" />
-
-    <TextView
-        android:id="@+id/tvCustomizeSubtitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:textColor="@color/rack_text_muted"
-        android:textSize="13sp" />
-
-    <!-- Viewing style: one press sets a preset (ViewingPersona); cards are added in code. -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:fontFamily="@font/barlow_condensed_bold"
-        android:letterSpacing="0.12"
-        android:text="@string/persona_heading"
-        android:textColor="@color/rack_text_muted"
-        android:textSize="13sp" />
-
-    <HorizontalScrollView
-        android:id="@+id/personaScroll"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
-        android:clipToPadding="false"
-        android:padding="2dp"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:id="@+id/personaCards"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
-
-    <!-- Card Density & Size (CardDensity): three choices, the selected one outlined. On a short
-         screen this block is hidden and the CARDS chip below opens the same choice. -->
     <LinearLayout
-        android:id="@+id/densityBlock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp"
-            android:fontFamily="@font/barlow_condensed_bold"
-            android:letterSpacing="0.12"
-            android:text="@string/card_density_heading"
-            android:textColor="@color/rack_text_muted"
-            android:textSize="13sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
         <LinearLayout
-            android:id="@+id/densityChipsContainer"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:padding="2dp">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
             <TextView
-                android:id="@+id/btnDensityCompact"
-                style="@style/DensityChip"
-                android:layout_marginStart="0dp"
-                android:text="@string/density_compact_title" />
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/barlow_condensed_bold"
+                android:letterSpacing="0.12"
+                android:text="@string/studio_title"
+                android:textColor="@color/rack_text"
+                android:textSize="22sp" />
 
+            <!-- Screen · profile · viewing style · theme (PersonalizeStudio.summary). -->
             <TextView
-                android:id="@+id/btnDensityStandard"
-                style="@style/DensityChip"
-                android:text="@string/density_standard_title" />
-
-            <TextView
-                android:id="@+id/btnDensityExpanded"
-                style="@style/DensityChip"
-                android:text="@string/density_expanded_title" />
+                android:id="@+id/tvCustomizeSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/rack_text_muted"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <TextView
-            android:id="@+id/tvDensityDescription"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="10dp"
-            android:importantForAccessibility="no"
-            android:textColor="@color/rack_text_muted"
-            android:textSize="12sp" />
+            android:id="@+id/btnCustomizeDone"
+            style="@style/HomeEditHeaderChip"
+            android:layout_marginStart="8dp"
+            android:contentDescription="@string/studio_done_description"
+            android:text="@string/studio_done" />
     </LinearLayout>
 
+    <!-- The tabs: Left / Right between them, Down into the open panel, Back from a panel comes here. -->
     <HorizontalScrollView
+        android:id="@+id/studioTabBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="4dp"
+        android:clipToPadding="false"
+        android:padding="2dp"
         android:scrollbars="none">
 
         <LinearLayout
@@ -120,70 +68,424 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/btnCustomizeDone"
-                style="@style/HomeEditHeaderChip"
-                android:layout_marginStart="0dp"
-                android:text="DONE" />
+                android:id="@+id/tabLayout"
+                style="@style/StudioTab"
+                android:text="@string/studio_tab_layout" />
 
             <TextView
-                android:id="@+id/btnCustomizeAdd"
-                style="@style/HomeEditHeaderChip"
-                android:text="+ ADD ROW" />
-
-            <!-- Smart Rows: groups of automatic rows at once, empty-row and finished-item rules, cards per row. -->
-            <TextView
-                android:id="@+id/btnCustomizeSmartRows"
-                style="@style/HomeEditHeaderChip"
-                android:text="@string/btn_smart_rows" />
-
-            <!-- Theme & Accents: the app's base theme and accent, the same choices as Settings → Appearance. -->
-            <TextView
-                android:id="@+id/btnCustomizeTheme"
-                style="@style/HomeEditHeaderChip"
-                android:text="@string/btn_customize_theme" />
+                android:id="@+id/tabAppearance"
+                style="@style/StudioTab"
+                android:text="@string/studio_tab_look" />
 
             <TextView
-                android:id="@+id/btnCustomizeStart"
-                style="@style/HomeEditHeaderChip" />
-
-            <!-- Short screens only: Card Density & Size, in place of the three choices above. -->
-            <TextView
-                android:id="@+id/btnCustomizeDensity"
-                style="@style/HomeEditHeaderChip"
-                android:visibility="gone" />
-
-            <!-- TV only: Home Mini Player Display (Hero, Compact or Off). -->
-            <TextView
-                android:id="@+id/btnCustomizeMiniPlayer"
-                style="@style/HomeEditHeaderChip"
-                android:visibility="gone" />
-
-            <!-- TV only: shows or hides Home in the sidebar. -->
-            <TextView
-                android:id="@+id/btnCustomizeHomeTab"
-                style="@style/HomeEditHeaderChip"
-                android:visibility="gone" />
-
-            <!-- TV only: Customize Sidebar (order and Shown/Hidden of the sidebar's entries). -->
-            <TextView
-                android:id="@+id/btnCustomizeSidebar"
-                style="@style/HomeEditHeaderChip"
-                android:contentDescription="Customize Sidebar Sections: order and which entries show"
-                android:text="SIDEBAR…"
-                android:visibility="gone" />
+                android:id="@+id/tabRemote"
+                style="@style/StudioTab"
+                android:text="@string/studio_tab_remote" />
 
             <TextView
-                android:id="@+id/btnCustomizeReset"
-                style="@style/HomeEditHeaderChip"
-                android:text="RESET HOME" />
+                android:id="@+id/tabAccessibilityProfiles"
+                style="@style/StudioTab"
+                android:layout_marginEnd="0dp"
+                android:text="@string/studio_tab_access" />
         </LinearLayout>
     </HorizontalScrollView>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvCustomizeSections"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="24dp" />
+        android:layout_weight="1">
+
+        <!-- ── Layout & Personas ─────────────────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/panelLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- Viewing style: one press sets a preset (ViewingPersona); cards are added in code. -->
+            <TextView
+                android:id="@+id/tvPersonaHeading"
+                style="@style/StudioHeading"
+                android:layout_marginTop="6dp"
+                android:text="@string/persona_heading" />
+
+            <HorizontalScrollView
+                android:id="@+id/personaScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:clipToPadding="false"
+                android:padding="2dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/personaCards"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:clipToPadding="false"
+                android:padding="2dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/layoutOptionsBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <!-- Short screens only (a phone held sideways): the viewing style as a chip, so the rows keep room. -->
+                    <TextView
+                        android:id="@+id/btnCustomizePersona"
+                        style="@style/HomeEditHeaderChip"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="6dp"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/btnCustomizeStart"
+                        style="@style/HomeEditHeaderChip"
+                        android:layout_marginStart="0dp" />
+
+                    <!-- TV only: Home Mini Player Display (Hero, Compact or Off). -->
+                    <TextView
+                        android:id="@+id/btnCustomizeMiniPlayer"
+                        style="@style/HomeEditHeaderChip"
+                        android:visibility="gone" />
+
+                    <!-- TV only: shows or hides Home in the sidebar. -->
+                    <TextView
+                        android:id="@+id/btnCustomizeHomeTab"
+                        style="@style/HomeEditHeaderChip"
+                        android:visibility="gone" />
+
+                    <!-- TV only: Customize Sidebar (order and Shown/Hidden of the sidebar's entries). -->
+                    <TextView
+                        android:id="@+id/btnCustomizeSidebar"
+                        style="@style/HomeEditHeaderChip"
+                        android:contentDescription="Customize Sidebar Sections: order and which entries show"
+                        android:text="SIDEBAR…"
+                        android:visibility="gone" />
+
+                    <!-- Smart Rows: groups of automatic rows at once, empty-row and finished-item rules, cards per row. -->
+                    <TextView
+                        android:id="@+id/btnCustomizeSmartRows"
+                        style="@style/HomeEditHeaderChip"
+                        android:text="@string/btn_smart_rows" />
+
+                    <TextView
+                        android:id="@+id/btnCustomizeAdd"
+                        style="@style/HomeEditHeaderChip"
+                        android:text="+ ADD ROW" />
+
+                    <TextView
+                        android:id="@+id/btnCustomizeReset"
+                        style="@style/HomeEditHeaderChip"
+                        android:text="RESET HOME" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <TextView
+                android:id="@+id/tvHomeRowsHelp"
+                style="@style/StudioHelp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="4dp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvCustomizeSections"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipToPadding="false"
+                android:paddingBottom="24dp" />
+        </LinearLayout>
+
+        <!-- ── Look & Feel ───────────────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/panelAppearance"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/studio_preview_heading" />
+
+                <!-- The sample card, painted in the chosen theme, accent and card size as they change. -->
+                <include
+                    android:id="@+id/livePreviewContainer"
+                    layout="@layout/view_theme_preview" />
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_theme_heading" />
+
+                <!-- Filled by ThemePicker.buildBaseThemes. -->
+                <LinearLayout
+                    android:id="@+id/studioThemes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_accent_heading" />
+
+                <!-- Filled by ThemePicker.buildCuratedAccents. -->
+                <FrameLayout
+                    android:id="@+id/studioAccents"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/StudioHelp"
+                    android:text="@string/studio_accent_more" />
+
+                <!-- Card Density & Size (CardDensity): three choices, the selected one outlined. -->
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/card_density_heading" />
+
+                <LinearLayout
+                    android:id="@+id/densityChipsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="2dp">
+
+                    <TextView
+                        android:id="@+id/btnDensityCompact"
+                        style="@style/DensityChip"
+                        android:layout_marginStart="0dp"
+                        android:text="@string/density_compact_title" />
+
+                    <TextView
+                        android:id="@+id/btnDensityStandard"
+                        style="@style/DensityChip"
+                        android:text="@string/density_standard_title" />
+
+                    <TextView
+                        android:id="@+id/btnDensityExpanded"
+                        style="@style/DensityChip"
+                        android:text="@string/density_expanded_title" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvDensityDescription"
+                    style="@style/StudioHelp"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ── Remote & Navigation ───────────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/panelRemote"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/studio_numbers_heading" />
+
+                <!-- One option per LcnMode, added in code. -->
+                <LinearLayout
+                    android:id="@+id/lcnModeOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/tvLcnModeDescription"
+                    style="@style/StudioHelp"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/btnDirectTuning"
+                    style="@style/StudioOption"
+                    android:layout_marginTop="12dp" />
+
+                <TextView
+                    style="@style/StudioHelp"
+                    android:text="@string/studio_direct_tuning_help" />
+
+                <TextView
+                    android:id="@+id/btnStudioAutoNumber"
+                    style="@style/StudioOption"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/studio_auto_number" />
+
+                <!-- TV only: the sidebar's order and entries. -->
+                <LinearLayout
+                    android:id="@+id/studioTvNavBlock"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/StudioHeading"
+                        android:text="@string/studio_tv_nav_heading" />
+
+                    <TextView
+                        android:id="@+id/btnStudioSidebar"
+                        style="@style/StudioOption"
+                        android:text="@string/studio_sidebar" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ── Accessibility & Profiles ──────────────────────────────────── -->
+        <ScrollView
+            android:id="@+id/panelAccessibilityProfiles"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/studio_profiles_heading" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <!-- ProfileUi.bindAvatar: a picture only here; the button below switches. -->
+                    <TextView
+                        android:id="@+id/tvStudioAvatar"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:focusable="false"
+                        android:gravity="center"
+                        android:importantForAccessibility="no"
+                        android:textColor="@android:color/white"
+                        android:textSize="20sp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvStudioProfileName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/barlow_condensed_bold"
+                            android:textColor="@color/rack_text"
+                            android:textSize="18sp" />
+
+                        <TextView
+                            android:id="@+id/tvStudioProfileNote"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/rack_text_muted"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btnStudioSwitchProfile"
+                    style="@style/StudioOption"
+                    android:text="@string/studio_profile_switch" />
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_a11y_heading" />
+
+                <TextView
+                    android:id="@+id/btnSeniorMode"
+                    style="@style/StudioOption"
+                    android:layout_marginTop="0dp" />
+
+                <TextView
+                    style="@style/StudioHelp"
+                    android:text="@string/studio_senior_help" />
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_text_size_heading" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="2dp">
+
+                    <TextView
+                        android:id="@+id/btnTextStandard"
+                        style="@style/DensityChip"
+                        android:layout_marginStart="0dp"
+                        android:text="@string/a11y_text_standard" />
+
+                    <TextView
+                        android:id="@+id/btnTextLarge"
+                        style="@style/DensityChip"
+                        android:text="@string/a11y_text_large" />
+
+                    <TextView
+                        android:id="@+id/btnTextExtraLarge"
+                        style="@style/DensityChip"
+                        android:text="@string/a11y_text_extra_large" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_banner_heading" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="2dp">
+
+                    <TextView
+                        android:id="@+id/btnBannerStandard"
+                        style="@style/DensityChip"
+                        android:layout_marginStart="0dp"
+                        android:text="@string/studio_banner_standard" />
+
+                    <TextView
+                        android:id="@+id/btnBannerExtended"
+                        style="@style/DensityChip"
+                        android:text="@string/studio_banner_extended" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btnHighContrastFocus"
+                    style="@style/StudioOption"
+                    android:layout_marginTop="12dp" />
+            </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
 </LinearLayout>

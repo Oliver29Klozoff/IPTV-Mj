@@ -5086,7 +5086,7 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
                     }
                     options[i] == "Hide Channel" -> {
                         viewModel.hideChannel(channel.streamId)
-                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Display.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "${channel.name} hidden. Unhide in Settings → Providers & Guide.", Toast.LENGTH_SHORT).show()
                     }
                     options[i] == "Channels Like This" -> showTvSimilarChannelsSheet(channel)
                     else -> if (options[i].startsWith("✓ Add")) {
