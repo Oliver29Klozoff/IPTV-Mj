@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v8.00 - 2026-11-23
+- **New**: Search results have a favorite star. Tap it to add a channel, movie or series to
+  your favorites (or take it out) without leaving search; a guide programme stars its
+  channel. Press and hold a result for Add/Remove from Favorites, Add to Top Favorites
+  (channels) and Play or Open. On a TV remote, press Right to reach the star.
+
 ## v7.99 - 2026-11-23
 - **Fixed**: Switching channels quickly no longer leaves a stream check from the channel you
   left running on and marking that channel as failing.

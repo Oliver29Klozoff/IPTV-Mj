@@ -1,7 +1,7 @@
 {
-  "versionCode": 637,
-  "versionName": "7.99",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v7.99/MKTV.apk",
-  "apkSha256": "19793e691b59dfc0f0c9d795f1969c168149d067ecb86895375e888be26b3941",
-  "changelog": "Smoother channel switching: stream checks stop cleanly when you change channel and reuse existing connections."
+  "versionCode": 638,
+  "versionName": "8.00",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.00/MKTV.apk",
+  "apkSha256": "895eaf2e6b5ec7bc91697a350522b4432205daf87bb263e2badc6d5b73da7614",
+  "changelog": "Favorite channels, movies and series straight from search: tap the star, or hold a result for more."
 }
