@@ -94,6 +94,25 @@ interface ChannelDao {
         LIMIT 200
     """)
     fun searchChannels(query: String): Flow<List<ChannelEntity>>
+    // Search by channel number (ChannelNumbering.searchableNumber): the shown number starts with
+    // the digits in :prefixPattern ("20%" finds 20, 206 and 2001). Custom first, else the
+    // provider's own number when above 0. Bounded, so one digit stays quick.
+    @Query("""
+        SELECT * FROM channels
+        WHERE CAST(COALESCE(customNum, CASE WHEN num > 0 THEN num END) AS TEXT) LIKE :prefixPattern
+            AND isHidden = 0
+        ORDER BY COALESCE(customNum, num) ASC
+        LIMIT 100
+    """)
+    fun searchByShownNumber(prefixPattern: String): Flow<List<ChannelEntity>>
+    // The same with the provider's numbers only (Settings → Channel Numbers → Provider).
+    @Query("""
+        SELECT * FROM channels
+        WHERE num > 0 AND CAST(num AS TEXT) LIKE :prefixPattern AND isHidden = 0
+        ORDER BY num ASC
+        LIMIT 100
+    """)
+    fun searchByProviderNumber(prefixPattern: String): Flow<List<ChannelEntity>>
     @Query("SELECT * FROM channels WHERE streamId = :streamId")
     suspend fun getChannelById(streamId: Int): ChannelEntity?
     // Handoff's accent-tolerant fallback (AppHandoffCatalog.likePattern): a bounded LIKE, used only when FTS finds nothing.

@@ -29,6 +29,47 @@ object ChannelNumbering {
     fun displayNumber(mode: LcnMode, channel: ChannelEntity, position: Int): Int? =
         displayNumber(mode, channel.customNum, channel.num, position)
 
+    /**
+     * The number a search asks for: 1 to [MAX_DIGITS] digits ("206", "007" means 7), as text
+     * without leading zeros; null for anything else (words, "0", a long pasted number).
+     */
+    fun numberQuery(query: String): String? {
+        val q = query.trim()
+        if (q.isEmpty() || q.length > MAX_DIGITS || !q.all { it in '0'..'9' }) return null
+        return q.trimStart('0').ifEmpty { null }
+    }
+
+    /**
+     * The number search finds a main-provider channel by: the one its list row shows. Sequential
+     * numbers depend on the list on screen and Off shows none, so those find nothing by number.
+     */
+    fun searchableNumber(mode: LcnMode, customNum: Int?, providerNum: Int): Int? = when (mode) {
+        LcnMode.CUSTOM_FIRST, LcnMode.PROVIDER_RAW -> displayNumber(mode, customNum, providerNum, -1)
+        LcnMode.SEQUENTIAL, LcnMode.OFF -> null
+    }
+
+    fun searchableNumber(mode: LcnMode, channel: ChannelEntity): Int? =
+        searchableNumber(mode, channel.customNum, channel.num)
+
+    /** Whether search finds numbers at all under [mode]. */
+    fun searchesNumbers(mode: LcnMode) = mode == LcnMode.CUSTOM_FIRST || mode == LcnMode.PROVIDER_RAW
+
+    /** Whether [channel]'s searchable number starts with [number] (from [numberQuery]). */
+    fun matchesNumber(mode: LcnMode, channel: ChannelEntity, number: String): Boolean =
+        searchableNumber(mode, channel)?.toString()?.startsWith(number) == true
+
+    /**
+     * A number search's channels: the one numbered exactly [number] first, then the rest of
+     * [byNumber] in its order (lowest number first), then [byName] matches not already listed.
+     */
+    fun searchOrder(
+        byNumber: List<ChannelEntity>, byName: List<ChannelEntity>, number: String, numberOf: (ChannelEntity) -> Int?,
+    ): List<ChannelEntity> {
+        val exact = number.toIntOrNull()
+        val (first, rest) = byNumber.partition { exact != null && numberOf(it) == exact }
+        return (first + rest + byName).distinctBy { it.streamId }
+    }
+
     /** The digit a remote key types (top-row and keypad digits), or null for any other key. */
     fun digitOf(keyCode: Int): Char? = when (keyCode) {
         in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> '0' + (keyCode - KeyEvent.KEYCODE_0)

@@ -55,6 +55,8 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
     private lateinit var binding: ActivitySearchBinding
     private val adapter = ResultAdapter { onPick(it) }
+    /** Settings → Channel Numbers, as the rows were last drawn (their "CH 206" labels). */
+    private var lcnMode: com.iptvapp.data.channel.LcnMode = com.iptvapp.data.channel.LcnMode.OFF
 
     /**
      * Favorites changed on this screen, by SearchFavorites key: the results were found before,
@@ -209,7 +211,14 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
     private fun runSearch(query: String, debounce: Boolean) {
         searchJob?.cancel()
         val q = query.trim()
-        if (q.length < 2) {
+        // The rows show channel numbers under this setting: a change while away renumbers them.
+        val mode = prefs.lcnModeNow()
+        if (mode != lcnMode) {
+            lcnMode = mode
+            @Suppress("NotifyDataSetChanged")
+            adapter.notifyDataSetChanged()
+        }
+        if (!UniversalSearch.canSearch(q, mode)) {
             results = emptyList()
             binding.searchProgress.visibility = View.GONE
             show(status = if (q.isEmpty()) getString(R.string.search_prompt) else getString(R.string.search_more_letters))
@@ -232,7 +241,7 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
                 emptyList()
             }
             if (episodes.isNotEmpty()) {
-                results = UniversalSearch.rank(local + episodes, q)
+                results = UniversalSearch.rank(local + episodes, q, mode)
                 show()
             }
             binding.searchProgress.visibility = View.GONE
@@ -478,10 +487,12 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val hit = getItem(position)
-            holder.b.tvResultTitle.text = hit.title
+            val number = UniversalSearch.channelNumberOf(hit, lcnMode)
+            val title = if (number != null) getString(R.string.search_channel_number_title, number, hit.title) else hit.title
+            holder.b.tvResultTitle.text = title
             holder.b.tvResultDetail.text = detailOf(hit)
             holder.b.tvResultKind.text = hit.kind.label
-            holder.b.root.contentDescription = "${hit.kind.label}: ${hit.title}, ${detailOf(hit)}"
+            holder.b.root.contentDescription = "${hit.kind.label}: $title, ${detailOf(hit)}"
             Glide.with(holder.b.ivResultImage).load(imageOf(hit))
                 .placeholder(android.R.drawable.ic_menu_gallery)
                 .error(android.R.drawable.ic_menu_gallery)

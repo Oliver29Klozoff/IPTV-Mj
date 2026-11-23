@@ -20,7 +20,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -631,8 +633,29 @@ class XtreamRepository @Inject constructor(
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> =
         db.channelDao().getChannelsByCategory(categoryId)
 
-    fun searchChannels(query: String): Flow<List<ChannelEntity>> =
-        db.channelDao().searchChannels(ftsQuery(query)).kidsSafeIn("live", { it.name }, { it.categoryId })
+    /**
+     * Channels on the main provider whose name matches [query]. Digits ("206") also find the
+     * channels whose shown number starts with them (Settings → Channel Numbers decides which
+     * number that is): the exact number first, then the other numbers in order, then names.
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun searchChannels(query: String): Flow<List<ChannelEntity>> {
+        val byName = db.channelDao().searchChannels(ftsQuery(query))
+        val number = com.iptvapp.data.channel.ChannelNumbering.numberQuery(query)
+            ?: return byName.kidsSafeIn("live", { it.name }, { it.categoryId })
+        return prefs.lcnMode.distinctUntilChanged().flatMapLatest { mode ->
+            val byNumber = when (mode) {
+                com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST -> db.channelDao().searchByShownNumber("$number%")
+                com.iptvapp.data.channel.LcnMode.PROVIDER_RAW -> db.channelDao().searchByProviderNumber("$number%")
+                else -> null
+            }
+            if (byNumber == null) byName else combine(byNumber, byName) { numbered, named ->
+                com.iptvapp.data.channel.ChannelNumbering.searchOrder(numbered, named, number) {
+                    com.iptvapp.data.channel.ChannelNumbering.searchableNumber(mode, it)
+                }
+            }
+        }.kidsSafeIn("live", { it.name }, { it.categoryId })
+    }
 
     fun getFavoriteChannels(): Flow<List<ChannelEntity>> =
         db.channelDao().getFavoriteChannels()

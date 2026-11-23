@@ -2363,13 +2363,17 @@ class HomeViewModel @Inject constructor(
             ) { primary, merged, cats, smart, _ ->
                 val namesById = cats.associate { it.categoryId to it.categoryName }
                 val q = query
-                _channels.value = primary.filter {
-                    it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q)
-                }
+                // Digits also find a favorite by the channel number its row shows ("206").
+                val number = com.iptvapp.data.channel.ChannelNumbering.numberQuery(q)
+                val lcnMode = prefs.lcnModeNow()
+                fun primaryMatches(ch: ChannelEntity) =
+                    ch.name.contains(q, ignoreCase = true) || ch.streamId.toString().contains(q) ||
+                        (number != null && com.iptvapp.data.channel.ChannelNumbering.matchesNumber(lcnMode, ch, number))
+                _channels.value = primary.filter(::primaryMatches)
                 val liveNicknames = repository.getMergedServerNicknames()
                 val primaryNickname = primaryNicknameLabel()
                 val rows = mergeByFavOrder(
-                    primary.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
+                    primary.filter(::primaryMatches)
                         .map { CombinedFavorite.Primary(it, namesById[it.categoryId], primaryNickname) },
                     merged.filter { it.name.contains(q, ignoreCase = true) || it.streamId.toString().contains(q) }
                         .map { CombinedFavorite.Merged(it, liveNicknames[it.serverIndex]) }
