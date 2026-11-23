@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -20,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.iptvapp.R
 import com.iptvapp.data.repository.XtreamRepository
+import com.iptvapp.data.search.SearchFavorites
 import com.iptvapp.data.search.SearchHit
 import com.iptvapp.data.search.UniversalSearch
 import com.iptvapp.databinding.ActivitySearchBinding
@@ -29,6 +31,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -48,9 +51,19 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
     @Inject lateinit var search: UniversalSearch
     @Inject lateinit var repository: XtreamRepository
+    @Inject lateinit var prefs: com.iptvapp.data.local.PreferencesManager
 
     private lateinit var binding: ActivitySearchBinding
     private val adapter = ResultAdapter { onPick(it) }
+
+    /**
+     * Favorites changed on this screen, by SearchFavorites key: the results were found before,
+     * so their own flags are stale. Kept across searches and filters until the screen closes.
+     */
+    private val favoriteChanges = HashMap<String, Boolean>()
+
+    /** One save at a time, in tap order, so a quick double tap ends where the star shows. */
+    private val favoriteSaves = kotlinx.coroutines.sync.Mutex()
     private var searchJob: Job? = null
     private var results: List<SearchHit> = emptyList()
     private var filter: Filter = Filter.ALL
@@ -299,6 +312,98 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
     private fun detailOf(hit: SearchHit) = SearchHitUi.detailOf(this, hit)
     private fun imageOf(hit: SearchHit) = SearchHitUi.imageOf(hit)
 
+    // ── Favorites from the results: the star, or holding a row ──
+
+    private fun isFavorite(hit: SearchHit) = SearchFavorites.isFavorite(hit, favoriteChanges)
+
+    /**
+     * Stars [hit] (a programme stars its channel), or takes the star off. The star changes at
+     * once, on this row and every other row for the same favorite; the list isn't searched again.
+     */
+    private fun toggleFavorite(hit: SearchHit) {
+        val key = SearchFavorites.keyOf(hit) ?: return
+        val favorite = !isFavorite(hit)
+        favoriteChanges[key] = favorite
+        adapter.repaintFavorites(key)
+        val name = SearchFavorites.nameOf(hit)
+        lifecycleScope.launch {
+            val saved = try {
+                // Finished even when a pick closes this screen straight after the tap.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    favoriteSaves.withLock { SearchFavorites.set(repository, hit, favorite) }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                false
+            }
+            if (!saved) {
+                favoriteChanges[key] = !favorite
+                adapter.repaintFavorites(key)
+                Toast.makeText(this@SearchActivity, R.string.search_favorite_failed, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            Toast.makeText(
+                this@SearchActivity,
+                getString(if (favorite) R.string.search_favorite_added else R.string.search_favorite_removed, name),
+                Toast.LENGTH_SHORT
+            ).show()
+            // As the channel lists do: a new main-provider favorite gets its guide straight away.
+            val streamId = (hit as? SearchHit.Channel)?.channel?.streamId ?: (hit as? SearchHit.Program)?.channel?.streamId
+            if (favorite && streamId != null) {
+                try { repository.fetchEpg(streamId) } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
+            }
+        }
+    }
+
+    private fun paintStar(star: ImageView, hit: SearchHit) {
+        val favorite = isFavorite(hit)
+        star.setImageResource(if (favorite) android.R.drawable.btn_star_big_on else android.R.drawable.btn_star_big_off)
+        // The channel lists' colours, so a star means the same everywhere.
+        star.setColorFilter(android.graphics.Color.parseColor(if (favorite) "#008CFF" else "#444444"))
+        star.contentDescription = getString(favoriteLabel(hit, favorite))
+    }
+
+    private fun favoriteLabel(hit: SearchHit, favorite: Boolean = isFavorite(hit)) = when {
+        hit is SearchHit.Program -> if (favorite) R.string.search_favorite_remove_channel else R.string.search_favorite_add_channel
+        favorite -> R.string.search_favorite_remove
+        else -> R.string.search_favorite_add
+    }
+
+    /**
+     * Holding a result (a long-press, or OK held on a remote): its favorite, Top Favorites for a
+     * channel, and Play or Open. Episodes and recordings have only Open, so they just open.
+     */
+    private fun showResultMenu(hit: SearchHit) {
+        if (!SearchFavorites.canFavorite(hit)) { onPick(hit); return }
+        val labels = ArrayList<String>()
+        val actions = ArrayList<() -> Unit>()
+        labels += getString(favoriteLabel(hit)); actions += { toggleFavorite(hit) }
+        com.iptvapp.ui.home.TopFavoritesMenu.refOf(hit)?.let { ref ->
+            labels += com.iptvapp.ui.home.TopFavoritesMenu.label(ref.serverIndex, ref.id)
+            actions += {
+                com.iptvapp.ui.home.TopFavoritesMenu.toggle(this, prefs, ref.serverIndex, ref.id, SearchFavorites.nameOf(hit))
+            }
+        }
+        val plays = hit is SearchHit.Channel || hit.kind == SearchHit.Kind.ON_NOW
+        labels += getString(if (plays) R.string.search_play else R.string.search_open); actions += { onPick(hit) }
+        lifecycleScope.launch {
+            // So Top Favorites reads Add or Remove from the saved list, not an old copy.
+            try { com.iptvapp.data.home.TopFavoritesStore.load(prefs) } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+            com.iptvapp.ui.home.TopFavoritesMenu.refOf(hit)?.let { ref ->
+                labels[1] = com.iptvapp.ui.home.TopFavoritesMenu.label(ref.serverIndex, ref.id)
+            }
+            AlertDialog.Builder(this@SearchActivity)
+                .setTitle(SearchFavorites.nameOf(hit))
+                .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
     private inner class ResultAdapter(private val onClick: (SearchHit) -> Unit) :
         ListAdapter<SearchHit, ResultAdapter.Holder>(Diff) {
 
@@ -306,6 +411,19 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             Holder(ItemSearchResultBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+
+        /** Redraws only the star on rows for [key] (a channel and its programmes share one). */
+        fun repaintFavorites(key: String) {
+            currentList.forEachIndexed { i, hit -> if (SearchFavorites.keyOf(hit) == key) notifyItemChanged(i, PAYLOAD_FAVORITE) }
+        }
+
+        override fun onBindViewHolder(holder: Holder, position: Int, payloads: MutableList<Any>) {
+            if (payloads.isNotEmpty() && payloads.all { it == PAYLOAD_FAVORITE }) {
+                paintStar(holder.b.btnResultFavorite, getItem(position))
+            } else {
+                onBindViewHolder(holder, position)
+            }
+        }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val hit = getItem(position)
@@ -318,6 +436,17 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
                 .error(android.R.drawable.ic_menu_gallery)
                 .into(holder.b.ivResultImage)
             holder.b.root.setOnClickListener { onClick(hit) }
+            holder.b.root.setOnLongClickListener { showResultMenu(hit); true }
+            val star = holder.b.btnResultFavorite
+            if (SearchFavorites.canFavorite(hit)) {
+                star.visibility = View.VISIBLE
+                paintStar(star, hit)
+                // Its own click: a star tap never plays or opens the result.
+                star.setOnClickListener { toggleFavorite(hit) }
+            } else {
+                star.visibility = View.GONE
+                star.setOnClickListener(null)
+            }
         }
     }
 
@@ -327,6 +456,8 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
     }
 
     companion object {
+        private const val PAYLOAD_FAVORITE = "favorite"
+
         /** Optional: a query to search for straight away. */
         const val EXTRA_QUERY = "search_query"
 
