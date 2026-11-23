@@ -1866,6 +1866,15 @@ class XtreamRepository @Inject constructor(
     fun getFavoriteCountsByFolder(): Flow<List<com.iptvapp.data.local.dao.FavoriteFolderCount>> =
         db.channelDao().getFavoriteCountsByFolder()
 
+    // Health pings reuse the shared client's connection pool, DNS and dispatcher, with short
+    // timeouts of their own. Built once, on first use, not per call.
+    private val healthCheckClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+
     // GET + Range (not HEAD) with the same User-Agent PlayerActivity's ExoPlayer actually sends
     // (see its OkHttpDataSource.Factory.setUserAgent) — a real, common false-red cause: some
     // Xtream panels reject HEAD requests on live-stream endpoints outright, or 403 requests from
@@ -1874,18 +1883,17 @@ class XtreamRepository @Inject constructor(
     // download an actual live segment, just confirms the server will start responding at all.
     suspend fun checkStreamHealth(url: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
             val request = okhttp3.Request.Builder()
                 .url(url)
                 .header("User-Agent", "MKTV/${com.iptvapp.BuildConfig.VERSION_NAME} (Linux;Android) ExoPlayerLib/1.4.1")
                 .header("Range", "bytes=0-0")
                 .get()
                 .build()
-            val code = client.newCall(request).execute().use { it.code }
+            val code = healthCheckClient.newCall(request).execute().use { it.code }
             code in 200..499
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // A channel switch cancelled this check: pass it on, don't report a dead stream.
+            throw e
         } catch (e: Exception) {
             false
         }
