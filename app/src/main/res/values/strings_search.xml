@@ -20,4 +20,13 @@
     <string name="search_voice_description">Search by voice</string>
     <string name="search_voice_prompt">Say a channel, show, movie or series</string>
     <string name="search_voice_unavailable">Voice search isn\'t available on this device.</string>
+    <string name="search_favorite_add">Add to Favorites</string>
+    <string name="search_favorite_remove">Remove from Favorites</string>
+    <string name="search_favorite_add_channel">Add channel to Favorites</string>
+    <string name="search_favorite_remove_channel">Remove channel from Favorites</string>
+    <string name="search_favorite_added">%1$s added to Favorites</string>
+    <string name="search_favorite_removed">%1$s removed from Favorites</string>
+    <string name="search_favorite_failed">Couldn\'t change that favorite. Try again.</string>
+    <string name="search_play">Play</string>
+    <string name="search_open">Open</string>
 </resources>
