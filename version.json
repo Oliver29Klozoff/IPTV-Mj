@@ -1,7 +1,7 @@
 {
-  "versionCode": 638,
-  "versionName": "8.00",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.00/MKTV.apk",
-  "apkSha256": "895eaf2e6b5ec7bc91697a350522b4432205daf87bb263e2badc6d5b73da7614",
-  "changelog": "Favorite channels, movies and series straight from search: tap the star, or hold a result for more."
+  "versionCode": 639,
+  "versionName": "8.01",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.01/MKTV.apk",
+  "apkSha256": "1a61b4fe15cbff4125ef312170c7164541e74d345ad453c214f6a5a31efaad06",
+  "changelog": "Find channels by number: type 206 in search and channel 206 comes first."
 }

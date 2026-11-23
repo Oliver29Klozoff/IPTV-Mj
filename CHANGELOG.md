@@ -1,5 +1,13 @@
 # IPTV App - Changelog
 
+## v8.01 - 2026-11-23
+- **New**: Search by channel number. Type digits ("206") in the magnifying-glass search, the
+  Live, Categories and Favorites search boxes, or TV search to find channels by the number
+  their row shows. The channel with exactly that number comes first, and typing "2" already
+  lists 2, 20, 206 and so on. Search results show the number as "CH 206 • ESPN". This follows
+  Settings → Channel Numbers: custom numbers first, or the provider's; with 1, 2, 3 numbering
+  or numbers off, digits search names only. Other providers' channels are found by name.
+
 ## v8.00 - 2026-11-23
 - **New**: Search results have a favorite star. Tap it to add a channel, movie or series to
   your favorites (or take it out) without leaving search; a guide programme stars its
