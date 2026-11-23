@@ -465,7 +465,7 @@ object ProfileUi {
 
     private fun restartHome(activity: AppCompatActivity) {
         activity.startActivity(
-            Intent(activity, activity::class.java)
+            Intent(activity, restartTarget(activity))
                 .putExtra(EXTRA_SWITCHED, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         )

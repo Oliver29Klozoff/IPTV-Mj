@@ -838,26 +838,26 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
     private val lcnOptions = LinkedHashMap<com.iptvapp.data.channel.LcnMode, android.widget.TextView>()
 
     private fun setupRemote() {
+        lcnMode = prefs.lcnModeNow()
+        directTuning = prefs.directNumberTuningEnabledNow()
         for (mode in com.iptvapp.data.channel.LcnMode.entries) {
             val option = layoutInflater.inflate(R.layout.item_studio_option, binding.lcnModeOptions, false) as android.widget.TextView
             option.id = View.generateViewId()
             option.setText(mode.titleResId)
             option.setOnClickListener {
-                if (mode == prefs.lcnModeNow()) return@setOnClickListener
-                lifecycleScope.launch {
-                    prefs.setLcnMode(mode)
-                    renderLcn(mode)
-                }
+                if (mode == lcnMode) return@setOnClickListener
+                lcnMode = mode
+                renderLcn()
+                lifecycleScope.launch(NonCancellable) { prefs.setLcnMode(mode) }
             }
             binding.lcnModeOptions.addView(option)
             lcnOptions[mode] = option
         }
         binding.btnDirectTuning.setOnClickListener {
-            val on = !prefs.directNumberTuningEnabledNow()
-            lifecycleScope.launch {
-                prefs.setDirectNumberTuning(on)
-                renderLcn()
-            }
+            val on = !directTuning
+            directTuning = on
+            renderLcn()
+            lifecycleScope.launch(NonCancellable) { prefs.setDirectNumberTuning(on) }
         }
         binding.btnStudioAutoNumber.setOnClickListener { autoNumberFavorites() }
         if (tv) {
@@ -865,9 +865,20 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             binding.btnStudioSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
         }
         renderLcn()
+        // The saved values (also changed from Settings or by a restore) win once they arrive.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                launch { prefs.lcnMode.collect { lcnMode = it; renderLcn() } }
+                launch { prefs.directNumberTuning.collect { directTuning = it; renderLcn() } }
+            }
+        }
     }
 
-    private fun renderLcn(mode: com.iptvapp.data.channel.LcnMode = prefs.lcnModeNow()) {
+    private var lcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+    private var directTuning = true
+
+    private fun renderLcn() {
+        val mode = lcnMode
         for ((m, option) in lcnOptions) {
             val chosen = m == mode
             option.isActivated = chosen
@@ -876,7 +887,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
                 ". " + getString(m.descResId)
         }
         binding.tvLcnModeDescription.setText(mode.descResId)
-        val direct = prefs.directNumberTuningEnabledNow()
+        val direct = directTuning
         binding.btnDirectTuning.isActivated = direct
         binding.btnDirectTuning.setText(if (direct) R.string.studio_direct_tuning_on else R.string.studio_direct_tuning_off)
     }
@@ -927,17 +938,17 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
         }
         binding.btnSeniorMode.setOnClickListener {
-            val on = !prefs.accessibilityNow().seniorMode
+            val on = !access.seniorMode
             lifecycleScope.launch { prefs.setSeniorMode(on) }
             Toast.makeText(this, if (on) R.string.a11y_senior_on else R.string.a11y_senior_off, Toast.LENGTH_SHORT).show()
         }
         for ((level, chip) in textSizeChips) chip.setOnClickListener {
-            if (prefs.accessibilityNow().textSize != level) lifecycleScope.launch { prefs.setUiFontScale(level) }
+            if (access.textSize != level) lifecycleScope.launch { prefs.setUiFontScale(level) }
         }
         binding.btnBannerStandard.setOnClickListener { lifecycleScope.launch { prefs.setExtendedOsdTimeout(false) } }
         binding.btnBannerExtended.setOnClickListener { lifecycleScope.launch { prefs.setExtendedOsdTimeout(true) } }
         binding.btnHighContrastFocus.setOnClickListener {
-            val on = !prefs.accessibilityNow().highContrastFocus
+            val on = !access.highContrastFocus
             lifecycleScope.launch { prefs.setHighContrastFocus(on) }
         }
         renderProfile()
@@ -952,7 +963,11 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         refreshSummary()
     }
 
+    /** The accessibility settings as last shown (and saved): the switches flip these. */
+    private var access = com.iptvapp.data.accessibility.AccessibilitySettings.resolve(null, null, null, null)
+
     private fun renderAccess(s: com.iptvapp.data.accessibility.AccessibilitySettings) {
+        access = s
         binding.btnSeniorMode.isActivated = s.seniorMode
         binding.btnSeniorMode.setText(if (s.seniorMode) R.string.studio_senior_on else R.string.studio_senior_off)
         for ((level, chip) in textSizeChips) {
