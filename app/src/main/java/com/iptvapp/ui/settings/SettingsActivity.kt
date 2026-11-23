@@ -92,30 +92,53 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     private var isLoadingSettings = false
     private var currentPanelIndex = 0
 
+    // The five panels, in tab order (Recordings, between Providers and Devices, opens its own screen).
     private val panelViews get() = listOf(
-        binding.sectionStream, binding.sectionDisplay, binding.sectionServers,
-        binding.sectionBackup, binding.sectionSync, binding.sectionUpdates
+        binding.sectionPersonalize, binding.sectionPlayback, binding.sectionProviders,
+        binding.sectionDevices, binding.sectionBackup
     )
     private val navButtonViews get() = listOf(
-        binding.headerStream, binding.headerDisplay, binding.headerServers,
-        binding.headerBackup, binding.headerSync, binding.headerUpdates
+        binding.headerPersonalize, binding.headerPlayback, binding.headerProviders,
+        binding.headerDevices, binding.headerBackup
     )
 
     // Explains what each control in the currently-open section actually does — many of these
     // toggles (Tunneled Playback, DV7 fallback, DoH, Extra Buffering...) are meaningful but
     // not self-explanatory to someone who isn't already familiar with streaming internals.
     private val sectionHelp = listOf(
-        // 0: Stream & EPG
+        // 0: Personalize & Experience
+        "Personalize MKTV: one place for how MKTV looks and behaves — viewing styles and Home's "
+            + "rows, theme, accent and card size with a live preview, channel numbers, and "
+            + "Senior Mode and profiles. Open studio, or jump straight to one of its tabs. Switch "
+            + "profile changes who's watching.\n\n"
+            + "Show USA Channels Only / English Movies & Series Only: filters live channels "
+            + "or VOD/series to just those tagged for that country/language by your "
+            + "provider — depends entirely on your provider's own naming, so may not work "
+            + "for every provider.\n\n"
+            + "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
+            + "screen — the content itself isn't deleted, just the tab.\n\n"
+            + "Auto-Clear Continue Watching: automatically removes an in-progress movie or "
+            + "show from Continue Watching once it's been untouched for the chosen number of "
+            + "days — it comes back automatically if you actually resume it later. Off by "
+            + "default.\n\n"
+            + "Accent Color: the highlight color used for selected tabs, buttons, toggles and "
+            + "progress bars — on this screen and throughout the app.\n\n"
+            + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
+            + "saves battery on OLED screens and looks better in a dark room. Requires an "
+            + "app restart to fully apply everywhere.\n\n"
+            + "Force TV Mode: uses the TV interface and D-pad navigation on this device even "
+            + "though it's not detected as a TV — for a car head unit/box or other non-standard "
+            + "screen. Restarts the app.\n\n"
+            + "Mosaic: watch up to 6 channels at once in a grid, with audio following whichever "
+            + "tile you select.\n\n"
+            + "Quick Actions: Sort Channels cycles the live channel order (Default, A-Z, "
+            + "Popular, Recent); Multi-view opens the Mosaic; Feature Tour goes back to the "
+            + "home screen and walks you through its tabs and buttons.",
+        // 1: Playback & Audio
         "Stream Format (TS/M3U8): which container the provider serves live channels in. TS "
             + "is the primary format; M3U8 is used as a fallback if TS fails.\n\n"
             + "Video Player: which app actually plays streams — the built-in player, an "
             + "installed external player (VLC/MX Player), or asking each time.\n\n"
-            + "EPG Refresh / Auto Refresh Schedule: how often the program guide data is "
-            + "re-downloaded from your provider in the background.\n\n"
-            + "Refresh only channels missing guide data: skips channels that already have "
-            + "EPG data, making refreshes faster.\n\n"
-            + "Provider Speed Test: measures how fast your current provider responds, to help "
-            + "compare multiple providers if you have them.\n\n"
             + "DNS over HTTPS (DoH): encrypts DNS lookups so your ISP can't see (or throttle "
             + "based on) which streaming domains you're connecting to.\n\n"
             + "Tunneled Playback: lets the device handle audio/video sync in hardware instead "
@@ -135,9 +158,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             + "Extra Buffering: builds up a bigger buffer before playback starts, "
             + "trading a slower start for fewer stalls mid-stream on slow/unreliable "
             + "connections. On by default.\n\n"
-            + "Remind Me Before a Show: how long before a program starts a Guide \"Remind Me\" "
-            + "notification fires — gives you time to actually switch over instead of finding "
-            + "out right as it starts.\n\n"
             + "Live Reconnect Speed: how fast a live channel keeps retrying after a "
             + "dropped/stalled connection. Aggressive retries quickly with a lower ceiling; "
             + "Patient waits longer between attempts — useful for slower or less reliable "
@@ -157,56 +177,59 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             + "language info — depends on your provider.\n\n"
             + "Subtitle Style (size, position, bold, colors, outline): customizes how subtitles "
             + "look during playback — lives under Audio & Subtitles alongside the language "
-            + "settings since both apply to subtitles.",
-        // 1: Display
-        "Show USA Channels Only / English Movies & Series Only: filters live channels "
-            + "or VOD/series to just those tagged for that country/language by your "
-            + "provider — depends entirely on your provider's own naming, so may not work "
-            + "for every provider.\n\n"
-            + "Show Movies/Series/Watching Tab: hides tabs you don't use to declutter the home "
-            + "screen — the content itself isn't deleted, just the tab.\n\n"
-            + "Auto-Clear Continue Watching: automatically removes an in-progress movie or "
-            + "show from Continue Watching once it's been untouched for the chosen number of "
-            + "days — it comes back automatically if you actually resume it later. Off by "
-            + "default.\n\n"
+            + "settings since both apply to subtitles.\n\n"
+            + "New Episode Notifications: checks your favorited shows once a day and notifies "
+            + "you when one gets a new episode.",
+        // 2: Providers & Guide
+        "Add, edit, or switch between multiple Xtream provider logins if you have more than "
+            + "one IPTV subscription — only one is active for playback at a time, but you "
+            + "can switch instantly without re-entering credentials.\n\n"
+            + "EPG Refresh / Auto Refresh Schedule: how often the program guide data is "
+            + "re-downloaded from your provider in the background.\n\n"
+            + "Refresh only channels missing guide data: skips channels that already have "
+            + "EPG data, making refreshes faster.\n\n"
+            + "Remind Me Before a Show: how long before a program starts a Guide \"Remind Me\" "
+            + "notification fires — gives you time to actually switch over instead of finding "
+            + "out right as it starts.\n\n"
+            + "Provider Speed Test: measures how fast your current provider responds, to help "
+            + "compare multiple providers if you have them.\n\n"
             + "Catalog — Refresh: re-downloads your primary provider's live channels, movies or "
             + "series right now instead of waiting for the automatic refresh.\n\n"
             + "Hidden Channels: lists every channel you hid from its long-press menu, on any "
             + "provider — tick the ones to bring back, or Unhide all.\n\n"
             + "Clear Favorite Channels: un-favorites every channel on your primary provider. "
             + "Favorites on other providers, folders, and movie/series favorites are not "
-            + "affected. Can't be undone.\n\n"
-            + "Accent Color: the highlight color used for selected tabs, buttons, toggles and "
-            + "progress bars — on this screen and throughout the app.\n\n"
-            + "AMOLED Black: forces pure black backgrounds everywhere instead of dark gray — "
-            + "saves battery on OLED screens and looks better in a dark room. Requires an "
-            + "app restart to fully apply everywhere.\n\n"
-            + "Force TV Mode: uses the TV interface and D-pad navigation on this device even "
-            + "though it's not detected as a TV — for a car head unit/box or other non-standard "
-            + "screen. Restarts the app.\n\n"
-            + "Mosaic: watch up to 6 channels at once in a grid, with audio following whichever "
-            + "tile you select.",
-        // 2: Providers
-        "Add, edit, or switch between multiple Xtream provider logins if you have more than "
-            + "one IPTV subscription — only one is active for playback at a time, but you "
-            + "can switch instantly without re-entering credentials.",
-        // 3: Backup & Restore
-        "Backup / Restore: saves your provider login, favorites, and settings to a file you "
-            + "choose (Downloads, Drive, USB, etc.), or loads them back in — useful before "
-            + "a factory reset or when moving to a new device. Nothing is uploaded "
-            + "anywhere automatically; you pick the exact file location yourself.\n\n"
-            + "Auto backup (weekly): does the same backup automatically once a week to that "
-            + "same chosen location, without you having to remember to do it manually.\n\n"
-            + "New Episode Notifications: checks your favorited shows once a day and notifies "
-            + "you when one gets a new episode.",
-        // 4: Sync
-        "Cross-Device Sync: keeps your favorites and watch history in sync across your "
+            + "affected. Can't be undone.",
+        // 3: Devices & Sync
+        "Paired MKTV Devices: TVs and phones on your home network that can pass what's "
+            + "playing to each other.\n\n"
+            + "Cross-Device Sync: keeps your favorites and watch history in sync across your "
             + "devices via a private Firebase-backed store — nothing public, only devices "
             + "using the same Pairing Code see each other's data.\n\n"
             + "Push to Cloud / Pull from Cloud: manually send this device's data up, or pull "
             + "another device's data down, instead of waiting for automatic sync.\n\n"
             + "Pairing Code: the code that links devices together — enter the same code on "
             + "every device you want kept in sync.\n\n"
+            + "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch "
+            + "in fullscreen are automatically tracked there — check trakt.tv itself (Currently "
+            + "Watching / History) to confirm it's working, since there's no local record in "
+            + "this app. Only counts something as \"watched\" once you've watched past "
+            + "roughly 80% of it, same as Trakt does everywhere else. Only tracks fullscreen "
+            + "playback, not the mini player.",
+        // 4: Backup & Updates
+        "Backup / Restore: saves your provider login, favorites, and settings to a file you "
+            + "choose (Downloads, Drive, USB, etc.), or loads them back in — useful before "
+            + "a factory reset or when moving to a new device. Nothing is uploaded "
+            + "anywhere automatically; you pick the exact file location yourself.\n\n"
+            + "Auto backup (weekly): does the same backup automatically once a week to that "
+            + "same chosen location, without you having to remember to do it manually.\n\n"
+            + "Check for Updates: manually checks for a new version right now instead of waiting "
+            + "for the automatic background check.\n\n"
+            + "What's New / Changelog: shows what changed in the current and past versions.\n\n"
+            + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
+            + "screen when the OS allows it, updating more seamlessly. Off by default since "
+            + "it bypasses a normal Android security prompt — only turn this on if you're "
+            + "comfortable with that.\n\n"
             + "Automatic Crash Reporting: automatically sends crash details so bugs can be found "
             + "and fixed without you needing to send a debug report. No account info is "
             + "included.\n\n"
@@ -215,151 +238,137 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             + "are shared anonymously so other users can see \"N people reported issues with "
             + "this channel recently\". No account info is included.\n\n"
             + "Send Debug Report: uploads device info and recent playback error logs so a "
-            + "problem can be diagnosed — no account credentials are included.\n\n"
-            + "Connect Trakt: links your Trakt.tv account so movies and TV episodes you watch "
-            + "in fullscreen are automatically tracked there — check trakt.tv itself (Currently "
-            + "Watching / History) to confirm it's working, since there's no local record in "
-            + "this app. Only counts something as \"watched\" once you've watched past "
-            + "roughly 80% of it, same as Trakt does everywhere else. Only tracks fullscreen "
-            + "playback, not the mini player.",
-        // 5: Updates
-        "Check for Updates: manually checks for a new version right now instead of waiting "
-            + "for the automatic background check.\n\n"
-            + "What's New / Changelog: shows what changed in the current and past versions.\n\n"
-            + "Silent Self-Update: on Android 12+, skips the \"Install update?\" confirmation "
-            + "screen when the OS allows it, updating more seamlessly. Off by default since "
-            + "it bypasses a normal Android security prompt — only turn this on if you're "
-            + "comfortable with that.\n\n"
-            + "Quick Actions: Sort Channels cycles the live channel order (Default, A-Z, "
-            + "Popular, Recent); Multi-view opens the Mosaic; Feature Tour goes back to the "
-            + "home screen and walks you through its tabs and buttons."
+            + "problem can be diagnosed — no account credentials are included."
     )
 
     // ─── Search ─────────────────────────────────────────────────────────────
     // Hand-mapped rather than parsed from the layout — row labels and view ids don't follow one
     // convention that could be walked automatically.
-    // Each entry: (label, panel index into panelViews/navButtonViews, disclosure row to open
-    // first if the setting sits inside one (null otherwise), target view to scroll to and
-    // highlight). A target that's a toggle resolves to its whole row (see jumpToSettingSearchResult).
-    private data class SettingSearchEntry(val label: String, val panelIndex: Int, val headerId: Int?, val targetId: Int)
+    // Each entry: (label, disclosure row to open first if the setting sits inside one (null
+    // otherwise), target view to scroll to and highlight). The tab is the one whose panel holds
+    // the target (panelOf), so moving a group to another tab needs no change here. A target
+    // that's a toggle resolves to its whole row (see jumpToSettingSearchResult).
+    private data class SettingSearchEntry(val label: String, val headerId: Int?, val targetId: Int)
 
     private val settingSearchIndex: List<SettingSearchEntry> by lazy {
         listOf(
-            SettingSearchEntry("EPG Refresh", 0, null, R.id.btnRefreshEpg),
-            SettingSearchEntry("Refresh Only Missing Guide Data", 0, null, R.id.cbRefreshMissingOnly),
-            SettingSearchEntry("EPG Health / Fix TV Guide", 0, null, R.id.rowEpgHealth),
-            SettingSearchEntry("Auto Refresh Schedule", 0, null, R.id.rgAutoEpgRefresh),
-            SettingSearchEntry("Remind Me Lead Time", 0, null, R.id.rowReminderLeadTime),
-            SettingSearchEntry("Show Alerts", 0, null, R.id.rowShowAlerts),
-            SettingSearchEntry("EPG URL", 0, R.id.hdrEpgUrl, R.id.hdrEpgUrl),
-            SettingSearchEntry("Default US Guide", 0, R.id.hdrEpgUrl, R.id.cbUseDefaultUsEpg),
-            SettingSearchEntry("Stream Format", 0, null, R.id.rgFormat),
-            SettingSearchEntry("Video Player", 0, null, R.id.rgPlayer),
-            SettingSearchEntry("Autoplay Next Episode", 0, null, R.id.switchAutoplayNextEpisode),
-            SettingSearchEntry("Use the Most Reliable Copy", 0, null, R.id.switchPreferReliableCopy),
-            SettingSearchEntry("Tunneled Playback", 0, null, R.id.switchTunneledPlayback),
-            SettingSearchEntry("Dolby Vision Fallback", 0, null, R.id.switchDv7Fallback),
-            SettingSearchEntry("Audio Passthrough Fallback", 0, null, R.id.switchAudioPassthroughFallback),
-            SettingSearchEntry("Preferred Audio Language", 0, R.id.hdrLanguage, R.id.spinnerAudioLanguage),
-            SettingSearchEntry("Preferred Subtitle Language", 0, R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),
-            SettingSearchEntry("OpenSubtitles", 0, R.id.hdrLanguage, R.id.rowOpenSubtitles),
-            SettingSearchEntry("Subtitle Size", 0, R.id.hdrLanguage, R.id.rowSubSize),
-            SettingSearchEntry("Subtitle Position", 0, R.id.hdrLanguage, R.id.rowSubOffset),
-            SettingSearchEntry("Subtitle Text Color", 0, R.id.hdrLanguage, R.id.rowSubTextColor),
-            SettingSearchEntry("Subtitle Background Color", 0, R.id.hdrLanguage, R.id.rowSubBgColor),
-            SettingSearchEntry("Subtitle Outline", 0, R.id.hdrLanguage, R.id.cbSubOutline),
-            SettingSearchEntry("Extra Buffering", 0, null, R.id.switchExtraBuffering),
-            SettingSearchEntry("Automatic Backup Feed", 0, null, R.id.switchAutoBackupFeed),
-            SettingSearchEntry("Combine Duplicate Channels", 0, null, R.id.switchCombineDuplicates),
-            SettingSearchEntry("Smart Channels", 0, null, R.id.rowSmartChannels),
-            SettingSearchEntry("Automatic Backup", 0, null, R.id.rowSmartBackup),
-            SettingSearchEntry("Preferred Source", 0, null, R.id.rowSmartPreferred),
-            SettingSearchEntry("Manage Smart Channels", 0, null, R.id.rowManageSmartChannels),
-            SettingSearchEntry("Timeshift", 0, null, R.id.rowTimeshift),
-            SettingSearchEntry("Picture", 0, null, R.id.rowPictureMode),
-            SettingSearchEntry("Sports mode", 0, null, R.id.rowSportsMode),
-            SettingSearchEntry("Match frame rate", 0, null, R.id.rowFrameRateMatch),
-            SettingSearchEntry("Seek preview pictures", 0, null, R.id.switchSeekPreview),
-            SettingSearchEntry("Pictures on one-stream accounts", 0, null, R.id.switchSeekPreviewOneStream),
-            SettingSearchEntry("Score overlay", 0, null, R.id.switchSportsScore),
-            SettingSearchEntry("Favorite teams", 0, null, R.id.rowFavoriteTeams),
-            SettingSearchEntry("Game alerts", 0, null, R.id.switchGameAlerts),
-            SettingSearchEntry("Live scores", 0, null, R.id.switchLiveScores),
-            SettingSearchEntry("Live Reconnect Speed", 0, null, R.id.rowLiveReconnectSpeed),
-            SettingSearchEntry("Turbo Tune", 0, null, R.id.rowTurboTune),
-            SettingSearchEntry("Channel Change Speed", 0, null, R.id.rowChannelZapSpeed),
-            SettingSearchEntry("Pre-warm Streams on Focus", 0, null, R.id.switchPreWarmOnFocus),
-            SettingSearchEntry("Data Saver", 0, null, R.id.switchDataSaver),
-            SettingSearchEntry("DNS over HTTPS", 0, null, R.id.cbDohEnabled),
-            SettingSearchEntry("Provider Speed Test", 0, null, R.id.btnSpeedTest),
-            SettingSearchEntry("Picture-in-Picture", 0, null, R.id.switchPipEnabled),
-            SettingSearchEntry("Live Channel Preview", 0, null, R.id.switchLiveChannelPreview),
-            // These two had panel 0 here before, but they live in Display (panel 1).
-            SettingSearchEntry("Show USA Channels Only", 1, null, R.id.cbUsaOnlyChannels),
-            SettingSearchEntry("Show English Movies & Series Only", 1, null, R.id.cbEnglishOnlyMovies),
-            SettingSearchEntry("Channels & Tabs", 1, null, R.id.cbUsaOnlyChannels),
-            SettingSearchEntry("Show Movies Tab", 1, null, R.id.cbShowMovies),
-            SettingSearchEntry("Show Series Tab", 1, null, R.id.cbShowSeries),
-            SettingSearchEntry("Show Watching Tab", 1, null, R.id.cbShowWatching),
-            SettingSearchEntry("Show Providers Tab", 1, null, R.id.cbShowProviders),
-            SettingSearchEntry("Customize Home", 1, null, R.id.rowCustomizeHome),
-            SettingSearchEntry("Start Screen", 1, null, R.id.rowCustomizeHome),
-            SettingSearchEntry("Hide Home Tab", 1, null, R.id.rowCustomizeHome),
-            SettingSearchEntry("Customize Sidebar Sections", 1, null, R.id.rowCustomizeSidebar),
-            SettingSearchEntry("Auto-Clear Continue Watching", 1, null, R.id.rowAutoClearContinueWatching),
-            SettingSearchEntry("Refresh Channels, Movies or Series", 1, null, R.id.btnRefreshChannels),
-            SettingSearchEntry("Hidden Channels", 1, null, R.id.rowHiddenChannels),
-            SettingSearchEntry("Clear Favorite Channels", 1, null, R.id.btnClearFavoriteChannels),
-            SettingSearchEntry("Accent Color", 1, null, R.id.accentColorRow),
-            SettingSearchEntry("Base Theme", 1, null, R.id.baseThemeRow),
-            SettingSearchEntry("OLED Pure Black", 1, null, R.id.baseThemeRow),
-            SettingSearchEntry("Midnight Navy", 1, null, R.id.baseThemeRow),
-            SettingSearchEntry("Charcoal Dark", 1, null, R.id.baseThemeRow),
-            SettingSearchEntry("Force TV Mode", 1, null, R.id.switchForceTvMode),
-            SettingSearchEntry("High-Visibility / Senior Mode", 1, null, R.id.switchSeniorMode),
-            SettingSearchEntry("Accessibility", 1, null, R.id.switchSeniorMode),
-            SettingSearchEntry("Text Size / Large Print", 1, null, R.id.rgTextSize),
-            SettingSearchEntry("Banner Display Time", 1, null, R.id.rgBannerTime),
-            SettingSearchEntry("High-Contrast Focus Outline", 1, null, R.id.switchHighContrastFocus),
-            SettingSearchEntry("Channel Numbers / Numbering (LCN)", 1, null, R.id.rowLcnMode),
-            SettingSearchEntry("Tune by Number / Number Keys", 1, null, R.id.switchDirectNumberTuning),
-            SettingSearchEntry("Auto-Number Favorites", 1, null, R.id.btnAutoNumberFavorites),
-            SettingSearchEntry("Mosaic", 1, null, R.id.btnOpenMosaic),
-            SettingSearchEntry("Add Provider", 2, null, R.id.btnAddServer),
-            SettingSearchEntry("Backup", 3, null, R.id.btnBackupSettings),
-            SettingSearchEntry("Restore", 3, null, R.id.btnRestoreSettings),
-            SettingSearchEntry("Auto backup", 3, null, R.id.switchAutoBackup),
-            SettingSearchEntry("Manage Backups", 3, null, R.id.btnManageBackups),
-            SettingSearchEntry("Auto-preview Movies", 3, null, R.id.switchVodAutoPreview),
-            SettingSearchEntry("Monthly Data Cap", 3, null, R.id.btnBandwidthBudget),
-            SettingSearchEntry("New Episode Notifications", 3, null, R.id.switchNewEpisodeNotifications),
-            SettingSearchEntry("Cross-Device Sync", 4, null, R.id.switchSyncEnabled),
-            SettingSearchEntry("Paired MKTV Devices (Send to TV / phone)", 4, null, R.id.rowPairedDevices),
-            SettingSearchEntry("Push to Cloud", 4, null, R.id.btnSyncUp),
-            SettingSearchEntry("Pull from Cloud", 4, null, R.id.btnSyncDown),
-            SettingSearchEntry("Pairing Code", 4, null, R.id.etGithubToken),
-            SettingSearchEntry("Join Watch Party", 4, null, R.id.btnJoinWatchParty),
-            SettingSearchEntry("Diagnostics", 4, null, R.id.switchCrashReporting),
-            SettingSearchEntry("Crash Reporting", 4, null, R.id.switchCrashReporting),
-            SettingSearchEntry("Send Debug Report", 4, null, R.id.btnSendDebugReport),
-            SettingSearchEntry("Provider Health", 4, null, R.id.btnProviderHealth),
-            SettingSearchEntry("Data Usage", 4, null, R.id.btnDataUsage),
-            SettingSearchEntry("Watch Stats", 4, null, R.id.btnWatchStats),
-            SettingSearchEntry("LAN Export", 4, null, R.id.btnLanExport),
-            SettingSearchEntry("Receive a Cast", 4, null, R.id.btnReceiveCast),
+            SettingSearchEntry("EPG Refresh", null, R.id.btnRefreshEpg),
+            SettingSearchEntry("Refresh Only Missing Guide Data", null, R.id.cbRefreshMissingOnly),
+            SettingSearchEntry("EPG Health / Fix TV Guide", null, R.id.rowEpgHealth),
+            SettingSearchEntry("Auto Refresh Schedule", null, R.id.rgAutoEpgRefresh),
+            SettingSearchEntry("Remind Me Lead Time", null, R.id.rowReminderLeadTime),
+            SettingSearchEntry("Show Alerts", null, R.id.rowShowAlerts),
+            SettingSearchEntry("EPG URL", R.id.hdrEpgUrl, R.id.hdrEpgUrl),
+            SettingSearchEntry("Default US Guide", R.id.hdrEpgUrl, R.id.cbUseDefaultUsEpg),
+            SettingSearchEntry("Stream Format", null, R.id.rgFormat),
+            SettingSearchEntry("Video Player", null, R.id.rgPlayer),
+            SettingSearchEntry("Autoplay Next Episode", null, R.id.switchAutoplayNextEpisode),
+            SettingSearchEntry("Use the Most Reliable Copy", null, R.id.switchPreferReliableCopy),
+            SettingSearchEntry("Tunneled Playback", null, R.id.switchTunneledPlayback),
+            SettingSearchEntry("Dolby Vision Fallback", null, R.id.switchDv7Fallback),
+            SettingSearchEntry("Audio Passthrough Fallback", null, R.id.switchAudioPassthroughFallback),
+            SettingSearchEntry("Preferred Audio Language", R.id.hdrLanguage, R.id.spinnerAudioLanguage),
+            SettingSearchEntry("Preferred Subtitle Language", R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),
+            SettingSearchEntry("OpenSubtitles", R.id.hdrLanguage, R.id.rowOpenSubtitles),
+            SettingSearchEntry("Subtitle Size", R.id.hdrLanguage, R.id.rowSubSize),
+            SettingSearchEntry("Subtitle Position", R.id.hdrLanguage, R.id.rowSubOffset),
+            SettingSearchEntry("Subtitle Text Color", R.id.hdrLanguage, R.id.rowSubTextColor),
+            SettingSearchEntry("Subtitle Background Color", R.id.hdrLanguage, R.id.rowSubBgColor),
+            SettingSearchEntry("Subtitle Outline", R.id.hdrLanguage, R.id.cbSubOutline),
+            SettingSearchEntry("Extra Buffering", null, R.id.switchExtraBuffering),
+            SettingSearchEntry("Automatic Backup Feed", null, R.id.switchAutoBackupFeed),
+            SettingSearchEntry("Combine Duplicate Channels", null, R.id.switchCombineDuplicates),
+            SettingSearchEntry("Smart Channels", null, R.id.rowSmartChannels),
+            SettingSearchEntry("Automatic Backup", null, R.id.rowSmartBackup),
+            SettingSearchEntry("Preferred Source", null, R.id.rowSmartPreferred),
+            SettingSearchEntry("Manage Smart Channels", null, R.id.rowManageSmartChannels),
+            SettingSearchEntry("Timeshift", null, R.id.rowTimeshift),
+            SettingSearchEntry("Picture", null, R.id.rowPictureMode),
+            SettingSearchEntry("Sports mode", null, R.id.rowSportsMode),
+            SettingSearchEntry("Match frame rate", null, R.id.rowFrameRateMatch),
+            SettingSearchEntry("Seek preview pictures", null, R.id.switchSeekPreview),
+            SettingSearchEntry("Pictures on one-stream accounts", null, R.id.switchSeekPreviewOneStream),
+            SettingSearchEntry("Score overlay", null, R.id.switchSportsScore),
+            SettingSearchEntry("Favorite teams", null, R.id.rowFavoriteTeams),
+            SettingSearchEntry("Game alerts", null, R.id.switchGameAlerts),
+            SettingSearchEntry("Live scores", null, R.id.switchLiveScores),
+            SettingSearchEntry("Live Reconnect Speed", null, R.id.rowLiveReconnectSpeed),
+            SettingSearchEntry("Turbo Tune", null, R.id.rowTurboTune),
+            SettingSearchEntry("Channel Change Speed", null, R.id.rowChannelZapSpeed),
+            SettingSearchEntry("Pre-warm Streams on Focus", null, R.id.switchPreWarmOnFocus),
+            SettingSearchEntry("Data Saver", null, R.id.switchDataSaver),
+            SettingSearchEntry("DNS over HTTPS", null, R.id.cbDohEnabled),
+            SettingSearchEntry("Provider Speed Test", null, R.id.btnSpeedTest),
+            SettingSearchEntry("Picture-in-Picture", null, R.id.switchPipEnabled),
+            SettingSearchEntry("Live Channel Preview", null, R.id.switchLiveChannelPreview),
+            SettingSearchEntry("Show USA Channels Only", null, R.id.cbUsaOnlyChannels),
+            SettingSearchEntry("Show English Movies & Series Only", null, R.id.cbEnglishOnlyMovies),
+            SettingSearchEntry("Channels & Tabs", null, R.id.cbUsaOnlyChannels),
+            SettingSearchEntry("Show Movies Tab", null, R.id.cbShowMovies),
+            SettingSearchEntry("Show Series Tab", null, R.id.cbShowSeries),
+            SettingSearchEntry("Show Watching Tab", null, R.id.cbShowWatching),
+            SettingSearchEntry("Show Providers Tab", null, R.id.cbShowProviders),
+            SettingSearchEntry("Personalize MKTV", null, R.id.cardPersonalizeStudio),
+            SettingSearchEntry("Customize Home", null, R.id.cardPersonalizeStudio),
+            SettingSearchEntry("Viewing Style", null, R.id.cardPersonalizeStudio),
+            SettingSearchEntry("Start Screen", null, R.id.cardPersonalizeStudio),
+            SettingSearchEntry("Hide Home Tab", null, R.id.cardPersonalizeStudio),
+            SettingSearchEntry("Switch Profile", null, R.id.btnSettingsSwitchProfile),
+            SettingSearchEntry("Customize Sidebar Sections", null, R.id.rowCustomizeSidebar),
+            SettingSearchEntry("Auto-Clear Continue Watching", null, R.id.rowAutoClearContinueWatching),
+            SettingSearchEntry("Refresh Channels, Movies or Series", null, R.id.btnRefreshChannels),
+            SettingSearchEntry("Hidden Channels", null, R.id.rowHiddenChannels),
+            SettingSearchEntry("Clear Favorite Channels", null, R.id.btnClearFavoriteChannels),
+            SettingSearchEntry("Accent Color", null, R.id.accentColorRow),
+            SettingSearchEntry("Base Theme", null, R.id.baseThemeRow),
+            SettingSearchEntry("OLED Pure Black", null, R.id.baseThemeRow),
+            SettingSearchEntry("Midnight Navy", null, R.id.baseThemeRow),
+            SettingSearchEntry("Charcoal Dark", null, R.id.baseThemeRow),
+            SettingSearchEntry("Force TV Mode", null, R.id.switchForceTvMode),
+            SettingSearchEntry("High-Visibility / Senior Mode", null, R.id.switchSeniorMode),
+            SettingSearchEntry("Accessibility", null, R.id.switchSeniorMode),
+            SettingSearchEntry("Text Size / Large Print", null, R.id.rgTextSize),
+            SettingSearchEntry("Banner Display Time", null, R.id.rgBannerTime),
+            SettingSearchEntry("High-Contrast Focus Outline", null, R.id.switchHighContrastFocus),
+            SettingSearchEntry("Channel Numbers / Numbering (LCN)", null, R.id.rowLcnMode),
+            SettingSearchEntry("Tune by Number / Number Keys", null, R.id.switchDirectNumberTuning),
+            SettingSearchEntry("Auto-Number Favorites", null, R.id.btnAutoNumberFavorites),
+            SettingSearchEntry("Mosaic", null, R.id.btnOpenMosaic),
+            SettingSearchEntry("Add Provider", null, R.id.btnAddServer),
+            SettingSearchEntry("Backup", null, R.id.btnBackupSettings),
+            SettingSearchEntry("Restore", null, R.id.btnRestoreSettings),
+            SettingSearchEntry("Auto backup", null, R.id.switchAutoBackup),
+            SettingSearchEntry("Manage Backups", null, R.id.btnManageBackups),
+            SettingSearchEntry("Auto-preview Movies", null, R.id.switchVodAutoPreview),
+            SettingSearchEntry("Monthly Data Cap", null, R.id.btnBandwidthBudget),
+            SettingSearchEntry("New Episode Notifications", null, R.id.switchNewEpisodeNotifications),
+            SettingSearchEntry("Cross-Device Sync", null, R.id.switchSyncEnabled),
+            SettingSearchEntry("Paired MKTV Devices (Send to TV / phone)", null, R.id.rowPairedDevices),
+            SettingSearchEntry("Push to Cloud", null, R.id.btnSyncUp),
+            SettingSearchEntry("Pull from Cloud", null, R.id.btnSyncDown),
+            SettingSearchEntry("Pairing Code", null, R.id.etGithubToken),
+            SettingSearchEntry("Join Watch Party", null, R.id.btnJoinWatchParty),
+            SettingSearchEntry("Diagnostics", null, R.id.switchCrashReporting),
+            SettingSearchEntry("Crash Reporting", null, R.id.switchCrashReporting),
+            SettingSearchEntry("Send Debug Report", null, R.id.btnSendDebugReport),
+            SettingSearchEntry("Provider Health", null, R.id.btnProviderHealth),
+            SettingSearchEntry("Data Usage", null, R.id.btnDataUsage),
+            SettingSearchEntry("Watch Stats", null, R.id.btnWatchStats),
+            SettingSearchEntry("LAN Export", null, R.id.btnLanExport),
+            SettingSearchEntry("Receive a Cast", null, R.id.btnReceiveCast),
             // tvTraktStatus rather than the Trakt buttons: which of those is visible depends on
             // whether Trakt is connected, and a hidden view has no position to scroll to.
-            SettingSearchEntry("Connect Trakt", 4, null, R.id.tvTraktStatus),
-            SettingSearchEntry("Sync Watched History from Trakt", 4, null, R.id.tvTraktStatus),
-            SettingSearchEntry("Check for Updates", 5, null, R.id.btnCheckUpdate),
-            SettingSearchEntry("What's New / Changelog", 5, null, R.id.btnWhatsNew),
-            SettingSearchEntry("Silent Self-Update", 5, null, R.id.switchSilentSelfUpdate),
+            SettingSearchEntry("Connect Trakt", null, R.id.tvTraktStatus),
+            SettingSearchEntry("Sync Watched History from Trakt", null, R.id.tvTraktStatus),
+            SettingSearchEntry("Check for Updates", null, R.id.btnCheckUpdate),
+            SettingSearchEntry("What's New / Changelog", null, R.id.btnWhatsNew),
+            SettingSearchEntry("Silent Self-Update", null, R.id.switchSilentSelfUpdate),
             // These four had panel 1 here before, but they live in Updates (panel 5).
-            SettingSearchEntry("Quick Actions", 5, null, R.id.btnSettingsSort),
-            SettingSearchEntry("Sort Channels", 5, null, R.id.btnSettingsSort),
-            SettingSearchEntry("Android TV Home Integration", 5, null, R.id.btnTvHomeIntegration),
-            SettingSearchEntry("Multi-view / Mosaic", 5, null, R.id.btnSettingsMosaic),
-            SettingSearchEntry("Feature Tour", 5, null, R.id.btnFeatureTour)
+            SettingSearchEntry("Quick Actions", null, R.id.btnSettingsSort),
+            SettingSearchEntry("Sort Channels", null, R.id.btnSettingsSort),
+            SettingSearchEntry("Android TV Home Integration", null, R.id.btnTvHomeIntegration),
+            SettingSearchEntry("Multi-view / Mosaic", null, R.id.btnSettingsMosaic),
+            SettingSearchEntry("Feature Tour", null, R.id.btnFeatureTour)
         )
     }
 
@@ -409,10 +418,24 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         dialog.show()
     }
 
+    /** The tab whose panel holds [view] (the first one when it is in none). */
+    private fun panelOf(view: View): Int {
+        val panels = panelViews
+        var v: View? = view
+        while (v != null) {
+            val i = panels.indexOf(v)
+            if (i >= 0) return i
+            v = v.parent as? View
+        }
+        return 0
+    }
+
     private fun jumpToSettingSearchResult(match: SettingSearchEntry) {
         // Same path as tapping the tab, so the active tab's accent styling stays consistent.
-        navButtonViews.getOrNull(match.panelIndex)?.performClick()
-        val panel = panelViews.getOrNull(match.panelIndex) as? android.widget.ScrollView ?: return
+        val found = findViewById<View>(match.targetId) ?: return
+        val index = panelOf(found)
+        navButtonViews.getOrNull(index)?.performClick()
+        val panel = panelViews.getOrNull(index) as? android.widget.ScrollView ?: return
         // The two disclosure rows are the only things left that can hide a setting.
         if (match.headerId != null) {
             val bodyId = when (match.headerId) {
@@ -424,7 +447,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             if (body != null && body.visibility == View.GONE) findViewById<View>(match.headerId)?.performClick()
         }
         // A toggle isn't a focus / touch target of its own any more — its row is.
-        val found = findViewById<View>(match.targetId) ?: return
         val target = (found.parent as? View)?.takeIf { it.tag == TAG_TOGGLE_ROW } ?: found
         // Scroll once the layout pass that the tab switch / disclosure above just queued has run,
         // by the target's position within the whole panel. (target.top alone is relative to its
@@ -744,9 +766,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             lifecycleScope.launch { prefs.setShowProviders(isChecked) }
         }
 
-        binding.rowCustomizeHome.setOnClickListener {
-            com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv = isLargeScreenDevice())
-        }
+        setupPersonalizeCard()
         // The sidebar is the TV home screen's; phones have tabs instead.
         binding.rowCustomizeSidebar.visibility = if (isLargeScreenDevice()) View.VISIBLE else View.GONE
         binding.rowCustomizeSidebar.setOnClickListener { com.iptvapp.ui.home.TvSidebarCustomizeActivity.open(this) }
@@ -898,7 +918,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         // Rebuilt for a new text size: back on the setting that was changed.
         intent.getIntExtra(EXTRA_A11Y_RETURN_TO, 0).takeIf { it != 0 }?.let { id ->
             intent.removeExtra(EXTRA_A11Y_RETURN_TO)
-            jumpToSettingSearchResult(SettingSearchEntry("", 1, null, id))
+            jumpToSettingSearchResult(SettingSearchEntry("", null, id))
         }
         setupBackupRestore()
         setupServers()
@@ -1177,13 +1197,51 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Back from Customize Home → THEME…: the base theme may have changed there.
+        // Back from Personalize MKTV: the base theme may have changed there.
         val saved = prefs.baseThemeNow()
         if (saved != currentBaseTheme) {
             currentBaseTheme = saved
             com.iptvapp.util.ThemeEngine.apply(this, binding.root, saved)
             setupBaseThemePicker()
         }
+        // ...and the accent, the viewing style or the profile.
+        lifecycleScope.launch {
+            val start = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
+            val end = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
+            if (start != currentAccentColor || end != currentAccentColorEnd) {
+                currentAccentColor = start
+                currentAccentColorEnd = end
+                setupAccentPicker()
+                applyAccentToSettings()
+            }
+            renderPersonalizeCard()
+        }
+    }
+
+    // ─── Personalize MKTV card ──────────────────────────────────────────────
+    @Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
+
+    /** The studio card: Open studio, a jump to each of its tabs, and Switch profile. */
+    private fun setupPersonalizeCard() {
+        val tv = isLargeScreenDevice()
+        binding.btnOpenStudio.setOnClickListener { com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv) }
+        listOf(binding.btnJumpLayout, binding.btnJumpAppearance, binding.btnJumpRemote, binding.btnJumpAccessibility)
+            .forEachIndexed { tab, btn -> btn.setOnClickListener { com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv, tab) } }
+        binding.btnSettingsSwitchProfile.setOnClickListener {
+            com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
+        }
+        renderPersonalizeCard()
+    }
+
+    /** "Viewing style: Classic Cable · Theme: OLED Black · Profile: Emjay", and the profile in use. */
+    private fun renderPersonalizeCard() {
+        val persona = getString(prefs.viewingPersonaNow(isLargeScreenDevice()).titleRes)
+        val theme = getString(prefs.baseThemeNow().titleRes)
+        val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull()
+        binding.tvStudioSummary.text = getString(R.string.settings_studio_summary, persona, theme, profile?.name ?: "—")
+        binding.tvSettingsProfileName.text = profile?.let {
+            if (it.isKids) getString(R.string.settings_studio_profile_kids, it.name) else it.name
+        } ?: "—"
     }
 
     // Accessibility (High-Visibility / Senior Mode): the master switch sets the other three; each
@@ -1936,7 +1994,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 swipeDownX = ev.rawX
                 swipeDownY = ev.rawY
                 swiping = false
-                val panels = binding.sectionStream.parent as View
+                val panels = binding.sectionPlayback.parent as View
                 val loc = IntArray(2).also { panels.getLocationOnScreen(it) }
                 swipeTracking = ev.rawX >= loc[0] && ev.rawX < loc[0] + panels.width &&
                     ev.rawY >= loc[1] && ev.rawY < loc[1] + panels.height

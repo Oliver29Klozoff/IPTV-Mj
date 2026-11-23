@@ -179,7 +179,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- TABS — the six panel tabs are restyled at runtime by SettingsActivity.styleNavTab (the
+    <!-- TABS — the five panel tabs (and Recordings, which opens its own screen) are restyled at runtime by SettingsActivity.styleNavTab (the
          active one gets the accent). Scrolls sideways on a phone, fading out at the right edge. -->
     <HorizontalScrollView
         android:id="@+id/settingsNavRail"
@@ -196,29 +196,29 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
             <Button
-                android:id="@+id/headerStream"
+                android:id="@+id/headerPersonalize"
                 style="@style/Rack.Tab"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
-                android:text="Stream &amp; EPG" />
+                android:text="Personalize" />
             <Button
-                android:id="@+id/headerDisplay"
+                android:id="@+id/headerPlayback"
                 style="@style/Rack.Tab"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
-                android:text="Display" />
+                android:text="Playback &amp; Audio" />
             <Button
-                android:id="@+id/headerServers"
+                android:id="@+id/headerProviders"
                 style="@style/Rack.Tab"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
-                android:text="Providers" />
+                android:text="Providers &amp; Guide" />
             <!-- Not a panel: opens the Recording Scheduler (hence the ↗ marker). -->
             <Button
                 android:id="@+id/headerRecordings"
@@ -229,29 +229,21 @@
                 android:focusableInTouchMode="false"
                 android:text="Recordings" />
             <Button
+                android:id="@+id/headerDevices"
+                style="@style/Rack.Tab"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:focusable="true"
+                android:focusableInTouchMode="false"
+                android:text="Devices &amp; Sync" />
+            <Button
                 android:id="@+id/headerBackup"
                 style="@style/Rack.Tab"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:focusable="true"
                 android:focusableInTouchMode="false"
-                android:text="Backup" />
-            <Button
-                android:id="@+id/headerSync"
-                style="@style/Rack.Tab"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:text="Sync" />
-            <Button
-                android:id="@+id/headerUpdates"
-                style="@style/Rack.Tab"
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:focusable="true"
-                android:focusableInTouchMode="false"
-                android:text="Updates" />
+                android:text="Backup &amp; Updates" />
         </LinearLayout>
     </HorizontalScrollView>
 
@@ -261,9 +253,9 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- STREAM & EPG PANEL -->
+        <!-- PERSONALIZE & EXPERIENCE PANEL — the Personalize MKTV card first, then the display settings. -->
         <ScrollView
-            android:id="@+id/sectionStream"
+            android:id="@+id/sectionPersonalize"
             style="@style/Rack.Panel"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -273,7 +265,115 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <!-- GUIDE (EPG) — first on purpose: Refresh is the control reached for most. -->
+                <!-- PERSONALIZE MKTV: the studio, a jump to each of its tabs, and who's watching.
+                     Wired by SettingsActivity.setupPersonalizeCard. -->
+                <LinearLayout
+                    android:id="@+id/cardPersonalizeStudio"
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_studio_heading" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/settings_studio_heading" />
+                                <TextView
+                                    android:id="@+id/tvStudioSummary"
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnOpenStudio"
+                                style="@style/Rack.Button.Primary"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/settings_studio_open" />
+                        </LinearLayout>
+                        <!-- Straight to one of the studio's tabs. -->
+                        <com.iptvapp.ui.settings.FlowLayout
+                            android:id="@+id/studioJumps"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="16dp"
+                            android:paddingEnd="16dp"
+                            android:paddingBottom="12dp">
+                            <Button
+                                android:id="@+id/btnJumpLayout"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:text="@string/studio_tab_layout" />
+                            <Button
+                                android:id="@+id/btnJumpAppearance"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:text="@string/studio_tab_look" />
+                            <Button
+                                android:id="@+id/btnJumpRemote"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:text="@string/studio_tab_remote" />
+                            <Button
+                                android:id="@+id/btnJumpAccessibility"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:text="@string/studio_tab_access" />
+                        </com.iptvapp.ui.settings.FlowLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/studio_profiles_heading" />
+                                <TextView
+                                    android:id="@+id/tvSettingsProfileName"
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <Button
+                                android:id="@+id/btnSettingsSwitchProfile"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="12dp"
+                                android:text="@string/settings_studio_switch_profile" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- CHANNELS & TABS -->
                 <LinearLayout
                     style="@style/Rack.Group"
                     android:layout_width="match_parent"
@@ -282,84 +382,147 @@
                         style="@style/Rack.GroupTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Guide (EPG)" />
+                        android:text="Channels &amp; tabs" />
                     <LinearLayout
                         style="@style/Rack.GroupBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
                         <LinearLayout
+                            style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <LinearLayout
-                                style="@style/Rack.Row"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <LinearLayout
-                                    style="@style/Rack.RowText"
-                                    android:layout_width="0dp"
-                                    android:layout_weight="1"
-                                    android:layout_height="wrap_content">
-                                    <TextView
-                                        style="@style/Rack.Label"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Refresh guide now" />
-                                    <TextView
-                                        android:id="@+id/tvLastEpgRefresh"
-                                        style="@style/Rack.Helper"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Not refreshed yet" />
-                                    <TextView
-                                        android:id="@+id/tvEpgCacheAge"
-                                        style="@style/Rack.Helper"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Guide data: unknown" />
-                                </LinearLayout>
-                                <Button
-                                    android:id="@+id/btnRefreshEpg"
-                                    style="@style/Rack.Button.Primary"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="44dp"
-                                    android:layout_marginStart="12dp"
-                                    android:text="Refresh" />
-                            </LinearLayout>
-                            <ProgressBar
-                                android:id="@+id/progressEpgRefresh"
-                                style="?android:attr/progressBarStyleHorizontal"
-                                android:layout_width="match_parent"
-                                android:layout_height="4dp"
-                                android:layout_marginStart="16dp"
-                                android:layout_marginEnd="16dp"
-                                android:layout_marginBottom="10dp"
-                                android:max="100"
-                                android:progress="0"
-                                android:progressBackgroundTint="@color/rack_control_off"
-                                android:progressTint="@color/oled_cyan_primary"
-                                android:visibility="gone" />
+                            android:layout_height="wrap_content">
                             <TextView
-                                android:id="@+id/tvEpgRefreshStatus"
-                                style="@style/Rack.Note"
-                                android:layout_width="match_parent"
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:paddingStart="16dp"
-                                android:paddingEnd="16dp"
-                                android:paddingBottom="12dp"
-                                android:text="" />
-                            <Button
-                                android:id="@+id/btnCancelEpgRefresh"
-                                style="@style/Rack.Button.Neutral"
+                                android:layout_weight="1"
+                                android:text="Show USA channels only" />
+                            <CheckBox
+                                android:id="@+id/cbUsaOnlyChannels"
+                                style="@style/Rack.CheckToggle"
                                 android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="16dp"
-                                android:layout_marginBottom="12dp"
-                                android:text="Cancel refresh"
-                                android:visibility="gone" />
+                                android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
-                            android:id="@+id/rowEpgHealth"
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Show English movies &amp; series only" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Experimental — needs your provider to tag categories EN, ENG, ENGLISH, US or USA" />
+                            </LinearLayout>
+                            <CheckBox
+                                android:id="@+id/cbEnglishOnlyMovies"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Show Movies tab" />
+                            <CheckBox
+                                android:id="@+id/cbShowMovies"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checked="true" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Show Series tab" />
+                            <CheckBox
+                                android:id="@+id/cbShowSeries"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checked="true" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Show Watching tab" />
+                            <CheckBox
+                                android:id="@+id/cbShowWatching"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checked="true" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Show Providers tab (all your providers in one place, for more than one)" />
+                            <CheckBox
+                                android:id="@+id/cbShowProviders"
+                                style="@style/Rack.CheckToggle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checked="false" />
+                        </LinearLayout>
+                        <!-- TV only (SettingsActivity shows it on large screens): the sidebar's order and entries. -->
+                        <LinearLayout
+                            android:id="@+id/rowCustomizeSidebar"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Customize Sidebar Sections" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Reorder the TV sidebar and hide entries you don't use" />
+                            </LinearLayout>
+                        </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/rowAutoClearContinueWatching"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">
@@ -372,12 +535,300 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="EPG Health — fix my guide" />
+                                    android:text="Auto-clear Continue Watching" />
                                 <TextView
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Find channels with missing or wrong listings and choose their guide channel" />
+                                    android:text="Drops titles you haven't touched in this long" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvAutoClearContinueWatchingValue"
+                                style="@style/Rack.Value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Never" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- APPEARANCE — accentColorRow is filled by SettingsActivity.setupAccentPicker. -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Appearance" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <!-- baseThemeRow is filled by ThemePicker.buildBaseThemes. -->
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Base theme" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="The dark behind every screen. Changes right away, no restart." />
+                            <LinearLayout
+                                android:id="@+id/baseThemeRow"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:orientation="vertical" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Accent color" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="The highlight color here and around the app" />
+                            <LinearLayout
+                                android:id="@+id/accentColorRow"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:orientation="vertical" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="@string/theme_preview_heading" />
+                            <include
+                                android:id="@+id/themePreviewSettings"
+                                layout="@layout/view_theme_preview"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Force TV mode" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="TV layout and D-pad controls on this device (car box, odd screens). Restarts the app." />
+                            </LinearLayout>
+                            <Switch
+                                android:id="@+id/switchForceTvMode"
+                                style="@style/Rack.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- ACCESSIBILITY: wired by SettingsActivity.setupAccessibility. -->
+                <LinearLayout
+                    android:id="@+id/accessibilityGroup"
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/a11y_group_title" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_senior_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_senior_desc" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchSeniorMode"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_text_size_title" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_text_size_desc" />
+                            <RadioGroup
+                                android:id="@+id/rgTextSize"
+                                style="@style/Rack.Segments"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp">
+                                <RadioButton
+                                    android:id="@+id/rbTextStandard"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_standard" />
+                                <RadioButton
+                                    android:id="@+id/rbTextLarge"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_large" />
+                                <RadioButton
+                                    android:id="@+id/rbTextExtraLarge"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_text_extra_large" />
+                            </RadioGroup>
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_banner_title" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/a11y_banner_desc" />
+                            <RadioGroup
+                                android:id="@+id/rgBannerTime"
+                                style="@style/Rack.Segments"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp">
+                                <RadioButton
+                                    android:id="@+id/rbBannerStandard"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_banner_standard" />
+                                <RadioButton
+                                    android:id="@+id/rbBannerExtended"
+                                    style="@style/Rack.Segment"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_banner_extended" />
+                            </RadioGroup>
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_focus_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/a11y_focus_desc" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchHighContrastFocus"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- CHANNEL NUMBERS: wired by SettingsActivity.setupChannelNumbers. -->
+                <LinearLayout
+                    android:id="@+id/channelNumbersGroup"
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/lcn_group_title" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            android:id="@+id/rowLcnMode"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/lcn_mode_title" />
+                                <TextView
+                                    android:id="@+id/tvLcnModeValue"
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content" />
                             </LinearLayout>
                             <TextView
                                 style="@style/Rack.Chevron"
@@ -389,18 +840,72 @@
                             style="@style/Rack.Row.Toggle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
+                            <LinearLayout
+                                style="@style/Rack.RowText"
                                 android:layout_width="0dp"
-                                android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Only refresh channels missing guide data" />
-                            <CheckBox
-                                android:id="@+id/cbRefreshMissingOnly"
-                                style="@style/Rack.CheckToggle"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/lcn_direct_tuning_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/lcn_direct_tuning_desc" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchDirectNumberTuning"
+                                style="@style/Rack.SwitchMaterial"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
+                        <LinearLayout
+                            android:id="@+id/btnAutoNumberFavorites"
+                            style="@style/Rack.Row.Tappable"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/lcn_auto_number_title" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/lcn_auto_number_desc" />
+                            </LinearLayout>
+                            <TextView
+                                style="@style/Rack.Chevron"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:rotation="-90" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- MULTI-VIEW -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Multi-view" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
                         <LinearLayout
                             style="@style/Rack.Row"
                             android:layout_width="match_parent"
@@ -414,174 +919,83 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Auto refresh" />
+                                    android:text="Mosaic" />
                                 <TextView
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="In the background" />
+                                    android:text="Up to 6 channels at once; sound follows the tile you pick" />
                             </LinearLayout>
-                            <RadioGroup
-                                android:id="@+id/rgAutoEpgRefresh"
-                                style="@style/Rack.Segments"
+                            <Button
+                                android:id="@+id/btnOpenMosaic"
+                                style="@style/Rack.Button.Outline"
                                 android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="12dp">
-                                <RadioButton
-                                    android:id="@+id/rbAutoOff"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Off" />
-                                <RadioButton
-                                    android:id="@+id/rbAuto6"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="6 hrs" />
-                                <RadioButton
-                                    android:id="@+id/rbAuto12"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="12 hrs" />
-                                <RadioButton
-                                    android:id="@+id/rbAuto24"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="Daily" />
-                            </RadioGroup>
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/rowReminderLeadTime"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Remind me before a show" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="When a guide reminder goes off" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvReminderLeadTimeValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="5 min before" />
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/rowShowAlerts"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Show alerts" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Get notified when a show matching your words is in the guide" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvShowAlertsValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Off" />
-                        </LinearLayout>
-                        <!-- Disclosure row: opens the URL field below it. -->
-                        <LinearLayout
-                            android:id="@+id/hdrEpgUrl"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Guide URL (XMLTV)" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Use your own guide instead of your provider's" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/chevEpgUrl"
-                                style="@style/Rack.Chevron"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/bodyEpgUrl"
-                            style="@style/Rack.Nested"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                style="@style/Rack.Row"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <EditText
-                                    android:id="@+id/etEpgUrl"
-                                    style="@style/Rack.Input"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:hint="Enter XMLTV / EPG URL"
-                                    android:inputType="textUri" />
-                                <Button
-                                    android:id="@+id/btnSaveEpg"
-                                    style="@style/Rack.Button.Outline"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="44dp"
-                                    android:layout_marginStart="10dp"
-                                    android:text="Save" />
-                            </LinearLayout>
-                            <LinearLayout
-                                style="@style/Rack.Row.Toggle"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="No guide from your provider? Use the default US guide" />
-                                <CheckBox
-                                    android:id="@+id/cbUseDefaultUsEpg"
-                                    style="@style/Rack.CheckToggle"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
+                                android:layout_height="44dp"
+                                android:layout_marginStart="12dp"
+                                android:text="Open"
+                                app:icon="@drawable/ic_settings_grid" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
+
+                <!-- QUICK ACTIONS -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quick actions" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <!-- Label (with the current order in the accent) set by SettingsActivity. -->
+                        <Button
+                            android:id="@+id/btnSettingsSort"
+                            style="@style/Rack.Button.Link.Leading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Sort channels: Default"
+                            app:icon="@drawable/ic_settings_sort" />
+                        <Button
+                            android:id="@+id/btnTvHomeIntegration"
+                            style="@style/Rack.Button.Link.Leading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Android TV Home Integration" />
+                        <Button
+                            android:id="@+id/btnSettingsMosaic"
+                            style="@style/Rack.Button.Link.Leading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Multi-view / mosaic"
+                            app:icon="@drawable/ic_settings_grid" />
+                        <Button
+                            android:id="@+id/btnFeatureTour"
+                            style="@style/Rack.Button.Link.Leading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Feature tour"
+                            app:icon="@drawable/ic_settings_target" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.iptvapp.ui.settings.RackColumns>
+        </ScrollView>
+
+        <!-- PLAYBACK & AUDIO PANEL -->
+        <ScrollView
+            android:id="@+id/sectionPlayback"
+            style="@style/Rack.Panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+            <com.iptvapp.ui.settings.RackColumns
+                style="@style/Rack.Columns"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
                 <!-- PLAYBACK -->
                 <LinearLayout
@@ -1842,997 +2256,8 @@
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
-            </com.iptvapp.ui.settings.RackColumns>
-        </ScrollView>
 
-        <!-- DISPLAY PANEL -->
-        <ScrollView
-            android:id="@+id/sectionDisplay"
-            style="@style/Rack.Panel"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone">
-            <com.iptvapp.ui.settings.RackColumns
-                style="@style/Rack.Columns"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <!-- CHANNELS & TABS -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Channels &amp; tabs" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Show USA channels only" />
-                            <CheckBox
-                                android:id="@+id/cbUsaOnlyChannels"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Show English movies &amp; series only" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Experimental — needs your provider to tag categories EN, ENG, ENGLISH, US or USA" />
-                            </LinearLayout>
-                            <CheckBox
-                                android:id="@+id/cbEnglishOnlyMovies"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Show Movies tab" />
-                            <CheckBox
-                                android:id="@+id/cbShowMovies"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:checked="true" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Show Series tab" />
-                            <CheckBox
-                                android:id="@+id/cbShowSeries"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:checked="true" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Show Watching tab" />
-                            <CheckBox
-                                android:id="@+id/cbShowWatching"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:checked="true" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Show Providers tab (all your providers in one place, for more than one)" />
-                            <CheckBox
-                                android:id="@+id/cbShowProviders"
-                                style="@style/Rack.CheckToggle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:checked="false" />
-                        </LinearLayout>
-                        <!-- Also reachable from Home's last row; here for a TV with Home hidden. -->
-                        <LinearLayout
-                            android:id="@+id/rowCustomizeHome"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Customize Home" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Home's rows, what MKTV opens on, and the Home tab" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <!-- TV only (SettingsActivity shows it on large screens): the sidebar's order and entries. -->
-                        <LinearLayout
-                            android:id="@+id/rowCustomizeSidebar"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Customize Sidebar Sections" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Reorder the TV sidebar and hide entries you don't use" />
-                            </LinearLayout>
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/rowAutoClearContinueWatching"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Auto-clear Continue Watching" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Drops titles you haven't touched in this long" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvAutoClearContinueWatchingValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Never" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- CATALOG — the manual refresh buttons that used to share rows with the tab
-                     toggles above. -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Catalog" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Live channels" />
-                            <Button
-                                android:id="@+id/btnRefreshChannels"
-                                style="@style/Rack.Button.Outline"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Refresh"
-                                app:icon="@drawable/ic_settings_refresh" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Movies" />
-                            <Button
-                                android:id="@+id/btnRefreshMovies"
-                                style="@style/Rack.Button.Outline"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Refresh"
-                                app:icon="@drawable/ic_settings_refresh" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="Series" />
-                            <Button
-                                android:id="@+id/btnRefreshSeries"
-                                style="@style/Rack.Button.Outline"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Refresh"
-                                app:icon="@drawable/ic_settings_refresh" />
-                        </LinearLayout>
-                        <!-- Hidden channels (v6.89): the only way back for a channel hidden from its
-                             long-press menu — the "Unhide in Settings → Display" toast pointed here
-                             before anything existed to do it. -->
-                        <LinearLayout
-                            android:id="@+id/rowHiddenChannels"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Hidden channels" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Bring back channels you hid, from any provider" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvHiddenChannelsValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="None" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Clear favorite channels" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Your primary provider only. Can't be undone." />
-                            </LinearLayout>
-                            <Button
-                                android:id="@+id/btnClearFavoriteChannels"
-                                style="@style/Rack.Button.Danger"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Clear" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- APPEARANCE — accentColorRow is filled by SettingsActivity.setupAccentPicker. -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Appearance" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <!-- baseThemeRow is filled by ThemePicker.buildBaseThemes. -->
-                        <LinearLayout
-                            style="@style/Rack.Row.Stacked"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Base theme" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="The dark behind every screen. Changes right away, no restart." />
-                            <LinearLayout
-                                android:id="@+id/baseThemeRow"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:orientation="vertical" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Stacked"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Accent color" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="The highlight color here and around the app" />
-                            <LinearLayout
-                                android:id="@+id/accentColorRow"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:orientation="vertical" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="16dp"
-                                android:text="@string/theme_preview_heading" />
-                            <include
-                                android:id="@+id/themePreviewSettings"
-                                layout="@layout/view_theme_preview"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="6dp" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Force TV mode" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="TV layout and D-pad controls on this device (car box, odd screens). Restarts the app." />
-                            </LinearLayout>
-                            <Switch
-                                android:id="@+id/switchForceTvMode"
-                                style="@style/Rack.Switch"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- ACCESSIBILITY: wired by SettingsActivity.setupAccessibility. -->
-                <LinearLayout
-                    android:id="@+id/accessibilityGroup"
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/a11y_group_title" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_senior_title" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_senior_desc" />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchSeniorMode"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Stacked"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="@string/a11y_text_size_title" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="@string/a11y_text_size_desc" />
-                            <RadioGroup
-                                android:id="@+id/rgTextSize"
-                                style="@style/Rack.Segments"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp">
-                                <RadioButton
-                                    android:id="@+id/rbTextStandard"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_text_standard" />
-                                <RadioButton
-                                    android:id="@+id/rbTextLarge"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_text_large" />
-                                <RadioButton
-                                    android:id="@+id/rbTextExtraLarge"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_text_extra_large" />
-                            </RadioGroup>
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Stacked"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="@string/a11y_banner_title" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="@string/a11y_banner_desc" />
-                            <RadioGroup
-                                android:id="@+id/rgBannerTime"
-                                style="@style/Rack.Segments"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp">
-                                <RadioButton
-                                    android:id="@+id/rbBannerStandard"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_banner_standard" />
-                                <RadioButton
-                                    android:id="@+id/rbBannerExtended"
-                                    style="@style/Rack.Segment"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_banner_extended" />
-                            </RadioGroup>
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_focus_title" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/a11y_focus_desc" />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchHighContrastFocus"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- CHANNEL NUMBERS: wired by SettingsActivity.setupChannelNumbers. -->
-                <LinearLayout
-                    android:id="@+id/channelNumbersGroup"
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/lcn_group_title" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            android:id="@+id/rowLcnMode"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/lcn_mode_title" />
-                                <TextView
-                                    android:id="@+id/tvLcnModeValue"
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <TextView
-                                style="@style/Rack.Chevron"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:rotation="-90" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/lcn_direct_tuning_title" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/lcn_direct_tuning_desc" />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchDirectNumberTuning"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/btnAutoNumberFavorites"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/lcn_auto_number_title" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/lcn_auto_number_desc" />
-                            </LinearLayout>
-                            <TextView
-                                style="@style/Rack.Chevron"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:rotation="-90" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- MULTI-VIEW -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Multi-view" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Mosaic" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Up to 6 channels at once; sound follows the tile you pick" />
-                            </LinearLayout>
-                            <Button
-                                android:id="@+id/btnOpenMosaic"
-                                style="@style/Rack.Button.Outline"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Open"
-                                app:icon="@drawable/ic_settings_grid" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-            </com.iptvapp.ui.settings.RackColumns>
-        </ScrollView>
-
-        <!-- UPDATES PANEL -->
-        <ScrollView
-            android:id="@+id/sectionUpdates"
-            style="@style/Rack.Panel"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone">
-            <com.iptvapp.ui.settings.RackColumns
-                style="@style/Rack.Columns"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <!-- UPDATES -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Updates" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Check for updates" />
-                                <TextView
-                                    android:id="@+id/tvUpdateStatus"
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="" />
-                            </LinearLayout>
-                            <Button
-                                android:id="@+id/btnCheckUpdate"
-                                style="@style/Rack.Button.Primary"
-                                android:layout_width="wrap_content"
-                                android:layout_height="44dp"
-                                android:layout_marginStart="12dp"
-                                android:text="Check now" />
-                        </LinearLayout>
-                        <Button
-                            android:id="@+id/btnWhatsNew"
-                            style="@style/Rack.Button.Link"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="What's new" />
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Silent self-update (Android 12+)" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Skips the install confirmation when Android allows it. Off by default." />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchSilentSelfUpdate"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- QUICK ACTIONS -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Quick actions" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <!-- Label (with the current order in the accent) set by SettingsActivity. -->
-                        <Button
-                            android:id="@+id/btnSettingsSort"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Sort channels: Default"
-                            app:icon="@drawable/ic_settings_sort" />
-                        <Button
-                            android:id="@+id/btnTvHomeIntegration"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Android TV Home Integration" />
-                        <Button
-                            android:id="@+id/btnSettingsMosaic"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Multi-view / mosaic"
-                            app:icon="@drawable/ic_settings_grid" />
-                        <Button
-                            android:id="@+id/btnFeatureTour"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Feature tour"
-                            app:icon="@drawable/ic_settings_target" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.iptvapp.ui.settings.RackColumns>
-        </ScrollView>
-
-        <!-- BACKUP PANEL -->
-        <ScrollView
-            android:id="@+id/sectionBackup"
-            style="@style/Rack.Panel"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone">
-            <com.iptvapp.ui.settings.RackColumns
-                style="@style/Rack.Columns"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <!-- BACKUP & RESTORE -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Backup &amp; restore" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            style="@style/Rack.Row.Stacked"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <TextView
-                                style="@style/Rack.Label"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Back up or restore" />
-                            <TextView
-                                style="@style/Rack.Helper"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Your provider login, favorites and settings, in a file you pick" />
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="12dp"
-                                android:orientation="horizontal">
-                                <Button
-                                    android:id="@+id/btnBackupSettings"
-                                    style="@style/Rack.Button.Primary"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginEnd="5dp"
-                                    android:text="Back up" />
-                                <Button
-                                    android:id="@+id/btnRestoreSettings"
-                                    style="@style/Rack.Button.Outline"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginStart="5dp"
-                                    android:text="Restore" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvBackupStatus"
-                                style="@style/Rack.Note"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="8dp"
-                                android:text="" />
-                            <Button
-                                android:id="@+id/btnSyncTvSettings"
-                                style="@style/Rack.Button.Outline"
-                                android:layout_width="match_parent"
-                                android:layout_height="44dp"
-                                android:layout_marginTop="8dp"
-                                android:text="Sync with TV (Wi-Fi)" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Auto backup (weekly)" />
-                                <TextView
-                                    android:id="@+id/tvAutoBackupPath"
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="" />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchAutoBackup"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <Button
-                            android:id="@+id/btnManageBackups"
-                            style="@style/Rack.Button.Link"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Manage backups on this device" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Not backup-related, but these have always lived in this panel (and settings
-                     search / help point here), so they stay in it, in their own group. -->
+                <!-- PREVIEWS, DATA & ALERTS: movie auto-preview, the monthly data cap, new-episode alerts. -->
                 <LinearLayout
                     style="@style/Rack.Group"
                     android:layout_width="match_parent"
@@ -2899,10 +2324,9 @@
             </com.iptvapp.ui.settings.RackColumns>
         </ScrollView>
 
-        <!-- PROVIDERS PANEL — llServers is filled by SettingsActivity.updateServerList, one card
-             per provider (two-up on wide screens). -->
+        <!-- PROVIDERS & CATALOGS PANEL — llServers is filled by SettingsActivity.updateServerList, one card per provider (two-up on wide screens); the guide and catalog groups follow. -->
         <ScrollView
-            android:id="@+id/sectionServers"
+            android:id="@+id/sectionProviders"
             style="@style/Rack.Panel"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -2910,35 +2334,489 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="@dimen/rack_page_padding"
-                android:paddingEnd="@dimen/rack_page_padding"
-                android:paddingBottom="28dp">
-                <TextView
-                    style="@style/Rack.GroupTitle"
+                android:orientation="vertical">
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Providers &amp; sources" />
+                    android:orientation="vertical"
+                    android:paddingStart="@dimen/rack_page_padding"
+                    android:paddingEnd="@dimen/rack_page_padding"
+                    android:paddingBottom="8dp">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Providers &amp; sources" />
+                    <com.iptvapp.ui.settings.RackColumns
+                        android:id="@+id/llServers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAddServer"
+                        style="@style/Rack.Button.Primary"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="@dimen/rack_inset"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginEnd="@dimen/rack_inset"
+                        android:text="Add provider"
+                        app:icon="@drawable/ic_settings_plus" />
+                </LinearLayout>
                 <com.iptvapp.ui.settings.RackColumns
-                    android:id="@+id/llServers"
+                    style="@style/Rack.Columns"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnAddServer"
-                    style="@style/Rack.Button.Primary"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="@dimen/rack_inset"
-                    android:layout_marginTop="4dp"
-                    android:layout_marginEnd="@dimen/rack_inset"
-                    android:text="Add provider"
-                    app:icon="@drawable/ic_settings_plus" />
+                    android:layout_height="wrap_content">
+
+                    <!-- GUIDE (EPG): refresh, schedule and the guide source. -->
+                    <LinearLayout
+                        style="@style/Rack.Group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            style="@style/Rack.GroupTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Guide (EPG)" />
+                        <LinearLayout
+                            style="@style/Rack.GroupBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical">
+                                <LinearLayout
+                                    style="@style/Rack.Row"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    <LinearLayout
+                                        style="@style/Rack.RowText"
+                                        android:layout_width="0dp"
+                                        android:layout_weight="1"
+                                        android:layout_height="wrap_content">
+                                        <TextView
+                                            style="@style/Rack.Label"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:text="Refresh guide now" />
+                                        <TextView
+                                            android:id="@+id/tvLastEpgRefresh"
+                                            style="@style/Rack.Helper"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:text="Not refreshed yet" />
+                                        <TextView
+                                            android:id="@+id/tvEpgCacheAge"
+                                            style="@style/Rack.Helper"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:text="Guide data: unknown" />
+                                    </LinearLayout>
+                                    <Button
+                                        android:id="@+id/btnRefreshEpg"
+                                        style="@style/Rack.Button.Primary"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="44dp"
+                                        android:layout_marginStart="12dp"
+                                        android:text="Refresh" />
+                                </LinearLayout>
+                                <ProgressBar
+                                    android:id="@+id/progressEpgRefresh"
+                                    style="?android:attr/progressBarStyleHorizontal"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="4dp"
+                                    android:layout_marginStart="16dp"
+                                    android:layout_marginEnd="16dp"
+                                    android:layout_marginBottom="10dp"
+                                    android:max="100"
+                                    android:progress="0"
+                                    android:progressBackgroundTint="@color/rack_control_off"
+                                    android:progressTint="@color/oled_cyan_primary"
+                                    android:visibility="gone" />
+                                <TextView
+                                    android:id="@+id/tvEpgRefreshStatus"
+                                    style="@style/Rack.Note"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:paddingStart="16dp"
+                                    android:paddingEnd="16dp"
+                                    android:paddingBottom="12dp"
+                                    android:text="" />
+                                <Button
+                                    android:id="@+id/btnCancelEpgRefresh"
+                                    style="@style/Rack.Button.Neutral"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="16dp"
+                                    android:layout_marginBottom="12dp"
+                                    android:text="Cancel refresh"
+                                    android:visibility="gone" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/rowEpgHealth"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="EPG Health — fix my guide" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Find channels with missing or wrong listings and choose their guide channel" />
+                                </LinearLayout>
+                                <TextView
+                                    style="@style/Rack.Chevron"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:rotation="-90" />
+                            </LinearLayout>
+                            <LinearLayout
+                                style="@style/Rack.Row.Toggle"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Only refresh channels missing guide data" />
+                                <CheckBox
+                                    android:id="@+id/cbRefreshMissingOnly"
+                                    style="@style/Rack.CheckToggle"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Auto refresh" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="In the background" />
+                                </LinearLayout>
+                                <RadioGroup
+                                    android:id="@+id/rgAutoEpgRefresh"
+                                    style="@style/Rack.Segments"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="12dp">
+                                    <RadioButton
+                                        android:id="@+id/rbAutoOff"
+                                        style="@style/Rack.Segment"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Off" />
+                                    <RadioButton
+                                        android:id="@+id/rbAuto6"
+                                        style="@style/Rack.Segment"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="6 hrs" />
+                                    <RadioButton
+                                        android:id="@+id/rbAuto12"
+                                        style="@style/Rack.Segment"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="12 hrs" />
+                                    <RadioButton
+                                        android:id="@+id/rbAuto24"
+                                        style="@style/Rack.Segment"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Daily" />
+                                </RadioGroup>
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/rowReminderLeadTime"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Remind me before a show" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="When a guide reminder goes off" />
+                                </LinearLayout>
+                                <TextView
+                                    android:id="@+id/tvReminderLeadTimeValue"
+                                    style="@style/Rack.Value"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="5 min before" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/rowShowAlerts"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Show alerts" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Get notified when a show matching your words is in the guide" />
+                                </LinearLayout>
+                                <TextView
+                                    android:id="@+id/tvShowAlertsValue"
+                                    style="@style/Rack.Value"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Off" />
+                            </LinearLayout>
+                            <!-- Disclosure row: opens the URL field below it. -->
+                            <LinearLayout
+                                android:id="@+id/hdrEpgUrl"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Guide URL (XMLTV)" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Use your own guide instead of your provider's" />
+                                </LinearLayout>
+                                <TextView
+                                    android:id="@+id/chevEpgUrl"
+                                    style="@style/Rack.Chevron"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/bodyEpgUrl"
+                                style="@style/Rack.Nested"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:visibility="gone">
+                                <LinearLayout
+                                    style="@style/Rack.Row"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    <EditText
+                                        android:id="@+id/etEpgUrl"
+                                        style="@style/Rack.Input"
+                                        android:layout_width="0dp"
+                                        android:layout_height="44dp"
+                                        android:layout_weight="1"
+                                        android:hint="Enter XMLTV / EPG URL"
+                                        android:inputType="textUri" />
+                                    <Button
+                                        android:id="@+id/btnSaveEpg"
+                                        style="@style/Rack.Button.Outline"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="44dp"
+                                        android:layout_marginStart="10dp"
+                                        android:text="Save" />
+                                </LinearLayout>
+                                <LinearLayout
+                                    style="@style/Rack.Row.Toggle"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="No guide from your provider? Use the default US guide" />
+                                    <CheckBox
+                                        android:id="@+id/cbUseDefaultUsEpg"
+                                        style="@style/Rack.CheckToggle"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content" />
+                                </LinearLayout>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- CATALOG — the manual refresh buttons that used to share rows with the tab
+                         toggles above. -->
+                    <LinearLayout
+                        style="@style/Rack.Group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            style="@style/Rack.GroupTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Catalog" />
+                        <LinearLayout
+                            style="@style/Rack.GroupBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Live channels" />
+                                <Button
+                                    android:id="@+id/btnRefreshChannels"
+                                    style="@style/Rack.Button.Outline"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Refresh"
+                                    app:icon="@drawable/ic_settings_refresh" />
+                            </LinearLayout>
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Movies" />
+                                <Button
+                                    android:id="@+id/btnRefreshMovies"
+                                    style="@style/Rack.Button.Outline"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Refresh"
+                                    app:icon="@drawable/ic_settings_refresh" />
+                            </LinearLayout>
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Series" />
+                                <Button
+                                    android:id="@+id/btnRefreshSeries"
+                                    style="@style/Rack.Button.Outline"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Refresh"
+                                    app:icon="@drawable/ic_settings_refresh" />
+                            </LinearLayout>
+                            <!-- Hidden channels (v6.89): the only way back for a channel hidden from its
+                                 long-press menu — the "Unhide in Settings → Display" toast pointed here
+                                 before anything existed to do it. -->
+                            <LinearLayout
+                                android:id="@+id/rowHiddenChannels"
+                                style="@style/Rack.Row.Tappable"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Hidden channels" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Bring back channels you hid, from any provider" />
+                                </LinearLayout>
+                                <TextView
+                                    android:id="@+id/tvHiddenChannelsValue"
+                                    style="@style/Rack.Value"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="None" />
+                            </LinearLayout>
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Clear favorite channels" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Your primary provider only. Can't be undone." />
+                                </LinearLayout>
+                                <Button
+                                    android:id="@+id/btnClearFavoriteChannels"
+                                    style="@style/Rack.Button.Danger"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Clear" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.iptvapp.ui.settings.RackColumns>
             </LinearLayout>
         </ScrollView>
 
-        <!-- SYNC PANEL -->
+        <!-- CONNECTED DEVICES & HANDOFF PANEL -->
         <ScrollView
-            android:id="@+id/sectionSync"
+            android:id="@+id/sectionDevices"
             style="@style/Rack.Panel"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -3113,6 +2991,293 @@
                     </LinearLayout>
                 </LinearLayout>
 
+                <!-- TRAKT (with the other devices: Trakt is itself a watch-history sync). The connect /
+                     sync / disconnect buttons are shown and hidden by setupTraktSection. -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Trakt" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+                            <LinearLayout
+                                style="@style/Rack.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <LinearLayout
+                                    style="@style/Rack.RowText"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:layout_height="wrap_content">
+                                    <TextView
+                                        style="@style/Rack.Label"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Trakt" />
+                                    <TextView
+                                        style="@style/Rack.Helper"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Tracks the movies and episodes you watch" />
+                                    <TextView
+                                        android:id="@+id/tvTraktStatus"
+                                        style="@style/Rack.Note"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="4dp"
+                                        android:text="" />
+                                </LinearLayout>
+                                <Button
+                                    android:id="@+id/btnTraktConnect"
+                                    style="@style/Rack.Button.Primary"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="44dp"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Connect" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp">
+                                <Button
+                                    android:id="@+id/btnTraktSyncHistory"
+                                    style="@style/Rack.Button.Outline"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginEnd="5dp"
+                                    android:layout_marginBottom="12dp"
+                                    android:text="Sync history"
+                                    android:visibility="gone" />
+                                <Button
+                                    android:id="@+id/btnTraktDisconnect"
+                                    style="@style/Rack.Button.Danger"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="5dp"
+                                    android:layout_marginBottom="12dp"
+                                    android:text="Disconnect"
+                                    android:visibility="gone" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvTraktSyncStatus"
+                                style="@style/Rack.Note"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:paddingBottom="12dp"
+                                android:text="" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.iptvapp.ui.settings.RackColumns>
+        </ScrollView>
+
+        <!-- BACKUP & UPDATES PANEL -->
+        <ScrollView
+            android:id="@+id/sectionBackup"
+            style="@style/Rack.Panel"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+            <com.iptvapp.ui.settings.RackColumns
+                style="@style/Rack.Columns"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <!-- BACKUP & RESTORE -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Backup &amp; restore" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row.Stacked"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <TextView
+                                style="@style/Rack.Label"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Back up or restore" />
+                            <TextView
+                                style="@style/Rack.Helper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Your provider login, favorites and settings, in a file you pick" />
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:orientation="horizontal">
+                                <Button
+                                    android:id="@+id/btnBackupSettings"
+                                    style="@style/Rack.Button.Primary"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginEnd="5dp"
+                                    android:text="Back up" />
+                                <Button
+                                    android:id="@+id/btnRestoreSettings"
+                                    style="@style/Rack.Button.Outline"
+                                    android:layout_width="0dp"
+                                    android:layout_height="44dp"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="5dp"
+                                    android:text="Restore" />
+                            </LinearLayout>
+                            <TextView
+                                android:id="@+id/tvBackupStatus"
+                                style="@style/Rack.Note"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="" />
+                            <Button
+                                android:id="@+id/btnSyncTvSettings"
+                                style="@style/Rack.Button.Outline"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:text="Sync with TV (Wi-Fi)" />
+                        </LinearLayout>
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Auto backup (weekly)" />
+                                <TextView
+                                    android:id="@+id/tvAutoBackupPath"
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="" />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAutoBackup"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                        <Button
+                            android:id="@+id/btnManageBackups"
+                            style="@style/Rack.Button.Link"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Manage backups on this device" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- UPDATES -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Updates" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Check for updates" />
+                                <TextView
+                                    android:id="@+id/tvUpdateStatus"
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="" />
+                            </LinearLayout>
+                            <Button
+                                android:id="@+id/btnCheckUpdate"
+                                style="@style/Rack.Button.Primary"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="12dp"
+                                android:text="Check now" />
+                        </LinearLayout>
+                        <Button
+                            android:id="@+id/btnWhatsNew"
+                            style="@style/Rack.Button.Link"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="What's new" />
+                        <LinearLayout
+                            style="@style/Rack.Row.Toggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Silent self-update (Android 12+)" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Skips the install confirmation when Android allows it. Off by default." />
+                            </LinearLayout>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchSilentSelfUpdate"
+                                style="@style/Rack.SwitchMaterial"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
                 <!-- DIAGNOSTICS -->
                 <LinearLayout
                     style="@style/Rack.Group"
@@ -3244,100 +3409,6 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Receive a cast" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- TRAKT (in the Sync tab: Trakt is itself a watch-history sync). The connect /
-                     sync / disconnect buttons are shown and hidden by setupTraktSection. -->
-                <LinearLayout
-                    style="@style/Rack.Group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        style="@style/Rack.GroupTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Trakt" />
-                    <LinearLayout
-                        style="@style/Rack.GroupBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical">
-                            <LinearLayout
-                                style="@style/Rack.Row"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <LinearLayout
-                                    style="@style/Rack.RowText"
-                                    android:layout_width="0dp"
-                                    android:layout_weight="1"
-                                    android:layout_height="wrap_content">
-                                    <TextView
-                                        style="@style/Rack.Label"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Trakt" />
-                                    <TextView
-                                        style="@style/Rack.Helper"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Tracks the movies and episodes you watch" />
-                                    <TextView
-                                        android:id="@+id/tvTraktStatus"
-                                        style="@style/Rack.Note"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:layout_marginTop="4dp"
-                                        android:text="" />
-                                </LinearLayout>
-                                <Button
-                                    android:id="@+id/btnTraktConnect"
-                                    style="@style/Rack.Button.Primary"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="44dp"
-                                    android:layout_marginStart="12dp"
-                                    android:text="Connect" />
-                            </LinearLayout>
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:paddingStart="16dp"
-                                android:paddingEnd="16dp">
-                                <Button
-                                    android:id="@+id/btnTraktSyncHistory"
-                                    style="@style/Rack.Button.Outline"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginEnd="5dp"
-                                    android:layout_marginBottom="12dp"
-                                    android:text="Sync history"
-                                    android:visibility="gone" />
-                                <Button
-                                    android:id="@+id/btnTraktDisconnect"
-                                    style="@style/Rack.Button.Danger"
-                                    android:layout_width="0dp"
-                                    android:layout_height="44dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginStart="5dp"
-                                    android:layout_marginBottom="12dp"
-                                    android:text="Disconnect"
-                                    android:visibility="gone" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvTraktSyncStatus"
-                                style="@style/Rack.Note"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:paddingStart="16dp"
-                                android:paddingEnd="16dp"
-                                android:paddingBottom="12dp"
-                                android:text="" />
-                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </com.iptvapp.ui.settings.RackColumns>

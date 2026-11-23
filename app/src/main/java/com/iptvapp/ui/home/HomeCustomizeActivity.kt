@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -76,11 +77,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             v.setPadding(side + bars.left, base + bars.top, side + bars.right, bars.bottom)
             insets
         }
-        binding.tvCustomizeSubtitle.text = if (tv) {
-            "TV layout (this TV and other large screens). Changes are saved as you make them."
-        } else {
-            "Phone and tablet layout. Changes are saved as you make them. Drag ≡ to move a row."
-        }
+        binding.tvHomeRowsHelp.setText(if (tv) R.string.studio_home_rows_help_tv else R.string.studio_home_rows_help_phone)
         binding.rvCustomizeSections.layoutManager = LinearLayoutManager(this)
         binding.rvCustomizeSections.adapter = adapter
         binding.rvCustomizeSections.itemAnimator = null
@@ -92,8 +89,6 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         smartRules = prefs.smartRowsNow()
         binding.btnCustomizeSmartRows.setOnClickListener { showSmartRowsDialog() }
         binding.btnCustomizeSmartRows.contentDescription = "Smart Rows: show or hide groups of rows, empty rows, finished items and cards per row"
-        binding.btnCustomizeTheme.setOnClickListener { showThemeDialog() }
-        binding.btnCustomizeTheme.contentDescription = "Theme and accents: the app's base theme and accent color"
         binding.btnCustomizeStart.setOnClickListener { pickStart() }
         binding.btnCustomizeReset.setOnClickListener { confirmReset() }
         if (tv) {
@@ -111,7 +106,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
                     return@setOnClickListener
                 }
                 change { HomeLayout.setShowHomeTab(it, show) }
-                if (!show) Toast.makeText(this, "Home is hidden from the sidebar. Customize Home is in Settings → Display.", Toast.LENGTH_LONG).show()
+                if (!show) Toast.makeText(this, "Home is hidden from the sidebar. Personalize MKTV is in Settings → Personalize.", Toast.LENGTH_LONG).show()
             }
             // The rest of the sidebar: its order and which entries show.
             binding.btnCustomizeSidebar.visibility = View.VISIBLE
@@ -119,8 +114,121 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         }
         buildPersonaCards()
         setupDensity()
-        binding.btnCustomizeDone.contentDescription = "Done. Changes are already saved."
+        setupLook()
+        setupRemote()
+        setupAccessProfiles()
         binding.btnCustomizeReset.contentDescription = "Reset Home to how MKTV ships it"
+        setupTabs(PersonalizeStudio.Tab.of(
+            savedInstanceState?.getInt(STATE_TAB) ?: intent.getIntExtra(EXTRA_INITIAL_TAB, 0)
+        ))
+        watchTextSize()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_TAB, tab.ordinal)
+    }
+
+    // ── Tabs ────────────────────────────────────────────────────────────
+
+    private var tab = PersonalizeStudio.Tab.LAYOUT
+
+    private fun setupTabs(first: PersonalizeStudio.Tab) {
+        PersonalizeStudio.tabs(binding).forEachIndexed { i, t ->
+            t.setOnClickListener { selectTab(PersonalizeStudio.Tab.entries[i], requestFocus = false) }
+        }
+        selectTab(first, requestFocus = !touch)
+    }
+
+    /** Opens [t]'s panel; on a remote, focus goes to its tab so Down enters the panel. */
+    private fun selectTab(t: PersonalizeStudio.Tab, requestFocus: Boolean) {
+        tab = t
+        PersonalizeStudio.show(binding, t)
+        paintTabs()
+        // Up from the top of the open panel goes back to its own tab.
+        val tabId = PersonalizeStudio.tabs(binding)[t.ordinal].id
+        for (card in personaCards.values) card.root.nextFocusUpId = tabId
+        if (requestFocus) PersonalizeStudio.tabs(binding)[t.ordinal].requestFocus()
+    }
+
+    /** The open tab in the accent (outlined, accent text); the others plain. */
+    private fun paintTabs() {
+        val accent = com.iptvapp.ui.theme.ThemePicker.accentOf(accentStart, accentEnd)
+        PersonalizeStudio.tabs(binding).forEachIndexed { i, v ->
+            val t = v as android.widget.TextView
+            val open = i == tab.ordinal
+            t.isActivated = open
+            if (open) com.iptvapp.util.AccentText.apply(t, accent.start, accent.end)
+            else com.iptvapp.util.AccentText.plain(t, getColorStateList(R.color.rack_text))
+            t.contentDescription = getString(
+                if (open) R.string.studio_tab_description_open else R.string.studio_tab_description, t.text
+            )
+        }
+    }
+
+    /**
+     * The remote: Down from a tab goes into its panel (to the first thing in it), and Back from
+     * inside a panel returns to the open tab; Back on the tabs closes the screen.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && !binding.root.isInTouchMode) {
+            val panel = PersonalizeStudio.panels(binding)[tab.ordinal]
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> if (binding.studioTabBar.hasFocus()) {
+                    focusFirstIn(panel)?.let { it.requestFocus(); return true }
+                }
+                android.view.KeyEvent.KEYCODE_BACK -> if (panel.hasFocus()) {
+                    PersonalizeStudio.tabs(binding)[tab.ordinal].requestFocus()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** The first focusable, shown view under [view] in layout order (the chosen style on the Layout tab). */
+    private fun focusFirstIn(view: View): View? {
+        if (view === binding.panelLayout) personaCards[persona]?.root?.let { return it }
+        if (view !is ViewGroup || view.visibility != View.VISIBLE) return null
+        for (i in 0 until view.childCount) {
+            val child = view.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+            // Scrolling containers are focusable too: look inside them, never stop on one.
+            if (child.isFocusable && child.isEnabled && child !is android.widget.FrameLayout) return child
+            focusFirstIn(child)?.let { return it }
+        }
+        return null
+    }
+
+    /** The line under the title: screen, profile, viewing style and theme. */
+    private fun refreshSummary() {
+        val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull()
+        binding.tvCustomizeSubtitle.text = PersonalizeStudio.summary(
+            getString(if (tv) R.string.studio_screen_tv else R.string.studio_screen_phone),
+            profile?.name, getString(persona.titleRes), getString(prefs.baseThemeNow().titleRes),
+        )
+    }
+
+    /**
+     * Senior Mode and the text size rebuild every screen at the new size. This one rebuilds at
+     * once (on the tab that was open), as Settings does; others when they next show.
+     */
+    private fun watchTextSize() {
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                prefs.accessibility.collect { s ->
+                    renderAccess(s)
+                    com.iptvapp.util.AccessibilityEngine.refreshFocus(this@HomeCustomizeActivity, s.highContrastFocus)
+                    if (builtWith != null && s.screenSignature != builtWith) {
+                        kotlinx.coroutines.withTimeoutOrNull(1_000) {
+                            while (prefs.accessibilityNow() != s) kotlinx.coroutines.delay(16)
+                        }
+                        intent.putExtra(EXTRA_INITIAL_TAB, tab.ordinal)
+                        recreate()
+                    }
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -137,8 +245,11 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             // Customize Sidebar (opened from here) may have made the settings Custom.
             refreshPersona()
             refreshTopDetail()
-            // A container (the button bar) can take first focus on TV; start on DONE instead.
-            if (currentFocus?.isClickable != true) binding.btnCustomizeDone.requestFocus()
+            // Back from the profile switcher or Settings: the profile and accent may have changed.
+            renderProfile()
+            renderLcn()
+            // A container (the button bar) can take first focus on TV; start on the open tab instead.
+            if (!touch && currentFocus?.isClickable != true) PersonalizeStudio.tabs(binding)[tab.ordinal].requestFocus()
         }
     }
 
@@ -195,6 +306,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             )
         }
         linkFocus()
+        refreshSummary()
     }
 
     // ── Card Density & Size ─────────────────────────────────────────────
@@ -207,16 +319,8 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             CardDensity.EXPANDED to binding.btnDensityExpanded,
         )
     }
-    /** A short screen (a phone held sideways) gets the CARDS chip instead of the three choices, so the rows keep room. */
-    private val shortScreen by lazy { resources.configuration.screenHeightDp < 480 }
-
     private fun setupDensity() {
         density = prefs.cardDensityNow()
-        if (shortScreen) {
-            binding.densityBlock.visibility = View.GONE
-            binding.btnCustomizeDensity.visibility = View.VISIBLE
-            binding.btnCustomizeDensity.setOnClickListener { pickDensityDialog() }
-        }
         for ((d, chip) in densityChips) chip.setOnClickListener { setDensity(d) }
         renderDensity()
     }
@@ -225,6 +329,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         if (d == density) return
         density = d
         renderDensity()
+        paintPreview()
         // Saved even if Done is pressed straight away; Home rebuilds its cards when it shows again.
         lifecycleScope.launch(NonCancellable) { prefs.setCardDensity(d) }
     }
@@ -244,40 +349,17 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             )
         }
         binding.tvDensityDescription.text = describe(density)
-        val name = getString(density.titleResId)
-        binding.btnCustomizeDensity.text = getString(R.string.density_chip, name.uppercase())
-        binding.btnCustomizeDensity.contentDescription = getString(R.string.density_option_selected, name, describe(density))
-        linkFocus()
-    }
-
-    private fun pickDensityDialog() {
-        val options = CardDensity.entries
-        AlertDialog.Builder(this)
-            .setTitle(R.string.density_dialog_title)
-            .setSingleChoiceItems(options.map { getString(it.titleResId) }.toTypedArray(), options.indexOf(density)) { dlg, which ->
-                dlg.dismiss()
-                setDensity(options[which])
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     /**
-     * The remote's Up and Down between the viewing styles, the card sizes and the button row: Down
-     * from a style goes to the selected size, Down from a size to the buttons; Up comes back the
-     * same way, each time to the one selected.
+     * The remote on the Layout tab: Down from a viewing style goes to the button row, and Up from
+     * any button back to the style in use (Up from a style goes to the tab: selectTab).
      */
     private fun linkFocus() {
         val styleId = personaCards[persona]?.root?.id ?: View.NO_ID
-        val sizeId = if (shortScreen) View.NO_ID else densityChips[density]?.id ?: View.NO_ID
-        for (card in personaCards.values) card.root.nextFocusDownId = if (sizeId != View.NO_ID) sizeId else R.id.btnCustomizeDone
-        for (chip in densityChips.values) {
-            chip.nextFocusUpId = styleId
-            chip.nextFocusDownId = R.id.btnCustomizeDone
-        }
-        val up = if (sizeId != View.NO_ID) sizeId else styleId
-        val bar = binding.btnCustomizeDone.parent as ViewGroup
-        for (i in 0 until bar.childCount) bar.getChildAt(i).nextFocusUpId = up
+        for (card in personaCards.values) card.root.nextFocusDownId = R.id.btnCustomizeStart
+        val bar = binding.layoutOptionsBar
+        for (i in 0 until bar.childCount) bar.getChildAt(i).nextFocusUpId = styleId
     }
 
     private fun pickPersona(p: ViewingPersona) {
@@ -677,86 +759,219 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         Toast.makeText(this, R.string.smart_rows_updated, Toast.LENGTH_SHORT).show()
     }
 
+    // ── Look & Feel ─────────────────────────────────────────────────────
+
+    private var theme = com.iptvapp.data.theme.AppBaseTheme.OLED_BLACK
+    private var accentStart = com.iptvapp.util.AccentColors.DEFAULT_HEX
+    private var accentEnd = ""
+
     /**
-     * THEME…: the base theme and the curated accents (Settings → Appearance has the full accent
-     * picker), with the live preview. Choices are held until Save; Cancel changes nothing. Saved,
-     * this screen repaints at once and Home on its next resume.
+     * The base theme, the curated accents (Settings has the custom color too) and the card sizes,
+     * each saved as it is pressed, with the sample card painted from all three.
      */
-    private fun showThemeDialog() {
-        val ctx = this
-        fun dp(v: Int) = (v * resources.displayMetrics.density + 0.5f).toInt()
-        var theme = prefs.baseThemeNow()
+    private fun setupLook() {
+        theme = prefs.baseThemeNow()
         lifecycleScope.launch {
-            var start = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
-            var end = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
-            val savedStart = start
-            val savedEnd = end
-            val content = android.widget.LinearLayout(ctx).apply {
-                orientation = android.widget.LinearLayout.VERTICAL
-                setPadding(dp(20), dp(12), dp(20), dp(4))
-            }
-            fun heading(res: Int) = android.widget.TextView(ctx).apply {
-                setText(res)
-                textSize = 12f
-                letterSpacing = 0.16f
-                setTextColor(getColor(R.color.rack_text_muted))
-                layoutParams = android.widget.LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dp(12); bottomMargin = dp(6) }
-            }
-            val themes = android.widget.LinearLayout(ctx).apply { orientation = android.widget.LinearLayout.VERTICAL }
-            val accents = android.widget.FrameLayout(ctx)
-            val preview = layoutInflater.inflate(R.layout.view_theme_preview, content, false)
-            content.addView(heading(R.string.theme_base_heading))
-            content.addView(themes)
-            content.addView(heading(R.string.theme_accent_heading))
-            content.addView(accents)
-            content.addView(heading(R.string.theme_preview_heading))
-            content.addView(preview)
+            accentStart = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
+            accentEnd = com.iptvapp.util.AccentColors.validOr(prefs.accentColorEnd.first(), "")
+            renderLook(focus = null)
+            paintTabs()
+        }
+        renderLook(focus = null)
+    }
 
-            lateinit var render: (focusTheme: Boolean) -> Unit
-            render = { focusTheme ->
-                val accent = com.iptvapp.ui.theme.ThemePicker.accentOf(start, end)
-                com.iptvapp.ui.theme.ThemePicker.buildBaseThemes(themes, theme, accent) {
-                    theme = it
-                    render(true)
+    /** Rebuilds the theme cards and accent chips (focus back on [focus]'s replacement) and the sample. */
+    private fun renderLook(focus: Any?) {
+        val accent = com.iptvapp.ui.theme.ThemePicker.accentOf(accentStart, accentEnd)
+        val themes = binding.studioThemes
+        com.iptvapp.ui.theme.ThemePicker.buildBaseThemes(themes, theme, accent) { picked ->
+            if (picked == theme) return@buildBaseThemes
+            theme = picked
+            com.iptvapp.util.ThemeEngine.apply(this, binding.root, picked)
+            lifecycleScope.launch(NonCancellable) { prefs.setBaseTheme(picked) }
+            renderLook(focus = picked)
+            refreshSummary()
+        }
+        val accents = binding.studioAccents
+        accents.removeAllViews()
+        accents.addView(com.iptvapp.ui.theme.ThemePicker.buildCuratedAccents(this, accentStart, accentEnd) { preset ->
+            accentStart = preset.start
+            accentEnd = preset.end ?: ""
+            lifecycleScope.launch(NonCancellable) {
+                if (accentEnd.isNotEmpty()) prefs.setAccentGradient(accentStart, accentEnd) else prefs.setAccentColor(accentStart)
+            }
+            renderLook(focus = preset)
+            paintTabs()
+        })
+        paintPreview()
+        // The rebuilt cards and chips replace the focused one: keep the remote on the new choice.
+        when (focus) {
+            is com.iptvapp.data.theme.AppBaseTheme ->
+                themes.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(focus))?.requestFocus()
+            is com.iptvapp.data.theme.ThemePalette.AccentPreset ->
+                (accents.getChildAt(0) as? ViewGroup)?.getChildAt(
+                    com.iptvapp.data.theme.ThemePalette.PRESET_ACCENTS.indexOf(focus)
+                )?.requestFocus()
+        }
+    }
+
+    /** The sample card in the chosen theme and accent, at the chosen card size. */
+    private fun paintPreview() {
+        val preview = binding.livePreviewContainer.root
+        val accent = com.iptvapp.ui.theme.ThemePicker.accentOf(accentStart, accentEnd)
+        com.iptvapp.ui.theme.ThemePicker.paintPreview(preview, theme, accent,
+            com.iptvapp.ui.theme.ThemePicker.accentName(this, accentStart, accentEnd))
+        val d = resources.displayMetrics.density
+        val logo = binding.livePreviewContainer.themePreviewLogo
+        val side = (52 * density.scaleMultiplier * d).toInt()
+        logo.layoutParams = logo.layoutParams.apply { width = side; height = side }
+        logo.textSize = 20f * density.scaleMultiplier
+        val pad = (density.cardPaddingDp * d).toInt()
+        binding.livePreviewContainer.themePreviewCard.setPadding(pad, pad, pad, pad)
+        binding.livePreviewContainer.themePreviewTitle.textSize = density.titleSp
+        binding.livePreviewContainer.themePreviewSubtitle.textSize = density.lineSp
+        preview.contentDescription = "${preview.contentDescription} ${getString(density.titleResId)}"
+    }
+
+    // ── Remote & Navigation ─────────────────────────────────────────────
+
+    private val lcnOptions = LinkedHashMap<com.iptvapp.data.channel.LcnMode, android.widget.TextView>()
+
+    private fun setupRemote() {
+        for (mode in com.iptvapp.data.channel.LcnMode.entries) {
+            val option = layoutInflater.inflate(R.layout.item_studio_option, binding.lcnModeOptions, false) as android.widget.TextView
+            option.id = View.generateViewId()
+            option.setText(mode.titleResId)
+            option.setOnClickListener {
+                if (mode == prefs.lcnModeNow()) return@setOnClickListener
+                lifecycleScope.launch {
+                    prefs.setLcnMode(mode)
+                    renderLcn(mode)
                 }
-                accents.removeAllViews()
-                accents.addView(com.iptvapp.ui.theme.ThemePicker.buildCuratedAccents(ctx, start, end) { preset ->
-                    start = preset.start
-                    end = preset.end ?: ""
-                    render(false)
-                    // The rebuilt chips replace the focused one: keep the remote on the new choice.
-                    (accents.getChildAt(0) as? ViewGroup)?.getChildAt(
-                        com.iptvapp.data.theme.ThemePalette.PRESET_ACCENTS.indexOf(preset)
-                    )?.requestFocus()
-                })
-                com.iptvapp.ui.theme.ThemePicker.paintPreview(preview, theme, accent,
-                    com.iptvapp.ui.theme.ThemePicker.accentName(ctx, start, end))
-                if (focusTheme) themes.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(theme))?.requestFocus()
             }
-            render(false)
+            binding.lcnModeOptions.addView(option)
+            lcnOptions[mode] = option
+        }
+        binding.btnDirectTuning.setOnClickListener {
+            val on = !prefs.directNumberTuningEnabledNow()
+            lifecycleScope.launch {
+                prefs.setDirectNumberTuning(on)
+                renderLcn()
+            }
+        }
+        binding.btnStudioAutoNumber.setOnClickListener { autoNumberFavorites() }
+        if (tv) {
+            binding.studioTvNavBlock.visibility = View.VISIBLE
+            binding.btnStudioSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
+        }
+        renderLcn()
+    }
 
-            val dialog = AlertDialog.Builder(ctx)
-                .setTitle(R.string.theme_dialog_title)
-                .setView(android.widget.ScrollView(ctx).apply { addView(content) })
-                .setPositiveButton(R.string.theme_save) { _, _ ->
-                    com.iptvapp.util.ThemeEngine.apply(this@HomeCustomizeActivity, binding.root, theme)
-                    val accentChanged = start != savedStart || end != savedEnd
-                    lifecycleScope.launch(NonCancellable) {
-                        prefs.setBaseTheme(theme)
-                        if (accentChanged) {
-                            if (end.isNotEmpty()) prefs.setAccentGradient(start, end) else prefs.setAccentColor(start)
-                        }
+    private fun renderLcn(mode: com.iptvapp.data.channel.LcnMode = prefs.lcnModeNow()) {
+        for ((m, option) in lcnOptions) {
+            val chosen = m == mode
+            option.isActivated = chosen
+            val name = getString(m.titleResId)
+            option.contentDescription = (if (chosen) getString(R.string.studio_option_selected, name) else name) +
+                ". " + getString(m.descResId)
+        }
+        binding.tvLcnModeDescription.setText(mode.descResId)
+        val direct = prefs.directNumberTuningEnabledNow()
+        binding.btnDirectTuning.isActivated = direct
+        binding.btnDirectTuning.setText(if (direct) R.string.studio_direct_tuning_on else R.string.studio_direct_tuning_off)
+    }
+
+    /** Auto-Number Favorites, as in Settings: favorites become 1, 2, 3… in their own order. */
+    private fun autoNumberFavorites() {
+        lifecycleScope.launch {
+            val count = repository.getFavoriteChannels().first().size
+            if (count == 0) {
+                Toast.makeText(this@HomeCustomizeActivity, R.string.lcn_auto_number_none, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            AlertDialog.Builder(this@HomeCustomizeActivity)
+                .setTitle(getString(R.string.lcn_auto_number_confirm_title, count))
+                .setMessage(getString(R.string.lcn_auto_number_confirm_msg, count))
+                .setPositiveButton(R.string.lcn_auto_number_go) { _, _ ->
+                    val app = applicationContext
+                    lifecycleScope.launch {
+                        // Finishes even if this screen closes: half a renumbering would leave clashing numbers.
+                        val n = kotlinx.coroutines.withContext(NonCancellable) { repository.backfillSequentialFavoriteNumbers() }
+                        Toast.makeText(
+                            app,
+                            if (n == 0) app.getString(R.string.lcn_auto_number_none) else app.getString(R.string.lcn_auto_number_done, n),
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                    Toast.makeText(ctx, R.string.theme_updated, Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
-            // The remote starts on the chosen theme, not on the dialog's buttons.
-            themes.getChildAt(com.iptvapp.data.theme.AppBaseTheme.entries.indexOf(theme))?.requestFocus()
-            dialog.setOnDismissListener { binding.btnCustomizeTheme.requestFocus() }
         }
+    }
+
+    // ── Accessibility & Profiles ────────────────────────────────────────
+
+    @Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
+
+    private val textSizeChips by lazy {
+        linkedMapOf(
+            com.iptvapp.data.accessibility.TextSizeLevel.STANDARD to binding.btnTextStandard,
+            com.iptvapp.data.accessibility.TextSizeLevel.LARGE to binding.btnTextLarge,
+            com.iptvapp.data.accessibility.TextSizeLevel.EXTRA_LARGE to binding.btnTextExtraLarge,
+        )
+    }
+
+    /** Each choice is saved at once; a new text size rebuilds this screen (watchTextSize). */
+    private fun setupAccessProfiles() {
+        binding.btnStudioSwitchProfile.setOnClickListener {
+            com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
+        }
+        binding.btnSeniorMode.setOnClickListener {
+            val on = !prefs.accessibilityNow().seniorMode
+            lifecycleScope.launch { prefs.setSeniorMode(on) }
+            Toast.makeText(this, if (on) R.string.a11y_senior_on else R.string.a11y_senior_off, Toast.LENGTH_SHORT).show()
+        }
+        for ((level, chip) in textSizeChips) chip.setOnClickListener {
+            if (prefs.accessibilityNow().textSize != level) lifecycleScope.launch { prefs.setUiFontScale(level) }
+        }
+        binding.btnBannerStandard.setOnClickListener { lifecycleScope.launch { prefs.setExtendedOsdTimeout(false) } }
+        binding.btnBannerExtended.setOnClickListener { lifecycleScope.launch { prefs.setExtendedOsdTimeout(true) } }
+        binding.btnHighContrastFocus.setOnClickListener {
+            val on = !prefs.accessibilityNow().highContrastFocus
+            lifecycleScope.launch { prefs.setHighContrastFocus(on) }
+        }
+        renderProfile()
+        renderAccess(prefs.accessibilityNow())
+    }
+
+    private fun renderProfile() {
+        val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull() ?: return
+        com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.tvStudioAvatar, profile)
+        binding.tvStudioProfileName.text = profile.name
+        binding.tvStudioProfileNote.setText(if (profile.isKids) R.string.studio_profile_kids else R.string.studio_profile_adult)
+        refreshSummary()
+    }
+
+    private fun renderAccess(s: com.iptvapp.data.accessibility.AccessibilitySettings) {
+        binding.btnSeniorMode.isActivated = s.seniorMode
+        binding.btnSeniorMode.setText(if (s.seniorMode) R.string.studio_senior_on else R.string.studio_senior_off)
+        for ((level, chip) in textSizeChips) {
+            val chosen = level == s.textSize
+            chip.isActivated = chosen
+            val name = getString(level.labelRes)
+            chip.contentDescription = getString(R.string.studio_text_size_heading) + ": " +
+                if (chosen) getString(R.string.studio_option_selected, name) else name
+        }
+        fun banner(chip: android.widget.TextView, chosen: Boolean, label: Int) {
+            chip.isActivated = chosen
+            val name = getString(label)
+            chip.contentDescription = getString(R.string.studio_banner_heading) + ": " +
+                if (chosen) getString(R.string.studio_option_selected, name) else name
+        }
+        banner(binding.btnBannerStandard, !s.extendedOsd, R.string.a11y_banner_standard)
+        banner(binding.btnBannerExtended, s.extendedOsd, R.string.a11y_banner_extended)
+        binding.btnHighContrastFocus.isActivated = s.highContrastFocus
+        binding.btnHighContrastFocus.setText(if (s.highContrastFocus) R.string.studio_focus_on else R.string.studio_focus_off)
     }
 
     private fun confirmReset() {
@@ -867,9 +1082,17 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
     companion object {
         /** True: the TV (and car box) layout; false: phone and tablet. */
         const val EXTRA_TV = "home_layout_tv"
+        /** The tab to open on (PersonalizeStudio.Tab ordinal): 0 Layout, 1 Look & Feel, 2 Remote, 3 Accessibility & Profiles. */
+        const val EXTRA_INITIAL_TAB = "extra_initial_tab"
+        private const val STATE_TAB = "studio_tab"
 
-        fun open(context: Context, tv: Boolean) {
-            context.startActivity(Intent(context, HomeCustomizeActivity::class.java).putExtra(EXTRA_TV, tv))
+        fun open(context: Context, tv: Boolean, initialTab: Int = 0) {
+            context.startActivity(intent(context, tv, initialTab))
         }
+
+        fun intent(context: Context, tv: Boolean, initialTab: Int = 0): Intent =
+            Intent(context, HomeCustomizeActivity::class.java)
+                .putExtra(EXTRA_TV, tv)
+                .putExtra(EXTRA_INITIAL_TAB, initialTab)
     }
 }

@@ -69,4 +69,33 @@
         <item name="android:paddingStart">14dp</item>
         <item name="android:paddingEnd">14dp</item>
     </style>
+
+    <!-- Personalize MKTV: the four tabs across the top, outlined on the one open. -->
+    <style name="StudioTab" parent="HomeEditHeaderChip">
+        <item name="android:layout_marginStart">0dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:background">@drawable/persona_card_bg</item>
+    </style>
+
+    <style name="StudioHeading">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">14dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="StudioHelp" parent="SmartRowsNote">
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:textColor">@color/rack_text_muted</item>
+    </style>
+
+    <!-- One choice or switch the whole width of the panel, outlined while chosen or on. -->
+    <style name="StudioOption" parent="SmartRowsToggle">
+        <item name="android:layout_marginTop">6dp</item>
+    </style>
 </resources>

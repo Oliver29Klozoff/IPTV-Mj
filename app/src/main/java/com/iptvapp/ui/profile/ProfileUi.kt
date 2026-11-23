@@ -241,13 +241,22 @@ object ProfileUi {
             Toast.makeText(app, app.getString(R.string.profile_switched, p.name), Toast.LENGTH_SHORT).show()
             runCatching { wait.dismiss() }
             activity.startActivity(
-                Intent(activity, activity::class.java)
+                Intent(activity, restartTarget(activity))
                     .putExtra(EXTRA_SWITCHED, true)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             )
             activity.finish()
         }
     }
+
+    /**
+     * The screen a switch starts afresh: a home screen itself; from anywhere else (Personalize
+     * MKTV, Settings) the app's start, which opens the right home. Restarting that screen alone
+     * would leave it with no home behind it.
+     */
+    fun restartTarget(activity: android.app.Activity): Class<out android.app.Activity> =
+        if (activity is com.iptvapp.ui.home.HomeActivity || activity is com.iptvapp.ui.home.TvHomeActivity) activity::class.java
+        else com.iptvapp.ui.SplashActivity::class.java
 
     private fun showManage(activity: AppCompatActivity, prefs: PreferencesManager, switcher: ProfileSwitcher) {
         activity.lifecycleScope.launch {

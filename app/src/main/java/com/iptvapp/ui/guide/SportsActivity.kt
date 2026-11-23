@@ -88,9 +88,9 @@ class SportsActivity : com.iptvapp.ui.MktvActivity() {
             // Games come from the stored guide: an old one hides most of them, so say so.
             val refreshed = prefs.lastEpgRefreshTime.first()
             if (System.currentTimeMillis() - refreshed > 24 * 3_600_000L) {
-                binding.tvSportsSubtitle.text = if (refreshed == 0L) "The guide hasn't been refreshed yet, so games are missing. Refresh it in Settings > Stream & EPG."
+                binding.tvSportsSubtitle.text = if (refreshed == 0L) "The guide hasn't been refreshed yet, so games are missing. Refresh it in Settings > Providers & Guide."
                     else "The guide was last refreshed " + SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(refreshed)) +
-                        ", so games may be missing. Refresh it in Settings > Stream & EPG, or turn on Auto refresh."
+                        ", so games may be missing. Refresh it in Settings > Providers & Guide, or turn on Auto refresh."
                 binding.tvSportsSubtitle.setTextColor(getColor(R.color.rack_danger_text))
             }
             // Games start and end while this is open: look again every minute while it's on screen
@@ -144,7 +144,7 @@ class SportsActivity : com.iptvapp.ui.MktvActivity() {
             binding.rvSports.visibility = View.GONE
             binding.tvSportsEmpty.visibility = View.VISIBLE
             binding.tvSportsEmpty.text = if (all.isNotEmpty()) "No games match “${query.trim()}”."
-                else "No games found in the guide right now. If the guide is empty or old, refresh it in Settings > Stream & EPG and look again."
+                else "No games found in the guide right now. If the guide is empty or old, refresh it in Settings > Providers & Guide and look again."
             return
         }
         binding.tvSportsEmpty.visibility = View.GONE
