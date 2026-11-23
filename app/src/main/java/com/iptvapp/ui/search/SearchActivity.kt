@@ -64,6 +64,9 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
      */
     private val favoriteChanges = HashMap<String, Boolean>()
 
+    /** Taps on each favorite so far, so a failed save only undoes the latest one. */
+    private val favoriteTaps = HashMap<String, Int>()
+
     /** Saves not finished yet, by key. */
     private val favoriteSavesRunning = HashMap<String, Int>()
 
@@ -365,6 +368,8 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
         adapter.repaintFavorites(key)
         val name = SearchFavorites.nameOf(hit)
         favoriteSavesRunning[key] = (favoriteSavesRunning[key] ?: 0) + 1
+        val tap = (favoriteTaps[key] ?: 0) + 1
+        favoriteTaps[key] = tap
         lifecycleScope.launch {
             val saved = try {
                 // Finished even when a pick closes this screen straight after the tap.
@@ -380,8 +385,11 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
                 favoriteSavedAt[key] = searchesStarted
             }
             if (!saved) {
-                favoriteChanges[key] = !favorite
-                adapter.repaintFavorites(key)
+                // Undone only when no later tap on it has come since; a later one saves its own.
+                if (favoriteTaps[key] == tap) {
+                    favoriteChanges[key] = !favorite
+                    adapter.repaintFavorites(key)
+                }
                 Toast.makeText(this@SearchActivity, R.string.search_favorite_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
