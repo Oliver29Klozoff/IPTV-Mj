@@ -58,9 +58,18 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
 
     /**
      * Favorites changed on this screen, by SearchFavorites key: the results were found before,
-     * so their own flags are stale. Kept across searches and filters until the screen closes.
+     * so their own flags are stale. Each is dropped once a search that started after its save
+     * has come back (see settleFavoriteChanges), so a change made elsewhere, such as on a film's
+     * own screen, then shows.
      */
     private val favoriteChanges = HashMap<String, Boolean>()
+
+    /** Saves not finished yet, by key. */
+    private val favoriteSavesRunning = HashMap<String, Int>()
+
+    /** For each finished save, how many searches had started by then. */
+    private val favoriteSavedAt = HashMap<String, Int>()
+    private var searchesStarted = 0
 
     /** One save at a time, in tap order, so a quick double tap ends where the star shows. */
     private val favoriteSaves = kotlinx.coroutines.sync.Mutex()
@@ -206,10 +215,12 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
         searchJob = lifecycleScope.launch {
             if (debounce) delay(300)
             binding.searchProgress.visibility = View.VISIBLE
+            val searchNumber = ++searchesStarted
             val local = try { search.search(q) } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 emptyList()
             }
+            settleFavoriteChanges(searchNumber)
             results = local
             show()
             // Episodes ask the series' provider: shown as soon as they arrive, after the rest.
@@ -317,6 +328,24 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
     private fun isFavorite(hit: SearchHit) = SearchFavorites.isFavorite(hit, favoriteChanges)
 
     /**
+     * Search [searchNumber] read the saved favorites after every save that had finished before
+     * it started, so those changes are in its results: stop overriding them.
+     */
+    private fun settleFavoriteChanges(searchNumber: Int) {
+        favoriteChanges.keys.retainAll { key ->
+            (favoriteSavesRunning[key] ?: 0) > 0 || (favoriteSavedAt[key] ?: Int.MAX_VALUE) >= searchNumber
+        }
+        favoriteSavedAt.keys.retainAll { it in favoriteChanges }
+    }
+
+    /** Back from a film, series or other screen that may have changed a favorite: search again. */
+    override fun onRestart() {
+        super.onRestart()
+        val q = binding.etSearch.text.toString()
+        if (q.trim().length >= 2) runSearch(q, debounce = false)
+    }
+
+    /**
      * Stars [hit] (a programme stars its channel), or takes the star off. The star changes at
      * once, on this row and every other row for the same favorite; the list isn't searched again.
      */
@@ -326,6 +355,7 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
         favoriteChanges[key] = favorite
         adapter.repaintFavorites(key)
         val name = SearchFavorites.nameOf(hit)
+        favoriteSavesRunning[key] = (favoriteSavesRunning[key] ?: 0) + 1
         lifecycleScope.launch {
             val saved = try {
                 // Finished even when a pick closes this screen straight after the tap.
@@ -335,6 +365,10 @@ class SearchActivity : com.iptvapp.ui.MktvActivity() {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 false
+            } finally {
+                val left = (favoriteSavesRunning[key] ?: 1) - 1
+                if (left > 0) favoriteSavesRunning[key] = left else favoriteSavesRunning.remove(key)
+                favoriteSavedAt[key] = searchesStarted
             }
             if (!saved) {
                 favoriteChanges[key] = !favorite
