@@ -1,5 +1,21 @@
 # IPTV App - Changelog
 
+## v8.02 - 2026-11-23
+- **New**: Customize Home is now **Personalize MKTV**, with four tabs. **Layout & Personas**:
+  viewing styles, Home's rows, what MKTV opens on, and on TV the mini player, Home tab and
+  sidebar. **Look & Feel**: base theme, accent and card size, with a sample card that changes as
+  you pick. **Remote & Navigation**: channel numbers, typing a number to tune, and numbering
+  your favorites 1, 2, 3. **Accessibility & Profiles**: Senior Mode, text size, banner time,
+  the bold focus ring, and switching or editing profiles. Everything is saved as you choose it.
+  On a remote, Down goes into a tab and Back returns to the tabs.
+- **Changed**: Settings has five sections: Personalize, Playback & Audio, Providers & Guide,
+  Devices & Sync, and Backup & Updates (Recordings still opens its own screen). Personalize
+  starts with a Personalize MKTV card: open it, jump straight to one of its tabs, or switch
+  profile. Guide refresh, hidden channels and the catalog refresh buttons are now under
+  Providers & Guide; diagnostics and updates are under Backup & Updates. Settings search finds
+  everything in its new place.
+- **Fixed**: Switching profile from Settings no longer leaves Settings as the only screen open.
+
 ## v8.01 - 2026-11-23
 - **New**: Search by channel number. Type digits ("206") in the magnifying-glass search, the
   Live, Categories and Favorites search boxes, or TV search to find channels by the number

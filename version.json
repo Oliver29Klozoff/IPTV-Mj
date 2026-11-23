@@ -1,7 +1,7 @@
 {
-  "versionCode": 639,
-  "versionName": "8.01",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.01/MKTV.apk",
-  "apkSha256": "1a61b4fe15cbff4125ef312170c7164541e74d345ad453c214f6a5a31efaad06",
-  "changelog": "Find channels by number: type 206 in search and channel 206 comes first."
+  "versionCode": 640,
+  "versionName": "8.02",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.02/MKTV.apk",
+  "apkSha256": "eae32b9f88a71f66ec0de4d4574bf253c0bd93a393c725236bafa88f12a2b761",
+  "changelog": "Personalize MKTV: layout, look, remote and accessibility in one place, and Settings in five sections."
 }
