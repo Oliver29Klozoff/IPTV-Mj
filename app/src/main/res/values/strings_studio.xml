@@ -16,6 +16,8 @@
 
     <!-- Layout & Personas -->
     <string name="studio_home_rows_heading">Home rows</string>
+    <string name="studio_persona_chip">STYLE: %1$s</string>
+    <string name="studio_persona_chip_description">Viewing style: %1$s. Change it</string>
     <string name="studio_home_rows_help_tv">The rows on this TV\'s Home, top to bottom. Changes are saved as you make them.</string>
     <string name="studio_home_rows_help_phone">The rows on the phone\'s Home, top to bottom. Drag ≡ to move a row. Changes are saved as you make them.</string>
 

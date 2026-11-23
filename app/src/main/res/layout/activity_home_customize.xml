@@ -104,6 +104,7 @@
 
             <!-- Viewing style: one press sets a preset (ViewingPersona); cards are added in code. -->
             <TextView
+                android:id="@+id/tvPersonaHeading"
                 style="@style/StudioHeading"
                 android:layout_marginTop="6dp"
                 android:text="@string/persona_heading" />
@@ -137,6 +138,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
+
+                    <!-- Short screens only (a phone held sideways): the viewing style as a chip, so the rows keep room. -->
+                    <TextView
+                        android:id="@+id/btnCustomizePersona"
+                        style="@style/HomeEditHeaderChip"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="6dp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/btnCustomizeStart"

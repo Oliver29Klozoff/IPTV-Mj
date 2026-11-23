@@ -188,7 +188,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
 
     /** The first focusable, shown view under [view] in layout order (the chosen style on the Layout tab). */
     private fun focusFirstIn(view: View): View? {
-        if (view === binding.panelLayout) personaCards[persona]?.root?.let { return it }
+        if (view === binding.panelLayout && !shortScreen) personaCards[persona]?.root?.let { return it }
         if (view !is ViewGroup || view.visibility != View.VISIBLE) return null
         for (i in 0 until view.childCount) {
             val child = view.getChildAt(i)
@@ -274,20 +274,43 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
     private fun buildPersonaCards() {
         val parent = binding.personaCards
         persona = prefs.viewingPersonaNow(tv)
-        // A short phone held sideways: titles only, so the rows keep room.
-        val short = resources.configuration.screenHeightDp < 480
         for (p in ViewingPersona.entries) {
             val card = ItemPersonaCardBinding.inflate(layoutInflater, parent, false)
             card.root.id = View.generateViewId()
             card.tvPersonaBadge.text = p.badge
             card.tvPersonaTitle.setText(p.titleRes)
             card.tvPersonaDesc.text = getString(if (tv) p.tvDescRes else p.phoneDescRes)
-            if (short) card.tvPersonaDesc.visibility = View.GONE
+            if (shortScreen) card.tvPersonaDesc.visibility = View.GONE
             card.root.setOnClickListener { pickPersona(p) }
             parent.addView(card.root)
             personaCards[p] = card
         }
+        if (shortScreen) {
+            // A phone held sideways: the title bar and tabs take much of the height, so the cards
+            // give way to a STYLE chip and the rows keep room to be moved and edited.
+            binding.tvPersonaHeading.visibility = View.GONE
+            binding.personaScroll.visibility = View.GONE
+            binding.tvHomeRowsHelp.visibility = View.GONE
+            binding.tvCustomizeSubtitle.visibility = View.GONE
+            binding.btnCustomizePersona.visibility = View.VISIBLE
+            binding.btnCustomizePersona.setOnClickListener { pickPersonaDialog() }
+        }
         renderPersona()
+    }
+
+    /** Short screens only: the less than 480dp tall a phone is held sideways. */
+    private val shortScreen by lazy { resources.configuration.screenHeightDp < 480 }
+
+    private fun pickPersonaDialog() {
+        val options = ViewingPersona.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.persona_heading)
+            .setSingleChoiceItems(options.map { getString(it.titleRes) }.toTypedArray(), options.indexOf(persona)) { d, which ->
+                d.dismiss()
+                pickPersona(options[which])
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private suspend fun refreshPersona() {
@@ -305,6 +328,9 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
                 getString(p.titleRes), card.tvPersonaDesc.text,
             )
         }
+        val name = getString(persona.titleRes)
+        binding.btnCustomizePersona.text = getString(R.string.studio_persona_chip, name.uppercase())
+        binding.btnCustomizePersona.contentDescription = getString(R.string.studio_persona_chip_description, name)
         linkFocus()
         refreshSummary()
     }
@@ -356,7 +382,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
      * any button back to the style in use (Up from a style goes to the tab: selectTab).
      */
     private fun linkFocus() {
-        val styleId = personaCards[persona]?.root?.id ?: View.NO_ID
+        val styleId = if (shortScreen) View.NO_ID else personaCards[persona]?.root?.id ?: View.NO_ID
         for (card in personaCards.values) card.root.nextFocusDownId = R.id.btnCustomizeStart
         val bar = binding.layoutOptionsBar
         for (i in 0 until bar.childCount) bar.getChildAt(i).nextFocusUpId = styleId
@@ -389,7 +415,7 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             render(focus = null)
             if (tv) showMiniPlayerMode(TvHomeMiniMode.of(prefs.tvHomeMiniPlayerMode.first()))
             refreshPersona()
-            personaCards[persona]?.root?.requestFocus()
+            (if (shortScreen) binding.btnCustomizePersona else personaCards[persona]?.root)?.requestFocus()
         }
     }
 
