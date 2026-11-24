@@ -314,6 +314,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Start Screen", null, R.id.cardPersonalizeStudio),
             SettingSearchEntry("Hide Home Tab", null, R.id.cardPersonalizeStudio),
             SettingSearchEntry("Switch Profile", null, R.id.btnSettingsSwitchProfile),
+            SettingSearchEntry("Add Profile", null, R.id.btnSettingsSwitchProfile),
             SettingSearchEntry("Customize Sidebar Sections", null, R.id.rowCustomizeSidebar),
             SettingSearchEntry("Auto-Clear Continue Watching", null, R.id.rowAutoClearContinueWatching),
             SettingSearchEntry("Refresh Channels, Movies or Series", null, R.id.btnRefreshChannels),
@@ -1227,10 +1228,16 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         binding.btnOpenStudio.setOnClickListener { com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv) }
         listOf(binding.btnJumpLayout, binding.btnJumpAppearance, binding.btnJumpRemote, binding.btnJumpAccessibility)
             .forEachIndexed { tab, btn -> btn.setOnClickListener { com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv, tab) } }
+        // One profile: the button adds the second (then "Who's watching" appears everywhere).
         binding.btnSettingsSwitchProfile.setOnClickListener {
-            com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
+            if (com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size)) {
+                com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
+            } else {
+                com.iptvapp.ui.profile.ProfileUi.showEditor(this, prefs, profileSwitcher, null)
+            }
         }
         renderPersonalizeCard()
+        lifecycleScope.launch { com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect { renderPersonalizeCard() } }
     }
 
     /** "Viewing style: Classic Cable · Theme: OLED Black · Profile: Emjay", and the profile in use. */
@@ -1238,7 +1245,17 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         val persona = getString(prefs.viewingPersonaNow(isLargeScreenDevice()).titleRes)
         val theme = getString(prefs.baseThemeNow().titleRes)
         val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull()
+        val household = com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size)
+        if (!household) {
+            binding.tvStudioSummary.text = getString(R.string.settings_studio_summary_single, persona, theme)
+            binding.tvSettingsProfilesLabel.setText(R.string.settings_studio_profiles_label)
+            binding.tvSettingsProfileName.setText(R.string.settings_studio_add_profile_help)
+            binding.btnSettingsSwitchProfile.setText(R.string.profile_add)
+            return
+        }
         binding.tvStudioSummary.text = getString(R.string.settings_studio_summary, persona, theme, profile?.name ?: "—")
+        binding.tvSettingsProfilesLabel.setText(R.string.studio_profiles_heading)
+        binding.btnSettingsSwitchProfile.setText(R.string.settings_studio_switch_profile)
         binding.tvSettingsProfileName.text = profile?.let {
             if (it.isKids) getString(R.string.settings_studio_profile_kids, it.name) else it.name
         } ?: "—"

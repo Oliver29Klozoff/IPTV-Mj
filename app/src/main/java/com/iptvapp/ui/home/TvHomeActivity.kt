@@ -2878,6 +2878,13 @@ class TvHomeActivity : com.iptvapp.ui.MktvActivity(), com.iptvapp.remote.RemoteC
         lifecycleScope.launch {
             com.iptvapp.data.profile.ProfileStore.active(prefs).collect { com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.btnTvProfile, it) }
         }
+        // Only a household with a second profile (added in Settings) sees the avatar.
+        lifecycleScope.launch {
+            com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect {
+                binding.btnTvProfile.visibility =
+                    if (com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(it.size)) View.VISIBLE else View.GONE
+            }
+        }
         lifecycleScope.launch {
             prefs.kidsSafeMode.collect { kids -> binding.btnTvSettings.visibility = if (kids) View.GONE else View.VISIBLE }
         }

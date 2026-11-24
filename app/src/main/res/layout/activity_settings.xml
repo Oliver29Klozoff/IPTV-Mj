@@ -351,7 +351,9 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1">
+                                <!-- "Who's watching" with two or more profiles, else "Profiles". -->
                                 <TextView
+                                    android:id="@+id/tvSettingsProfilesLabel"
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
