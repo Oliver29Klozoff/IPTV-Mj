@@ -202,7 +202,7 @@ object WhatsNew {
             setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         // The remote starts on the newest release; Down walks the releases, Up reaches Close.
-        dialog.setOnShowListener { list.post { list.getChildAt(0)?.requestFocus() ?: close.requestFocus() } }
+        dialog.setOnShowListener { list.post { if (list.getChildAt(0)?.requestFocus() != true) close.requestFocus() } }
         dialog.show()
         return true
     }
@@ -246,9 +246,10 @@ object WhatsNew {
             return Holder(LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setPadding((14 * d).toInt(), (14 * d).toInt(), (14 * d).toInt(), (16 * d).toInt())
-                isFocusable = true
-                background = focusBackground(activity, 12 * d, outlined = false)
+                setPadding((8 * d).toInt(), (10 * d).toInt(), (8 * d).toInt(), (12 * d).toInt())
+                // The remote stops on the version and then on each note, so a release taller
+                // than the dialog scrolls a line at a time.
+                descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
             })
         }
 
@@ -264,9 +265,13 @@ object WhatsNew {
             box.removeAllViews()
 
             val isInstalled = r.version == installed
+            val activity = ctx as Activity
             box.addView(LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                isFocusable = true
+                setPadding(dp(6), dp(4), dp(6), dp(4))
+                background = focusBackground(activity, dp(8).toFloat(), outlined = false)
                 addView(TextView(ctx).apply {
                     text = "v${r.version}"
                     typeface = ResourcesCompat.getFont(ctx, R.font.barlow_condensed_bold)
@@ -309,7 +314,11 @@ object WhatsNew {
                 }
                 box.addView(LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(dp(4 + 18 * line.indent), dp(8), 0, 0)
+                    isFocusable = true
+                    background = focusBackground(activity, dp(8).toFloat(), outlined = false)
+                    setPadding(dp(10 + 18 * line.indent), dp(5), dp(6), dp(5))
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                        .apply { topMargin = dp(3) }
                     if (line.bullet) addView(TextView(ctx).apply {
                         this.text = if (line.indent > 0) "◦" else "•"
                         setTextColor(color(R.color.rack_text_secondary))
