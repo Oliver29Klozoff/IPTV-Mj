@@ -1,7 +1,7 @@
 {
-  "versionCode": 641,
-  "versionName": "8.03",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.03/MKTV.apk",
-  "apkSha256": "ebfbde5b669ef1f1fc67397b9e4f90373a71cd393a7634953e8bffe1fe6f6ea8",
-  "changelog": "The profile avatar and Who is watching only show once a second profile is added in Settings."
+  "versionCode": 642,
+  "versionName": "8.04",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.04/MKTV.apk",
+  "apkSha256": "0836fb7359d82cf213981476683649e76829a63c72ee2abd7e3d98d371c98e9d",
+  "changelog": "What is New is easier to read: one section per version, bigger text, an Installed tag."
 }

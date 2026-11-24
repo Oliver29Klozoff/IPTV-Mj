@@ -1,5 +1,11 @@
 # IPTV App - Changelog
 
+## v8.04 - 2026-11-24
+- **Changed**: What's New is easier to read. Each version gets its own section with its date
+  and an Installed tag on the one you have. The notes are bigger and lighter, each on its own
+  line. After an update, that version's notes show with an All versions button.
+  On a remote, Down moves through the notes one at a time.
+
 ## v8.03 - 2026-11-23
 - **Changed**: The profile avatar on Home and "Who's watching" in Personalize MKTV only show
   once a second profile has been added. Add one from Settings → Personalize → Add profile;
