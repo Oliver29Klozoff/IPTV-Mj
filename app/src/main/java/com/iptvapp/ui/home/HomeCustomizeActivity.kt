@@ -200,10 +200,13 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         return null
     }
 
+    /** How many profiles the studio last rendered (from the saved list, not the snapshot). */
+    private var profileCountShown = 1
+
     /** The line under the title: screen, profile, viewing style and theme. */
     private fun refreshSummary() {
         val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull()
-            ?.takeIf { com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size) }
+            ?.takeIf { com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(profileCountShown) }
         binding.tvCustomizeSubtitle.text = PersonalizeStudio.summary(
             getString(if (tv) R.string.studio_screen_tv else R.string.studio_screen_phone),
             profile?.name, getString(persona.titleRes), getString(prefs.baseThemeNow().titleRes),
@@ -981,17 +984,18 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         renderProfile()
         renderAccess(prefs.accessibilityNow())
         // A profile added or removed from the switcher opened here shows or hides "Who's watching".
-        lifecycleScope.launch { com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect { renderProfile() } }
+        lifecycleScope.launch { com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect { renderProfile(it.size) } }
     }
 
     /** "Who's watching" only once a second profile has been added (from Settings). */
-    private fun renderProfile() {
+    private fun renderProfile(profileCount: Int = com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size) {
         val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull() ?: return
-        val shown = com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size)
+        val shown = com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(profileCount)
         for (v in listOf(binding.tvStudioProfilesHeading, binding.studioProfileRow, binding.btnStudioSwitchProfile)) {
             v.visibility = if (shown) View.VISIBLE else View.GONE
         }
         com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.tvStudioAvatar, profile)
+        profileCountShown = profileCount
         binding.tvStudioProfileName.text = profile.name
         binding.tvStudioProfileNote.setText(if (profile.isKids) R.string.studio_profile_kids else R.string.studio_profile_adult)
         refreshSummary()

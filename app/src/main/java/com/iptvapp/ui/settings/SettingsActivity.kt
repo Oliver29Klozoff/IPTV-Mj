@@ -1222,6 +1222,9 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     // ─── Personalize MKTV card ──────────────────────────────────────────────
     @Inject lateinit var profileSwitcher: com.iptvapp.data.profile.ProfileSwitcher
 
+    /** How many profiles the card last showed: Add profile with one, Switch profile with more. */
+    private var profileCountShown = 1
+
     /** The studio card: Open studio, a jump to each of its tabs, and Switch profile. */
     private fun setupPersonalizeCard() {
         val tv = isLargeScreenDevice()
@@ -1230,22 +1233,23 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             .forEachIndexed { tab, btn -> btn.setOnClickListener { com.iptvapp.ui.home.HomeCustomizeActivity.open(this, tv, tab) } }
         // One profile: the button adds the second (then "Who's watching" appears everywhere).
         binding.btnSettingsSwitchProfile.setOnClickListener {
-            if (com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size)) {
+            if (com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(profileCountShown)) {
                 com.iptvapp.ui.profile.ProfileUi.showSwitcher(this, prefs, profileSwitcher)
             } else {
                 com.iptvapp.ui.profile.ProfileUi.showEditor(this, prefs, profileSwitcher, null)
             }
         }
         renderPersonalizeCard()
-        lifecycleScope.launch { com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect { renderPersonalizeCard() } }
+        lifecycleScope.launch { com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect { renderPersonalizeCard(it.size) } }
     }
 
     /** "Viewing style: Classic Cable · Theme: OLED Black · Profile: Emjay", and the profile in use. */
-    private fun renderPersonalizeCard() {
+    private fun renderPersonalizeCard(profileCount: Int = com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size) {
         val persona = getString(prefs.viewingPersonaNow(isLargeScreenDevice()).titleRes)
         val theme = getString(prefs.baseThemeNow().titleRes)
         val profile = runCatching { com.iptvapp.data.profile.ProfileStore.activeNow(prefs) }.getOrNull()
-        val household = com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(com.iptvapp.data.profile.ProfileStore.profilesNow(prefs).size)
+        profileCountShown = profileCount
+        val household = com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(profileCount)
         if (!household) {
             binding.tvStudioSummary.text = getString(R.string.settings_studio_summary_single, persona, theme)
             binding.tvSettingsProfilesLabel.setText(R.string.settings_studio_profiles_label)
