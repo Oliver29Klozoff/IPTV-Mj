@@ -63,4 +63,11 @@
     <string name="settings_studio_profiles_label">Profiles</string>
     <string name="settings_studio_add_profile_help">Add a profile so each person keeps their own favorites, history and look. Then \"Who\'s watching\" shows on Home.</string>
     <string name="settings_studio_profile_kids">%1$s · Kids profile</string>
+
+    <!-- What's New (Settings → Backup & Updates, and once after an update) -->
+    <string name="whats_new_title">What\'s New</string>
+    <string name="whats_new_in">What\'s new in MKTV %1$s</string>
+    <string name="whats_new_close">Close</string>
+    <string name="whats_new_all">All versions</string>
+    <string name="whats_new_installed">Installed</string>
 </resources>

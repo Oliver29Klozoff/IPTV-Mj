@@ -3260,24 +3260,8 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     }
 
     private fun showChangelog() {
-        val text = try {
-            assets.open("CHANGELOG.md").bufferedReader().use { it.readText() }
-        } catch (_: Exception) {
-            "Changelog not available."
-        }
-        val scrollView = android.widget.ScrollView(this)
-        val tv = android.widget.TextView(this).apply {
-            this.text = text
-            textSize = 13f
-            setTextColor(0xFFCCCCCC.toInt())
-            setPadding(48, 32, 48, 32)
-        }
-        scrollView.addView(tv)
-        AlertDialog.Builder(this)
-            .setTitle("Changelog")
-            .setView(scrollView)
-            .setPositiveButton("Close", null)
-            .show()
+        val installed = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull()
+        if (!WhatsNew.show(this, installed)) Toast.makeText(this, "Changelog not available.", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadSettings() {
