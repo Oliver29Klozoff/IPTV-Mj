@@ -1,5 +1,10 @@
 # IPTV App - Changelog
 
+## v8.03 - 2026-11-23
+- **Changed**: The profile avatar on Home and "Who's watching" in Personalize MKTV only show
+  once a second profile has been added. Add one from Settings → Personalize → Add profile;
+  after that, the same button reads Switch profile.
+
 ## v8.02 - 2026-11-23
 - **New**: Customize Home is now **Personalize MKTV**, with four tabs. **Layout & Personas**:
   viewing styles, Home's rows, what MKTV opens on, and on TV the mini player, Home tab and
