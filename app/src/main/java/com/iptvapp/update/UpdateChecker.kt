@@ -128,6 +128,9 @@ class UpdateChecker(
     }
 
     private fun showWhatsNewDialog(versionName: String, notes: String) {
+        // The full notes for this version from the bundled changelog; the one-line summary otherwise.
+        val activity = context as? android.app.Activity
+        if (activity != null && com.iptvapp.ui.settings.WhatsNew.show(activity, versionName, onlyVersion = versionName)) return
         AlertDialog.Builder(context)
             .setTitle("What's new in MKTV $versionName")
             .setMessage(notes.ifBlank { "No changelog available." })
