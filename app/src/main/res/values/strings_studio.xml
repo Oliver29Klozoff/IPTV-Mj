@@ -58,6 +58,9 @@
     <string name="settings_studio_heading">Personalize MKTV</string>
     <string name="settings_studio_open">Open studio</string>
     <string name="settings_studio_summary">Viewing style: %1$s · Theme: %2$s · Profile: %3$s</string>
+    <string name="settings_studio_summary_single">Viewing style: %1$s · Theme: %2$s</string>
     <string name="settings_studio_switch_profile">Switch profile</string>
+    <string name="settings_studio_profiles_label">Profiles</string>
+    <string name="settings_studio_add_profile_help">Add a profile so each person keeps their own favorites, history and look. Then \"Who\'s watching\" shows on Home.</string>
     <string name="settings_studio_profile_kids">%1$s · Kids profile</string>
 </resources>

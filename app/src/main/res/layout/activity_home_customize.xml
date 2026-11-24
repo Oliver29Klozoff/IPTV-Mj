@@ -367,12 +367,15 @@
                 android:orientation="vertical"
                 android:paddingBottom="24dp">
 
+                <!-- Who's watching: only once a second profile exists (renderProfile). -->
                 <TextView
+                    android:id="@+id/tvStudioProfilesHeading"
                     style="@style/StudioHeading"
                     android:layout_marginTop="6dp"
                     android:text="@string/studio_profiles_heading" />
 
                 <LinearLayout
+                    android:id="@+id/studioProfileRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"

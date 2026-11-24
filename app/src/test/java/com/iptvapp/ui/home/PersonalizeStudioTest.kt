@@ -89,6 +89,17 @@ class PersonalizeStudioTest {
     }
 
     @Test
+    fun whoIsWatchingOnlyShowsOnceASecondProfileIsAdded() {
+        assertFalse(com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(1))
+        assertTrue(com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(2))
+        assertTrue(com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(5))
+        // The studio hides all three parts of it together.
+        val b = ActivityHomeCustomizeBinding.inflate(activity().layoutInflater)
+        listOf(b.tvStudioProfilesHeading, b.studioProfileRow, b.btnStudioSwitchProfile)
+            .forEach { assertNotNull(b.panelAccessibilityProfiles.findViewById<View>(it.id)) }
+    }
+
+    @Test
     fun aProfileSwitchAwayFromHomeRestartsTheApp() {
         // From the studio or Settings, restarting that screen alone would leave no Home behind it.
         assertEquals(SplashActivity::class.java, ProfileUi.restartTarget(activity()))

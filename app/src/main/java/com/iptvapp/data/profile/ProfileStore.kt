@@ -65,6 +65,12 @@ object ProfileStore {
         }
     }
 
+    /**
+     * The avatar on Home and "Who's watching" in Personalize MKTV only show once a second profile
+     * has been added (from Settings); a one-person household never sees them.
+     */
+    fun showsWhoIsWatching(profileCount: Int): Boolean = profileCount >= 2
+
     /** "Who's watching?" at start: on by default once there are two or more profiles. */
     fun shouldAskOnStart(askSetting: Boolean?, profileCount: Int): Boolean =
         profileCount >= 2 && (askSetting ?: true)

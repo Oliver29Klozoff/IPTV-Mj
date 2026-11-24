@@ -1486,6 +1486,13 @@ class HomeActivity : com.iptvapp.ui.MktvActivity() {
         lifecycleScope.launch {
             com.iptvapp.data.profile.ProfileStore.active(prefs).collect { com.iptvapp.ui.profile.ProfileUi.bindAvatar(binding.btnPhoneProfile, it) }
         }
+        // Only a household with a second profile (added in Settings) sees the avatar.
+        lifecycleScope.launch {
+            com.iptvapp.data.profile.ProfileStore.profiles(prefs).collect {
+                binding.btnPhoneProfile.visibility =
+                    if (com.iptvapp.data.profile.ProfileStore.showsWhoIsWatching(it.size)) View.VISIBLE else View.GONE
+            }
+        }
         lifecycleScope.launch {
             prefs.kidsSafeMode.collect { kids -> binding.btnMenu.visibility = if (kids) View.GONE else View.VISIBLE }
         }
