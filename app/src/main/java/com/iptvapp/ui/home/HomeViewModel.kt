@@ -475,6 +475,8 @@ class HomeViewModel @Inject constructor(
 
     private var selectedCombinedCategory: LiveCategoryRow? = null
     private val _combinedLiveChannels = MutableStateFlow<List<LiveChannelRow>>(emptyList())
+    /** Bumped when Channel order changes, so whatever list is open (category or search) re-sorts in place. */
+    private val sortChanges = MutableStateFlow(0)
     val combinedLiveChannels: StateFlow<List<LiveChannelRow>> = _combinedLiveChannels
 
     /** "+N" counts and the exact list they were computed for. */
@@ -627,6 +629,7 @@ class HomeViewModel @Inject constructor(
             flow.combine(prefs.combineDuplicates) { rows, on -> rows to on }
                 .combine(prefs.smartChannelDisplay) { pair, smart -> Triple(pair.first, pair.second, smart) }
                 .combine(smartShapeChanges) { state, _ -> state }
+                .combine(sortChanges) { state, _ -> state }
                 .collectLatest { (rows, on, smart) ->
                 // Collapse, then sort: the copy kept may sort elsewhere than the group's first copy.
                 val collapsed = shapeCategory(
@@ -669,7 +672,7 @@ class HomeViewModel @Inject constructor(
                 }
             ) { primary, merged ->
                 primary.map { LiveChannelRow(channel = it) } + merged.map { LiveChannelRow(mergedChannel = it) }
-            }.collectLatest { rows ->
+            }.combine(sortChanges) { rows, _ -> rows }.collectLatest { rows ->
                 _combinedLiveChannels.value = applySortToLiveRows(rows)
                 _channels.value = applySortToChannels(rows.mapNotNull { it.channel })
             }
@@ -1706,9 +1709,9 @@ class HomeViewModel @Inject constructor(
                 _channelSort.value = sort
                 if (sort == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
                 if (!first && changed) {
-                    reloadCurrentLiveCategory()
-                    // Live/Categories show the combined list, which sorts once per selection.
-                    selectedCombinedCategory?.let { selectCombinedCategory(it) }
+                    // The combined Live/Categories list (category or search) re-sorts itself and
+                    // keeps what's open; only the plain primary list needs reloading.
+                    if (combinedLiveChannelsJob?.isActive == true) sortChanges.value++ else reloadCurrentLiveCategory()
                 }
                 first = false
             }
