@@ -49,7 +49,10 @@ class EpgRefreshWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         createNotificationChannel()
 
-        val missingOnly = resolveMissingOnly(inputData) { prefs.epgRefreshMissingOnly.first() }
+        val missingOnly = resolveMissingOnly(inputData)
+        // "Missing" for the automatic refresh: no guide that lasts until the next one is due.
+        val coveredUntilMs = System.currentTimeMillis() +
+            guideHorizonHours(prefs.epgAutoRefreshHours.first()) * 3_600_000L
         val notificationManager =
             appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -80,7 +83,7 @@ class EpgRefreshWorker @AssistedInject constructor(
 
             val channelsToRefresh = selectChannels(
                 allChannels, missingOnly,
-                idsWithEpg = { db.epgDao().getStreamIdsWithEpg().toSet() }
+                idsWithEpg = { db.epgDao().getStreamIdsWithEpgUntil(coveredUntilMs).toSet() }
             )
 
             val total = channelsToRefresh.size
@@ -233,9 +236,16 @@ class EpgRefreshWorker @AssistedInject constructor(
         // ignoring the setting.
         const val KEY_USE_SAVED_SETTING = "use_saved_missing_only"
 
-        /** The automatic refresh follows the saved setting; a manual run uses what it was given. */
-        internal suspend fun resolveMissingOnly(input: androidx.work.Data, saved: suspend () -> Boolean): Boolean =
-            if (input.getBoolean(KEY_USE_SAVED_SETTING, false)) saved() else input.getBoolean(KEY_MISSING_ONLY, false)
+        /**
+         * The automatic refresh only fills gaps (favorites whose guide runs out before the next
+         * one); a refresh someone asks for uses what it was given, which is the full one.
+         * KEY_USE_SAVED_SETTING keeps its name: the periodic work already queued carries it.
+         */
+        internal fun resolveMissingOnly(input: androidx.work.Data): Boolean =
+            input.getBoolean(KEY_USE_SAVED_SETTING, false) || input.getBoolean(KEY_MISSING_ONLY, false)
+
+        /** How far ahead a favorite's guide must reach to be skipped: to the next refresh, at least 6 h. */
+        internal fun guideHorizonHours(autoRefreshHours: Int): Int = maxOf(autoRefreshHours, 6)
 
         /** Favorites to fetch a short guide for: all of them, or only those with no guide rows yet. */
         internal suspend fun <T : com.iptvapp.data.local.entities.ChannelEntity> selectChannels(

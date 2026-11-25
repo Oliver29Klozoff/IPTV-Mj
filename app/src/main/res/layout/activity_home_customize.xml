@@ -334,6 +334,21 @@
                     android:layout_marginTop="12dp"
                     android:text="@string/studio_auto_number" />
 
+                <TextView
+                    style="@style/StudioHeading"
+                    android:text="@string/studio_sort_heading" />
+
+                <!-- One option per channel order, added in code. -->
+                <LinearLayout
+                    android:id="@+id/sortOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <TextView
+                    style="@style/StudioHelp"
+                    android:text="@string/studio_sort_help" />
+
                 <!-- TV only: the sidebar's order and entries. -->
                 <LinearLayout
                     android:id="@+id/studioTvNavBlock"

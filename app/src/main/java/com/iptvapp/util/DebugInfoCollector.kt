@@ -54,7 +54,6 @@ object DebugInfoCollector {
         }
         val autoRefreshHours = prefs.epgAutoRefreshHours.first()
         val autoRefreshStr = if (autoRefreshHours == 0) "Off" else "Every ${autoRefreshHours}h"
-        val missingOnly = prefs.epgRefreshMissingOnly.first()
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memInfo = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
         val ramFree = "%.1f GB".format(memInfo.availMem / 1e9)
@@ -84,7 +83,7 @@ object DebugInfoCollector {
             VOD: $vodCount | Series: $seriesCount | EPG: $epgCount
             Format: $format | USA Only: $usaOnly
             Last EPG Refresh: $lastRefresh
-            Auto-refresh: $autoRefreshStr | Missing-only: $missingOnly
+            Auto-refresh: $autoRefreshStr (missing guide only) | Manual: full
             EPG Worker: $epgWorkState
         """.trimIndent()
         return debugText + "\n\n=== CRASH LOG ===\n" + crashLog

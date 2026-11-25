@@ -330,7 +330,6 @@ class PreferencesManager @Inject constructor(
         val NEW_EPISODE_NOTIFICATIONS_ENABLED = booleanPreferencesKey("new_episode_notifications_enabled")
         val NEW_EPISODE_LAST_SEEN_COUNTS = stringPreferencesKey("new_episode_last_seen_counts")
         val LAST_CHANNELS_FETCH_TIME = longPreferencesKey("last_channels_fetch_time")
-        val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val PRE_WARM_ON_FOCUS = booleanPreferencesKey("pre_warm_on_focus")
         val LAST_MERGED_CHANNELS_REFRESH = longPreferencesKey("last_merged_channels_refresh")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
@@ -535,6 +534,28 @@ class PreferencesManager @Inject constructor(
         .map { it[Keys.LIVE_RECONNECT_SPEED] ?: "normal" }
     suspend fun setLiveReconnectSpeed(speed: String) = context.dataStore.edit { it[Keys.LIVE_RECONNECT_SPEED] = speed }
 
+    // Channel Tuning Engine (Settings): the four knobs above plus pre-warm, read and written as
+    // one choice. Nothing new is stored, so the player keeps reading the knobs it always read.
+    val tuningSettings: Flow<TuningSettings> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { p ->
+            TuningSettings(
+                preWarmOnFocus = p[Keys.PRE_WARM_ON_FOCUS] ?: true,
+                turboTune = p[stringPreferencesKey("turbo_tune")] ?: "automatic",
+                liveReconnectSpeed = p[Keys.LIVE_RECONNECT_SPEED] ?: "normal",
+                channelZapDebounceMs = p[Keys.CHANNEL_ZAP_DEBOUNCE_MS] ?: 0,
+            )
+        }
+    /** The profile the saved knobs add up to; null when they were set by hand ("Custom"). */
+    val tuningProfile: Flow<TuningProfile?> = tuningSettings.map { TuningProfile.matching(it) }
+    suspend fun setTuningProfile(profile: TuningProfile) = context.dataStore.edit {
+        val s = profile.settings
+        it[Keys.PRE_WARM_ON_FOCUS] = s.preWarmOnFocus
+        it[stringPreferencesKey("turbo_tune")] = s.turboTune
+        it[Keys.LIVE_RECONNECT_SPEED] = s.liveReconnectSpeed
+        it[Keys.CHANNEL_ZAP_DEBOUNCE_MS] = s.channelZapDebounceMs
+    }
+
     // How many minutes before a program starts a "Remind Me" notification fires — previously
     // hardcoded to 0 (fired exactly at start time, so the notification read "X is starting now"
     // but the show had already begun by the time you saw it and switched channels).
@@ -558,6 +579,19 @@ class PreferencesManager @Inject constructor(
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readCombineDuplicates)
     suspend fun setCombineDuplicates(v: Boolean) = context.dataStore.edit { it[Keys.COMBINE_DUPLICATES] = v }
+
+    // One Settings switch, "Switch to a backup stream on freeze", for both halves of the same
+    // idea: tune a working copy of a failing channel (preferReliableCopy) and switch to one when
+    // playback stalls (autoBackupFeed). Both keys stay, so older backups and the player still work.
+    // On while either half is on (an older install or backup may have only one), so the switch
+    // never reads Off while the player can still switch copies; turning it off stops both.
+    val autoBackupStreamOnFreeze: Flow<Boolean> = context.dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { autoBackupStreamOn(it[Keys.PREFER_RELIABLE_COPY] ?: true, readAutoBackupFeed(it)) }
+    suspend fun setAutoBackupStreamOnFreeze(v: Boolean) = context.dataStore.edit {
+        it[Keys.PREFER_RELIABLE_COPY] = v
+        it[Keys.AUTO_BACKUP_FEED] = v
+    }
     val smartChannelDisplay: Flow<Int> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
         .map(readSmartChannelDisplay)
@@ -1288,8 +1322,6 @@ class PreferencesManager @Inject constructor(
         context.dataStore.edit { it.remove(Keys.LIVE_PLAYBACK_ACTIVE_SERVER_INDEX) }
     }
 
-    val githubToken: Flow<String> = context.dataStore.data.map { it[Keys.GITHUB_TOKEN] ?: "" }
-    suspend fun setGithubToken(token: String) { context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token } }
 
     // Gates HomeActivity's cold-start auto-refresh of merged/secondary providers' live channels
     // — without this, every single app launch re-hit every configured provider's API regardless

@@ -954,27 +954,12 @@
                         style="@style/Rack.GroupBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
-                        <!-- Label (with the current order in the accent) set by SettingsActivity. -->
-                        <Button
-                            android:id="@+id/btnSettingsSort"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Sort channels: Default"
-                            app:icon="@drawable/ic_settings_sort" />
                         <Button
                             android:id="@+id/btnTvHomeIntegration"
                             style="@style/Rack.Button.Link.Leading"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Android TV Home Integration" />
-                        <Button
-                            android:id="@+id/btnSettingsMosaic"
-                            style="@style/Rack.Button.Link.Leading"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Multi-view / mosaic"
-                            app:icon="@drawable/ic_settings_grid" />
                         <Button
                             android:id="@+id/btnFeatureTour"
                             style="@style/Rack.Button.Link.Leading"
@@ -1125,32 +1110,6 @@
                             </LinearLayout>
                             <Switch
                                 android:id="@+id/switchAutoplayNextEpisode"
-                                style="@style/Rack.Switch"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Use the most reliable copy" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="When a channel keeps failing, play another copy of it that has been working" />
-                            </LinearLayout>
-                            <Switch
-                                android:id="@+id/switchPreferReliableCopy"
                                 style="@style/Rack.Switch"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
@@ -1338,24 +1297,7 @@
                                     android:text="Off" />
                             </LinearLayout>
                             <LinearLayout
-                                android:id="@+id/rowSubSize"
-                                style="@style/Rack.Row.Tappable"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Subtitle size" />
-                                <TextView
-                                    android:id="@+id/tvSubSizeValue"
-                                    style="@style/Rack.Value"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                android:id="@+id/rowSubOffset"
+                                android:id="@+id/rowSubtitleAppearance"
                                 style="@style/Rack.Row.Tappable"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content">
@@ -1368,101 +1310,19 @@
                                         style="@style/Rack.Label"
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
-                                        android:text="Subtitle position" />
+                                        android:text="Subtitle appearance" />
                                     <TextView
                                         style="@style/Rack.Helper"
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
-                                        android:text="Moves subtitles up or down" />
+                                        android:text="Size, position, colors and outline, with a preview" />
                                 </LinearLayout>
                                 <TextView
-                                    android:id="@+id/tvSubOffsetValue"
+                                    android:id="@+id/tvSubtitleAppearanceValue"
                                     style="@style/Rack.Value"
                                     android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                style="@style/Rack.Row.Toggle"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
                                     android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Bold subtitles" />
-                                <CheckBox
-                                    android:id="@+id/cbSubBold"
-                                    style="@style/Rack.CheckToggle"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                android:id="@+id/rowSubTextColor"
-                                style="@style/Rack.Row.Tappable"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Subtitle color" />
-                                <TextView
-                                    android:id="@+id/tvSubTextColorValue"
-                                    style="@style/Rack.Value.Code"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                android:id="@+id/rowSubBgColor"
-                                style="@style/Rack.Row.Tappable"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Subtitle background" />
-                                <TextView
-                                    android:id="@+id/tvSubBgColorValue"
-                                    style="@style/Rack.Value.Code"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                style="@style/Rack.Row.Toggle"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Subtitle outline" />
-                                <CheckBox
-                                    android:id="@+id/cbSubOutline"
-                                    style="@style/Rack.CheckToggle"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
-                                android:id="@+id/rowSubOutlineColor"
-                                style="@style/Rack.Row.Tappable"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Outline color" />
-                                <TextView
-                                    android:id="@+id/tvSubOutlineColorValue"
-                                    style="@style/Rack.Value.Code"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
+                                    android:text="" />
                             </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
@@ -1521,15 +1381,15 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Automatic backup feed" />
+                                    android:text="Switch to a backup stream on freeze" />
                                 <TextView
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="When a live channel keeps stalling, switch to the best other copy of it, on any provider" />
+                                    android:text="When a live channel keeps failing or stalling, play the best other copy of it, on any provider" />
                             </LinearLayout>
                             <Switch
-                                android:id="@+id/switchAutoBackupFeed"
+                                android:id="@+id/switchAutoBackupStream"
                                 style="@style/Rack.Switch"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
@@ -1950,7 +1810,7 @@
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
                         <LinearLayout
-                            android:id="@+id/rowLiveReconnectSpeed"
+                            android:id="@+id/rowTuningEngine"
                             style="@style/Rack.Row.Tappable"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content">
@@ -1963,103 +1823,19 @@
                                     style="@style/Rack.Label"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="Live reconnect speed" />
+                                    android:text="Channel tuning engine" />
                                 <TextView
                                     style="@style/Rack.Helper"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="How a dropped live channel retries" />
+                                    android:text="How fast channels change and how a dropped channel reconnects" />
                             </LinearLayout>
                             <TextView
-                                android:id="@+id/tvLiveReconnectSpeedValue"
+                                android:id="@+id/tvTuningEngineValue"
                                 style="@style/Rack.Value"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Normal" />
-                        </LinearLayout>
-                        <!-- Channel change speed + pre-warm: TV-remote settings that only the old
-                             Shield Settings screen had, until the Shield moved onto this one (v6.87). -->
-                        <LinearLayout
-                            android:id="@+id/rowTurboTune"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Turbo Tune" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Automatic is recommended. Performance may use a spare provider connection." />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvTurboTuneValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Automatic" />
-                        </LinearLayout>
-                        <LinearLayout
-                            android:id="@+id/rowChannelZapSpeed"
-                            style="@style/Rack.Row.Tappable"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Channel change speed" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Wait after the last channel up/down press before tuning" />
-                            </LinearLayout>
-                            <TextView
-                                android:id="@+id/tvChannelZapSpeedValue"
-                                style="@style/Rack.Value"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Instant" />
-                        </LinearLayout>
-                        <LinearLayout
-                            style="@style/Rack.Row.Toggle"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
-                            <LinearLayout
-                                style="@style/Rack.RowText"
-                                android:layout_width="0dp"
-                                android:layout_weight="1"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Pre-warm streams on focus" />
-                                <TextView
-                                    style="@style/Rack.Helper"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="Looks up a channel's stream as soon as the remote lands on it" />
-                            </LinearLayout>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchPreWarmOnFocus"
-                                style="@style/Rack.SwitchMaterial"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
+                                android:text="Standard" />
                         </LinearLayout>
                         <LinearLayout
                             style="@style/Rack.Row.Toggle"
@@ -2482,22 +2258,6 @@
                                     android:rotation="-90" />
                             </LinearLayout>
                             <LinearLayout
-                                style="@style/Rack.Row.Toggle"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <TextView
-                                    style="@style/Rack.Label"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="Only refresh channels missing guide data" />
-                                <CheckBox
-                                    android:id="@+id/cbRefreshMissingOnly"
-                                    style="@style/Rack.CheckToggle"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
-                            <LinearLayout
                                 style="@style/Rack.Row"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content">
@@ -2782,34 +2542,6 @@
                                     android:layout_height="wrap_content"
                                     android:text="None" />
                             </LinearLayout>
-                            <LinearLayout
-                                style="@style/Rack.Row"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
-                                <LinearLayout
-                                    style="@style/Rack.RowText"
-                                    android:layout_width="0dp"
-                                    android:layout_weight="1"
-                                    android:layout_height="wrap_content">
-                                    <TextView
-                                        style="@style/Rack.Label"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Clear favorite channels" />
-                                    <TextView
-                                        style="@style/Rack.Helper"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="Your primary provider only. Can't be undone." />
-                                </LinearLayout>
-                                <Button
-                                    android:id="@+id/btnClearFavoriteChannels"
-                                    style="@style/Rack.Button.Danger"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="44dp"
-                                    android:layout_marginStart="12dp"
-                                    android:text="Clear" />
-                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
                 </com.iptvapp.ui.settings.RackColumns>
@@ -2935,7 +2667,7 @@
                                 style="@style/Rack.Label"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:labelFor="@id/etGithubToken"
+                                android:labelFor="@id/etPairingCode"
                                 android:text="Pairing code" />
                             <TextView
                                 style="@style/Rack.Helper"
@@ -2948,7 +2680,7 @@
                                 android:layout_marginTop="10dp"
                                 android:orientation="horizontal">
                                 <EditText
-                                    android:id="@+id/etGithubToken"
+                                    android:id="@+id/etPairingCode"
                                     style="@style/Rack.Input"
                                     android:layout_width="0dp"
                                     android:layout_height="44dp"
@@ -2958,7 +2690,7 @@
                                     android:letterSpacing="0.08"
                                     android:singleLine="true" />
                                 <Button
-                                    android:id="@+id/btnSaveGithubToken"
+                                    android:id="@+id/btnSavePairingCode"
                                     style="@style/Rack.Button.Primary"
                                     android:layout_width="wrap_content"
                                     android:layout_height="44dp"
@@ -3199,6 +2931,51 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Manage backups on this device" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- RESET -->
+                <LinearLayout
+                    style="@style/Rack.Group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/Rack.GroupTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Reset" />
+                    <LinearLayout
+                        style="@style/Rack.GroupBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            style="@style/Rack.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                style="@style/Rack.RowText"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    style="@style/Rack.Label"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Clear favorite channels" />
+                                <TextView
+                                    style="@style/Rack.Helper"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="Your primary provider only. Asks twice. Can't be undone." />
+                            </LinearLayout>
+                            <Button
+                                android:id="@+id/btnClearFavoriteChannels"
+                                style="@style/Rack.Button.Danger"
+                                android:layout_width="wrap_content"
+                                android:layout_height="44dp"
+                                android:layout_marginStart="12dp"
+                                android:text="Clear" />
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 
