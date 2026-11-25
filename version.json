@@ -1,7 +1,7 @@
 {
-  "versionCode": 642,
-  "versionName": "8.04",
-  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.04/MKTV.apk",
-  "apkSha256": "0836fb7359d82cf213981476683649e76829a63c72ee2abd7e3d98d371c98e9d",
-  "changelog": "What is New is easier to read: one section per version, bigger text, an Installed tag."
+  "versionCode": 643,
+  "versionName": "8.05",
+  "apkUrl": "https://github.com/Oliver29Klozoff/IPTV-Mj/releases/download/v8.05/MKTV.apk",
+  "apkSha256": "c6194c9e77039ccd36920b52ec345a06d57d96184ce14f48de77e7b145937de1",
+  "changelog": "Shorter Settings: one Channel tuning engine choice, one backup-stream switch, a subtitle preview, Channel order moved to Personalize MKTV."
 }

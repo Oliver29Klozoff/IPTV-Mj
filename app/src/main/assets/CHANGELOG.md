@@ -1,5 +1,21 @@
 # IPTV App - Changelog
 
+## v8.05 - 2026-11-25
+- **Changed**: Settings is shorter. **Channel tuning engine** replaces four tuning rows with one
+  choice: Turbo (fastest, may use a spare provider connection), Standard (recommended, what
+  you had before) or Low bandwidth. A mix you set by hand shows as Custom.
+- **Changed**: One **Switch to a backup stream on freeze** switch replaces the two backup toggles.
+- **Changed**: **Subtitle appearance** is one row that opens a live preview of size, position,
+  color, background, bold and outline.
+- **Changed**: The automatic guide refresh only fetches favorites whose guide runs out before the
+  next refresh; a refresh you start is always full. The "missing only" checkbox is gone.
+- **Changed**: Choosing Smart Channels grouping also turns on Combine duplicates.
+- **Moved**: Sort channels is now **Channel order** in Personalize MKTV → Remote & Navigation,
+  and the open list re-sorts straight away. MultiView left Settings; the Blue button and the
+  player menu still open it.
+- **Changed**: Clear favorite channels is in a new Reset group under Backup & Updates and asks
+  twice before removing anything.
+
 ## v8.04 - 2026-11-24
 - **Changed**: What's New is easier to read. Each version gets its own section with its date
   and an Installed tag on the one you have. The notes are bigger and lighter, each on its own
