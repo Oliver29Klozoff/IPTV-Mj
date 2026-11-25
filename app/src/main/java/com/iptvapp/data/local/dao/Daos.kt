@@ -146,6 +146,8 @@ interface ChannelDao {
 
     @Query("UPDATE channels SET isFavorite = 0")
     suspend fun clearAllFavorites()
+    @Query("SELECT COUNT(*) FROM channels WHERE isFavorite = 1")
+    suspend fun countAllFavorites(): Int
     @Query("SELECT * FROM channels WHERE isFavorite = 1 ORDER BY favOrder ASC, name ASC")
     fun getFavoriteChannelsBlocking(): List<ChannelEntity>
     @Query("UPDATE channels SET isHidden = :hidden WHERE streamId = :streamId")

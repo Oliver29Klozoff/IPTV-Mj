@@ -1853,7 +1853,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     /** Two steps, so a stray OK on the remote can't wipe every favorite. */
     private fun confirmClearFavoriteChannels() {
         lifecycleScope.launch {
-            val count = db.channelDao().getFavoriteChannels().first().size
+            val count = db.channelDao().countAllFavorites() // same rows clearAllFavorites() clears, hidden ones too
             if (count == 0) {
                 Toast.makeText(this@SettingsActivity, "You have no favorite channels on your primary provider", Toast.LENGTH_SHORT).show()
                 return@launch
