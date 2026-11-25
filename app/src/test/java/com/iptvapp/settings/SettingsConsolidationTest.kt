@@ -67,6 +67,13 @@ class SettingsConsolidationTest {
     }
 
     @Test
+    fun theBackupSwitchReadsOnWhileEitherOldHalfIsOn() {
+        assertTrue(com.iptvapp.data.local.autoBackupStreamOn(reliableCopy = false, backupFeed = true))
+        assertTrue(com.iptvapp.data.local.autoBackupStreamOn(reliableCopy = true, backupFeed = false))
+        assertFalse(com.iptvapp.data.local.autoBackupStreamOn(reliableCopy = false, backupFeed = false))
+    }
+
+    @Test
     fun subtitleSummaryNamesTheStyle() {
         val style = PreferencesManager.SubtitleStyle(
             sizeScale = 1.25f, verticalOffsetDp = 0, bold = true, textColor = 0xFFFFFF00.toInt(),

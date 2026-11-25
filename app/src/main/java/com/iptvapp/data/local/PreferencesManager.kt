@@ -583,9 +583,11 @@ class PreferencesManager @Inject constructor(
     // One Settings switch, "Switch to a backup stream on freeze", for both halves of the same
     // idea: tune a working copy of a failing channel (preferReliableCopy) and switch to one when
     // playback stalls (autoBackupFeed). Both keys stay, so older backups and the player still work.
+    // On while either half is on (an older install or backup may have only one), so the switch
+    // never reads Off while the player can still switch copies; turning it off stops both.
     val autoBackupStreamOnFreeze: Flow<Boolean> = context.dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { (it[Keys.PREFER_RELIABLE_COPY] ?: true) && readAutoBackupFeed(it) }
+        .map { autoBackupStreamOn(it[Keys.PREFER_RELIABLE_COPY] ?: true, readAutoBackupFeed(it)) }
     suspend fun setAutoBackupStreamOnFreeze(v: Boolean) = context.dataStore.edit {
         it[Keys.PREFER_RELIABLE_COPY] = v
         it[Keys.AUTO_BACKUP_FEED] = v

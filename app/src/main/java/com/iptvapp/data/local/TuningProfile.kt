@@ -46,3 +46,6 @@ data class TuningSettings(
     val liveReconnectSpeed: String,
     val channelZapDebounceMs: Int,
 )
+
+/** "Switch to a backup stream on freeze" reads On while either of its two saved halves is on. */
+fun autoBackupStreamOn(reliableCopy: Boolean, backupFeed: Boolean): Boolean = reliableCopy || backupFeed
