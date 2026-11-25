@@ -1705,7 +1705,11 @@ class HomeViewModel @Inject constructor(
                 val changed = sort != _channelSort.value
                 _channelSort.value = sort
                 if (sort == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
-                if (!first && changed) reloadCurrentLiveCategory()
+                if (!first && changed) {
+                    reloadCurrentLiveCategory()
+                    // Live/Categories show the combined list, which sorts once per selection.
+                    selectedCombinedCategory?.let { selectCombinedCategory(it) }
+                }
                 first = false
             }
         }
