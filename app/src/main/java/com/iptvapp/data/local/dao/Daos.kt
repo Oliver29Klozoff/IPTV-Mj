@@ -583,6 +583,12 @@ interface EpgDao {
     suspend fun getProgramsBetween(streamIds: List<Int>, serverIndex: Int, nowMs: Long, toMs: Long): List<EpgEntity>
     @Query("SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex")
     suspend fun getStreamIdsWithEpg(serverIndex: Int = -1): List<Int>
+    // Channels whose guide still runs at [untilMs] (stop times are stored in seconds or ms).
+    @Query("""
+        SELECT DISTINCT streamId FROM epg_entries WHERE serverIndex = :serverIndex
+        AND (CASE WHEN stopTimestamp < 100000000000 THEN stopTimestamp * 1000 ELSE stopTimestamp END) >= :untilMs
+    """)
+    suspend fun getStreamIdsWithEpgUntil(untilMs: Long, serverIndex: Int = -1): List<Int>
     @Query("SELECT * FROM epg_entries WHERE serverIndex = :serverIndex AND startTimestamp <= :nowMs AND stopTimestamp >= :nowMs")
     suspend fun getCurrentlyAiring(nowMs: Long, serverIndex: Int = -1): List<EpgEntity>
     @Query("SELECT MIN(startTimestamp) FROM epg_entries WHERE serverIndex = :serverIndex")

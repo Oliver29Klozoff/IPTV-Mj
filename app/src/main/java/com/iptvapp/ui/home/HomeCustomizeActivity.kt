@@ -890,6 +890,19 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             lifecycleScope.launch(NonCancellable) { prefs.setDirectNumberTuning(on) }
         }
         binding.btnStudioAutoNumber.setOnClickListener { autoNumberFavorites() }
+        // Channel order (was "Sort channels" in Settings → Updates). Index = HomeViewModel.ChannelSort.
+        SORT_TITLES.forEachIndexed { index, title ->
+            val option = layoutInflater.inflate(R.layout.item_studio_option, binding.sortOptions, false) as android.widget.TextView
+            option.id = View.generateViewId()
+            option.setText(title)
+            option.setOnClickListener {
+                if (index == channelSort) return@setOnClickListener
+                channelSort = index
+                renderSort()
+                lifecycleScope.launch(NonCancellable) { prefs.setChannelSortMode(index) }
+            }
+            binding.sortOptions.addView(option)
+        }
         if (tv) {
             binding.studioTvNavBlock.visibility = View.VISIBLE
             binding.btnStudioSidebar.setOnClickListener { TvSidebarCustomizeActivity.open(this) }
@@ -900,11 +913,23 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 launch { prefs.lcnMode.collect { lcnMode = it; renderLcn() } }
                 launch { prefs.directNumberTuning.collect { directTuning = it; renderLcn() } }
+                launch { prefs.channelSortMode.collect { channelSort = it.coerceIn(0, SORT_TITLES.lastIndex); renderSort() } }
             }
         }
     }
 
     private var lcnMode = com.iptvapp.data.channel.LcnMode.CUSTOM_FIRST
+    private var channelSort = 0
+
+    private fun renderSort() {
+        for (i in 0 until binding.sortOptions.childCount) {
+            val option = binding.sortOptions.getChildAt(i)
+            val chosen = i == channelSort
+            option.isActivated = chosen
+            val name = getString(SORT_TITLES[i])
+            option.contentDescription = if (chosen) getString(R.string.studio_option_selected, name) else name
+        }
+    }
     private var directTuning = true
 
     private fun renderLcn() {
@@ -1138,6 +1163,11 @@ class HomeCustomizeActivity : com.iptvapp.ui.MktvActivity() {
         /** The tab to open on (PersonalizeStudio.Tab ordinal): 0 Layout, 1 Look & Feel, 2 Remote, 3 Accessibility & Profiles. */
         const val EXTRA_INITIAL_TAB = "extra_initial_tab"
         private const val STATE_TAB = "studio_tab"
+        /** Channel order names, in HomeViewModel.ChannelSort order (the saved value is the index). */
+        internal val SORT_TITLES = intArrayOf(
+            R.string.studio_sort_default, R.string.studio_sort_az, R.string.studio_sort_watched,
+            R.string.studio_sort_recent, R.string.studio_sort_reliable,
+        )
 
         fun open(context: Context, tv: Boolean, initialTab: Int = 0) {
             context.startActivity(intent(context, tv, initialTab))

@@ -253,7 +253,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     private val settingSearchIndex: List<SettingSearchEntry> by lazy {
         listOf(
             SettingSearchEntry("EPG Refresh", null, R.id.btnRefreshEpg),
-            SettingSearchEntry("Refresh Only Missing Guide Data", null, R.id.cbRefreshMissingOnly),
             SettingSearchEntry("EPG Health / Fix TV Guide", null, R.id.rowEpgHealth),
             SettingSearchEntry("Auto Refresh Schedule", null, R.id.rgAutoEpgRefresh),
             SettingSearchEntry("Remind Me Lead Time", null, R.id.rowReminderLeadTime),
@@ -263,20 +262,18 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Stream Format", null, R.id.rgFormat),
             SettingSearchEntry("Video Player", null, R.id.rgPlayer),
             SettingSearchEntry("Autoplay Next Episode", null, R.id.switchAutoplayNextEpisode),
-            SettingSearchEntry("Use the Most Reliable Copy", null, R.id.switchPreferReliableCopy),
+            SettingSearchEntry("Use the Most Reliable Copy", null, R.id.switchAutoBackupStream),
             SettingSearchEntry("Tunneled Playback", null, R.id.switchTunneledPlayback),
             SettingSearchEntry("Dolby Vision Fallback", null, R.id.switchDv7Fallback),
             SettingSearchEntry("Audio Passthrough Fallback", null, R.id.switchAudioPassthroughFallback),
             SettingSearchEntry("Preferred Audio Language", R.id.hdrLanguage, R.id.spinnerAudioLanguage),
             SettingSearchEntry("Preferred Subtitle Language", R.id.hdrLanguage, R.id.spinnerSubtitleLanguage),
             SettingSearchEntry("OpenSubtitles", R.id.hdrLanguage, R.id.rowOpenSubtitles),
-            SettingSearchEntry("Subtitle Size", R.id.hdrLanguage, R.id.rowSubSize),
-            SettingSearchEntry("Subtitle Position", R.id.hdrLanguage, R.id.rowSubOffset),
-            SettingSearchEntry("Subtitle Text Color", R.id.hdrLanguage, R.id.rowSubTextColor),
-            SettingSearchEntry("Subtitle Background Color", R.id.hdrLanguage, R.id.rowSubBgColor),
-            SettingSearchEntry("Subtitle Outline", R.id.hdrLanguage, R.id.cbSubOutline),
+            SettingSearchEntry("Subtitle Appearance", R.id.hdrLanguage, R.id.rowSubtitleAppearance),
+            SettingSearchEntry("Subtitle Size / Color / Outline", R.id.hdrLanguage, R.id.rowSubtitleAppearance),
             SettingSearchEntry("Extra Buffering", null, R.id.switchExtraBuffering),
-            SettingSearchEntry("Automatic Backup Feed", null, R.id.switchAutoBackupFeed),
+            SettingSearchEntry("Switch to Backup Stream on Freeze", null, R.id.switchAutoBackupStream),
+            SettingSearchEntry("Automatic Backup Feed", null, R.id.switchAutoBackupStream),
             SettingSearchEntry("Combine Duplicate Channels", null, R.id.switchCombineDuplicates),
             SettingSearchEntry("Smart Channels", null, R.id.rowSmartChannels),
             SettingSearchEntry("Automatic Backup", null, R.id.rowSmartBackup),
@@ -292,10 +289,9 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Favorite teams", null, R.id.rowFavoriteTeams),
             SettingSearchEntry("Game alerts", null, R.id.switchGameAlerts),
             SettingSearchEntry("Live scores", null, R.id.switchLiveScores),
-            SettingSearchEntry("Live Reconnect Speed", null, R.id.rowLiveReconnectSpeed),
-            SettingSearchEntry("Turbo Tune", null, R.id.rowTurboTune),
-            SettingSearchEntry("Channel Change Speed", null, R.id.rowChannelZapSpeed),
-            SettingSearchEntry("Pre-warm Streams on Focus", null, R.id.switchPreWarmOnFocus),
+            SettingSearchEntry("Channel Tuning Engine", null, R.id.rowTuningEngine),
+            SettingSearchEntry("Turbo Tune / Channel Change Speed", null, R.id.rowTuningEngine),
+            SettingSearchEntry("Live Reconnect Speed", null, R.id.rowTuningEngine),
             SettingSearchEntry("Data Saver", null, R.id.switchDataSaver),
             SettingSearchEntry("DNS over HTTPS", null, R.id.cbDohEnabled),
             SettingSearchEntry("Provider Speed Test", null, R.id.btnSpeedTest),
@@ -347,7 +343,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Paired MKTV Devices (Send to TV / phone)", null, R.id.rowPairedDevices),
             SettingSearchEntry("Push to Cloud", null, R.id.btnSyncUp),
             SettingSearchEntry("Pull from Cloud", null, R.id.btnSyncDown),
-            SettingSearchEntry("Pairing Code", null, R.id.etGithubToken),
+            SettingSearchEntry("Pairing Code", null, R.id.etPairingCode),
             SettingSearchEntry("Join Watch Party", null, R.id.btnJoinWatchParty),
             SettingSearchEntry("Diagnostics", null, R.id.switchCrashReporting),
             SettingSearchEntry("Crash Reporting", null, R.id.switchCrashReporting),
@@ -364,11 +360,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             SettingSearchEntry("Check for Updates", null, R.id.btnCheckUpdate),
             SettingSearchEntry("What's New / Changelog", null, R.id.btnWhatsNew),
             SettingSearchEntry("Silent Self-Update", null, R.id.switchSilentSelfUpdate),
-            // These four had panel 1 here before, but they live in Updates (panel 5).
-            SettingSearchEntry("Quick Actions", null, R.id.btnSettingsSort),
-            SettingSearchEntry("Sort Channels", null, R.id.btnSettingsSort),
+            SettingSearchEntry("Quick Actions", null, R.id.btnTvHomeIntegration),
+            // Channel order lives in Personalize MKTV → Remote & Navigation now.
+            SettingSearchEntry("Sort Channels", null, R.id.btnJumpRemote),
             SettingSearchEntry("Android TV Home Integration", null, R.id.btnTvHomeIntegration),
-            SettingSearchEntry("Multi-view / Mosaic", null, R.id.btnSettingsMosaic),
             SettingSearchEntry("Feature Tour", null, R.id.btnFeatureTour)
         )
     }
@@ -526,8 +521,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     // every launch.
     private val newEpisodeNotifPermLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
-    private val sortLabels = listOf("Default", "A-Z", "Popular", "Recent")
-    private var currentSortIndex = 0
 
     // #06B6D4 (cyan) leads the list because it's the default accent since v6.77 — before this it
     // wasn't a swatch at all, so anyone who tried another color could only get back to the
@@ -629,15 +622,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         binding.btnWhatsNew.setOnClickListener { showChangelog() }
         binding.btnCheckUpdate.setOnClickListener { checkForUpdate() }
 
-        // Quick Actions — sort cycles, others launch intents back to home
-        binding.btnSettingsSort.setOnClickListener {
-            currentSortIndex = (currentSortIndex + 1) % sortLabels.size
-            binding.btnSettingsSort.text = sortButtonLabel()
-            lifecycleScope.launch { prefs.setChannelSortMode(currentSortIndex) }
-        }
-        binding.btnSettingsMosaic.setOnClickListener {
-            startActivity(Intent(this, com.iptvapp.ui.mosaic.MosaicActivity::class.java))
-        }
         binding.btnFeatureTour.setOnClickListener {
             FeatureTourDialog.startFromSettings(this)
         }
@@ -688,11 +672,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             binding.tvEpgRefreshStatus.text = "Cancelled"
             binding.btnRefreshEpg.isEnabled = true
             binding.btnCancelEpgRefresh.visibility = View.GONE
-        }
-
-        binding.cbRefreshMissingOnly.setOnCheckedChangeListener { _, isChecked ->
-            if (isLoadingSettings) return@setOnCheckedChangeListener
-            lifecycleScope.launch { prefs.setEpgRefreshMissingOnly(isChecked) }
         }
 
         binding.cbUsaOnlyChannels.setOnCheckedChangeListener { _, isChecked ->
@@ -850,19 +829,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         // let them wipe every primary-provider favorite and re-pick manually. Scoped to
         // channelDao.clearAllFavorites() only — never touches merged/secondary-provider
         // favorites, folders, or VOD/series favorites, since those aren't part of this bug.
-        binding.btnClearFavoriteChannels.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Clear all favorited channels?")
-                .setMessage("This un-favorites every channel on your primary provider. Favorites on other providers, folders, and movie/series favorites are not affected. This can't be undone.")
-                .setPositiveButton("Clear") { _, _ ->
-                    lifecycleScope.launch {
-                        db.channelDao().clearAllFavorites()
-                        Toast.makeText(this@SettingsActivity, "Favorites cleared", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
+        binding.btnClearFavoriteChannels.setOnClickListener { confirmClearFavoriteChannels() }
 
         binding.rgAutoEpgRefresh.setOnCheckedChangeListener { _, checkedId ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
@@ -1594,7 +1561,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         paint(root)
         if (root === binding.root) {
             navButtonViews.forEachIndexed { i, btn -> styleNavTab(btn, active = i == currentPanelIndex) }
-            binding.btnSettingsSort.text = sortButtonLabel(start)
         }
     }
 
@@ -1732,17 +1698,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         )).apply { setLayerInset(1, inset, inset, inset, inset) }
     }
 
-    // "Sort channels: A-Z" with the current order in the accent, like a value row's value.
-    private fun sortButtonLabel(accent: Int = accentColorInt()): CharSequence {
-        val value = sortLabels[currentSortIndex]
-        return android.text.SpannableString("Sort channels: $value").apply {
-            setSpan(
-                android.text.style.ForegroundColorSpan(accent),
-                length - value.length, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-    }
-
     // Toggle rows (tag toggleRow) are one D-pad / touch target: a click anywhere on the row flips
     // the Switch or toggle CheckBox inside it, which fires the same OnCheckedChangeListener that
     // tapping the toggle itself always did. The row also tells TalkBack it's a switch and whether
@@ -1858,101 +1813,72 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
     // playback already reads/applies these same PreferencesManager fields.
     private fun setupSubtitleSettings() {
         lifecycleScope.launch {
-            val style = prefs.subtitleStyle.first()
-            refreshSubtitleRows(style)
-            binding.cbSubBold.isChecked = style.bold
-            binding.cbSubOutline.isChecked = style.outlineEnabled
+            binding.tvSubtitleAppearanceValue.text = SubtitleAppearance.summary(prefs.subtitleStyle.first())
         }
-        binding.rowSubSize.setOnClickListener {
-            lifecycleScope.launch { showSubtitleSizeDialog(prefs.subtitleStyle.first().sizeScale) }
-        }
-        binding.rowSubOffset.setOnClickListener {
-            lifecycleScope.launch { showSubtitleOffsetDialog(prefs.subtitleStyle.first().verticalOffsetDp) }
-        }
-        binding.cbSubBold.setOnCheckedChangeListener { _, checked ->
-            lifecycleScope.launch { prefs.setSubtitleBold(checked) }
-        }
-        binding.rowSubTextColor.setOnClickListener {
-            lifecycleScope.launch {
-                showSubtitleColorDialog("Text Color", prefs.subtitleStyle.first().textColor) { prefs.setSubtitleTextColor(it) }
-            }
-        }
-        binding.rowSubBgColor.setOnClickListener {
-            lifecycleScope.launch {
-                showSubtitleColorDialog("Background Color", prefs.subtitleStyle.first().backgroundColor) { prefs.setSubtitleBackgroundColor(it) }
-            }
+        binding.rowSubtitleAppearance.setOnClickListener {
+            SubtitleAppearance.show(this, prefs) { binding.tvSubtitleAppearanceValue.text = SubtitleAppearance.summary(it) }
         }
         binding.rowOpenSubtitles.setOnClickListener { showOpenSubtitlesDialog() }
-        binding.cbSubOutline.setOnCheckedChangeListener { _, checked ->
-            lifecycleScope.launch { prefs.setSubtitleOutlineEnabled(checked) }
+    }
+
+    /** Channel Tuning Engine: one choice that sets the player's four tuning knobs (TuningProfile). */
+    private fun showTuningEngineDialog() {
+        lifecycleScope.launch {
+            val profiles = com.iptvapp.data.local.TuningProfile.entries
+            val current = prefs.tuningProfile.first()
+            val labels = profiles.map { p ->
+                android.text.SpannableStringBuilder(p.title).apply {
+                    append("\n")
+                    val from = length
+                    append(p.description)
+                    setSpan(android.text.style.RelativeSizeSpan(0.8f), from, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(android.text.style.ForegroundColorSpan(androidx.core.content.ContextCompat.getColor(this@SettingsActivity, R.color.rack_text_secondary)), from, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }.toTypedArray<CharSequence>()
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle(if (current == null) "Channel tuning engine (now: Custom)" else "Channel tuning engine")
+                .setSingleChoiceItems(labels, current?.let { profiles.indexOf(it) } ?: -1) { dialog, which ->
+                    val chosen = profiles[which]
+                    lifecycleScope.launch(kotlinx.coroutines.NonCancellable) {
+                        prefs.setTuningProfile(chosen)
+                        binding.tvTuningEngineValue.text = com.iptvapp.data.local.TuningProfile.label(chosen)
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
-        binding.rowSubOutlineColor.setOnClickListener {
-            lifecycleScope.launch {
-                showSubtitleColorDialog("Outline Color", prefs.subtitleStyle.first().outlineColor) { prefs.setSubtitleOutlineColor(it) }
+    }
+
+    /** Two steps, so a stray OK on the remote can't wipe every favorite. */
+    private fun confirmClearFavoriteChannels() {
+        lifecycleScope.launch {
+            val count = db.channelDao().getFavoriteChannels().first().size
+            if (count == 0) {
+                Toast.makeText(this@SettingsActivity, "You have no favorite channels on your primary provider", Toast.LENGTH_SHORT).show()
+                return@launch
             }
+            AlertDialog.Builder(this@SettingsActivity)
+                .setTitle("Clear favorite channels?")
+                .setMessage("This removes all $count favorite channels on your primary provider. Favorites on other providers, folders, and movie and series favorites stay.\n\nTip: back up first, under Backup & restore.")
+                .setPositiveButton("Continue") { _, _ ->
+                    AlertDialog.Builder(this@SettingsActivity)
+                        .setTitle("Are you sure?")
+                        .setMessage("$count favorite channels will be removed. This can't be undone.")
+                        .setPositiveButton("Clear $count favorites") { _, _ ->
+                            lifecycleScope.launch {
+                                db.channelDao().clearAllFavorites()
+                                Toast.makeText(this@SettingsActivity, "Favorites cleared", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .setNegativeButton("Keep them", null)
+                        .show()
+                        .getButton(android.content.DialogInterface.BUTTON_NEGATIVE)?.requestFocus()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+                .getButton(android.content.DialogInterface.BUTTON_NEGATIVE)?.requestFocus()
         }
-    }
-
-    private fun refreshSubtitleRows(style: PreferencesManager.SubtitleStyle) {
-        binding.tvSubSizeValue.text = "${(style.sizeScale * 100).toInt()}%"
-        binding.tvSubOffsetValue.text = if (style.verticalOffsetDp == 0) "Default" else "${style.verticalOffsetDp}dp"
-        binding.tvSubTextColorValue.text = "#%08X".format(style.textColor)
-        binding.tvSubBgColorValue.text = "#%08X".format(style.backgroundColor)
-        binding.tvSubOutlineColorValue.text = "#%08X".format(style.outlineColor)
-    }
-
-    private fun showSubtitleSizeDialog(current: Float) {
-        val options = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-        val labels = options.map { "${(it * 100).toInt()}%" }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Subtitle Size")
-            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(0)) { dialog, which ->
-                lifecycleScope.launch {
-                    prefs.setSubtitleSizeScale(options[which])
-                    refreshSubtitleRows(prefs.subtitleStyle.first())
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSubtitleOffsetDialog(current: Int) {
-        val options = listOf(-60, -40, -20, 0, 20, 40, 60)
-        val labels = options.map { if (it == 0) "Default" else "${it}dp" }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("Vertical Offset")
-            .setSingleChoiceItems(labels, options.indexOf(current).coerceAtLeast(options.indexOf(0))) { dialog, which ->
-                lifecycleScope.launch {
-                    prefs.setSubtitleVerticalOffsetDp(options[which])
-                    refreshSubtitleRows(prefs.subtitleStyle.first())
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showSubtitleColorDialog(title: String, current: Int, onPicked: suspend (Int) -> Unit) {
-        val presets = linkedMapOf(
-            "White" to 0xFFFFFFFF.toInt(),
-            "Yellow" to 0xFFFFFF00.toInt(),
-            "Black" to 0xFF000000.toInt(),
-            "Transparent" to 0x00000000
-        )
-        val labels = presets.keys.toTypedArray()
-        val values = presets.values.toList()
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setSingleChoiceItems(labels, values.indexOf(current).coerceAtLeast(0)) { dialog, which ->
-                lifecycleScope.launch {
-                    onPicked(values[which])
-                    refreshSubtitleRows(prefs.subtitleStyle.first())
-                }
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
     }
 
     // A disclosure row: clicking it shows / hides the rows under it, and its chevron turns to
@@ -2139,12 +2065,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         }
         binding.switchDataSaver.setOnCheckedChangeListener { _, isChecked ->
             lifecycleScope.launch { prefs.setDataSaverEnabled(isChecked) }
-        }
-        lifecycleScope.launch {
-            binding.switchPreWarmOnFocus.isChecked = prefs.preWarmOnFocus.first()
-        }
-        binding.switchPreWarmOnFocus.setOnCheckedChangeListener { _, isChecked ->
-            lifecycleScope.launch { prefs.setPreWarmOnFocus(isChecked) }
         }
 
         lifecycleScope.launch {
@@ -2751,7 +2671,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 }
                 val autoRefreshHours = prefs.epgAutoRefreshHours.first()
                 val autoRefreshStr = if (autoRefreshHours == 0) "Off" else "Every ${autoRefreshHours}h"
-                val missingOnly = prefs.epgRefreshMissingOnly.first()
                 val am = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
                 val memInfo = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
                 val ramFree = "%.1f GB".format(memInfo.availMem / 1e9)
@@ -2782,7 +2701,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                     VOD: $vodCount | Series: $seriesCount | EPG: $epgCount
                     Format: $format | USA Only: $usaOnly
                     Last EPG Refresh: $lastRefresh
-                    Auto-refresh: $autoRefreshStr | Missing-only: $missingOnly
+                    Auto-refresh: $autoRefreshStr (missing guide only) | Manual: full
                     EPG Worker: $epgWorkState
                 """.trimIndent()
                 val fullDebug = debugText + "\n\n=== CRASH LOG ===\n" + crashLog
@@ -2813,12 +2732,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 binding.btnSendDebugReport.isEnabled = true
             }
         }
-    }
-
-    private fun liveReconnectSpeedLabel(speed: String) = when (speed) {
-        "aggressive" -> "Aggressive"
-        "patient" -> "Patient"
-        else -> "Normal"
     }
 
     private fun refreshHiddenChannelsCount() {
@@ -2858,36 +2771,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                     if (picked.isNotEmpty()) lifecycleScope.launch { unhide(picked) }
                 }
                 .setNeutralButton("Unhide all") { _, _ -> lifecycleScope.launch { unhide(labels.indices.toList()) } }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
-    }
-
-    private fun zapSpeedLabel(ms: Int) = when (ms) {
-        150 -> "Fast (150ms)"
-        300 -> "Medium (300ms)"
-        500 -> "Slow (500ms)"
-        else -> "Instant"
-    }
-
-    // A rapid D-pad channel-up/down press still switches the OSD preview instantly either way —
-    // this only delays the actual network resolve + player reload after the last press, so
-    // mashing the button settles on one real channel switch. See PlayerActivity.playChannel.
-    private fun showChannelZapSpeedDialog() {
-        lifecycleScope.launch {
-            val options = arrayOf("Instant (no delay)", "Fast (150ms)", "Medium (300ms)", "Slow (500ms)")
-            val values = intArrayOf(0, 150, 300, 500)
-            val selIdx = values.indexOf(prefs.channelZapDebounceMs.first()).coerceAtLeast(0)
-            AlertDialog.Builder(this@SettingsActivity)
-                .setTitle("Channel Change Speed")
-                .setSingleChoiceItems(options, selIdx) { dialog, which ->
-                    val ms = values[which]
-                    lifecycleScope.launch {
-                        prefs.setChannelZapDebounceMs(ms)
-                        binding.tvChannelZapSpeedValue.text = zapSpeedLabel(ms)
-                    }
-                    dialog.dismiss()
-                }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
@@ -3040,27 +2923,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                     lifecycleScope.launch {
                         prefs.setTimeshiftMinutes(minutes)
                         binding.tvTimeshiftValue.text = timeshiftMinutesLabel(minutes)
-                    }
-                    dialog.dismiss()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        }
-    }
-
-    private fun showLiveReconnectSpeedDialog() {
-        lifecycleScope.launch {
-            val current = prefs.liveReconnectSpeed.first()
-            val options = arrayOf("Aggressive (1s steps, 10s ceiling)", "Normal (2s steps, 30s ceiling)", "Patient (3s steps, 60s ceiling)")
-            val values = arrayOf("aggressive", "normal", "patient")
-            val selIdx = values.indexOf(current).coerceAtLeast(0)
-            AlertDialog.Builder(this@SettingsActivity)
-                .setTitle("Live Reconnect Speed")
-                .setSingleChoiceItems(options, selIdx) { dialog, which ->
-                    val speed = values[which]
-                    lifecycleScope.launch {
-                        prefs.setLiveReconnectSpeed(speed)
-                        binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(speed)
                     }
                     dialog.dismiss()
                 }
@@ -3287,7 +3149,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                     prefs.opensubtitlesApiKey.first(),
                     prefs.opensubtitlesUsername.first()
                 )
-                binding.cbRefreshMissingOnly.isChecked = prefs.epgRefreshMissingOnly.first()
                 binding.cbUsaOnlyChannels.isChecked = prefs.usaOnlyChannels.first()
                 binding.cbEnglishOnlyMovies.isChecked = prefs.englishOnlyMovies.first()
                 binding.switchForceTvMode.isChecked = isForceTvModeEnabled()
@@ -3314,9 +3175,8 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 binding.switchDv7Fallback.isChecked = prefs.dv7FallbackEnabled.first()
                 binding.switchAudioPassthroughFallback.isChecked = prefs.audioPassthroughFallbackEnabled.first()
                 binding.switchAutoplayNextEpisode.isChecked = prefs.autoplayNextEpisodeEnabled.first()
-                binding.switchPreferReliableCopy.isChecked = prefs.preferReliableCopy.first()
                 binding.switchExtraBuffering.isChecked = prefs.extraBufferingEnabled.first()
-                binding.switchAutoBackupFeed.isChecked = prefs.autoBackupFeed.first()
+                binding.switchAutoBackupStream.isChecked = prefs.autoBackupStreamOnFreeze.first()
                 binding.switchCombineDuplicates.isChecked = prefs.combineDuplicates.first()
                 binding.tvSmartChannelsValue.text = com.iptvapp.util.SmartChannels.displayLabel(prefs.smartChannelDisplay.first())
                 binding.tvSmartBackupValue.text = com.iptvapp.util.SmartChannels.backupLabel(prefs.smartAutoBackup.first())
@@ -3336,9 +3196,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 binding.tvFavoriteTeamsValue.text = favoriteTeamsLabel(prefs.favoriteTeams.first())
                 binding.switchGameAlerts.isChecked = prefs.gameAlerts.first()
                 binding.switchLiveScores.isChecked = prefs.liveScores.first()
-                binding.tvLiveReconnectSpeedValue.text = liveReconnectSpeedLabel(prefs.liveReconnectSpeed.first())
-                binding.tvTurboTuneValue.text = prefs.turboTune.first().replaceFirstChar { it.uppercase() }
-                binding.tvChannelZapSpeedValue.text = zapSpeedLabel(prefs.channelZapDebounceMs.first())
+                binding.tvTuningEngineValue.text = com.iptvapp.data.local.TuningProfile.label(prefs.tuningProfile.first())
                 binding.tvReminderLeadTimeValue.text = reminderLeadTimeLabel(prefs.reminderLeadMinutes.first())
                 refreshShowAlertsValue()
                 binding.switchPipEnabled.isChecked = prefs.pipEnabled.first()
@@ -3350,7 +3208,6 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                     "nextdns" -> binding.rbDohNextDns.isChecked = true
                     else      -> binding.rbDohCloudflare.isChecked = true
                 }
-                currentSortIndex = prefs.channelSortMode.first().coerceIn(0, sortLabels.lastIndex)
                 // Checked here: every swatch and picker below parses these. A bad saved value (old
                 // build, restored backup) shows the default instead of crashing Settings.
                 currentAccentColor = com.iptvapp.util.AccentColors.validOr(prefs.accentColor.first(), com.iptvapp.util.AccentColors.DEFAULT_HEX)
@@ -3378,9 +3235,9 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
 
     private fun startEpgRefresh() {
         lifecycleScope.launch {
-            val missingOnly = prefs.epgRefreshMissingOnly.first()
+            // A refresh you ask for is always the full one; the automatic one fills gaps.
             val request = OneTimeWorkRequestBuilder<EpgRefreshWorker>()
-                .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to missingOnly))
+                .setInputData(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to false))
                 .build()
             currentEpgWorkId = request.id
             binding.progressEpgRefresh.visibility = View.VISIBLE
@@ -4538,10 +4395,10 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             binding.tvSyncStatus.text = if (ownCode.isNotEmpty()) "Your sync code: $ownCode\n$summary" else summary
             // Pre-fill pairing code field if one is saved
             val existing = prefs.getSyncGistId()
-            if (existing.isNotBlank()) binding.etGithubToken.setText(existing.take(8).uppercase())
+            if (existing.isNotBlank()) binding.etPairingCode.setText(existing.take(8).uppercase())
         }
-        binding.btnSaveGithubToken.setOnClickListener {
-            val code = binding.etGithubToken.text.toString().trim()
+        binding.btnSavePairingCode.setOnClickListener {
+            val code = binding.etPairingCode.text.toString().trim()
             lifecycleScope.launch {
                 syncManager.setPairingCode(code)
                 if (code.isNotBlank()) prefs.addSavedPairingCode(code.uppercase())
@@ -4571,17 +4428,13 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setAutoplayNextEpisodeEnabled(enabled) }
         }
-        binding.switchPreferReliableCopy.setOnCheckedChangeListener { _, enabled ->
-            if (isLoadingSettings) return@setOnCheckedChangeListener
-            lifecycleScope.launch { prefs.setPreferReliableCopy(enabled) }
-        }
         binding.switchExtraBuffering.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setExtraBufferingEnabled(enabled) }
         }
-        binding.switchAutoBackupFeed.setOnCheckedChangeListener { _, enabled ->
+        binding.switchAutoBackupStream.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
-            lifecycleScope.launch { prefs.setAutoBackupFeed(enabled) }
+            lifecycleScope.launch { prefs.setAutoBackupStreamOnFreeze(enabled) }
         }
         binding.switchCombineDuplicates.setOnCheckedChangeListener { _, enabled ->
             if (isLoadingSettings) return@setOnCheckedChangeListener
@@ -4590,6 +4443,13 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
         binding.rowSmartChannels.setOnClickListener { showSmartChoice("Smart Channels", listOf("Off", "Group verified duplicates")) { which ->
             lifecycleScope.launch {
                 prefs.setSmartChannelDisplay(if (which == 1) com.iptvapp.util.SmartChannels.DISPLAY_GROUP else com.iptvapp.util.SmartChannels.DISPLAY_OFF)
+                // Grouping duplicates only shows when duplicates are combined, so turn that on with it.
+                if (which == 1 && !prefs.combineDuplicates.first()) {
+                    prefs.setCombineDuplicates(true)
+                    isLoadingSettings = true
+                    binding.switchCombineDuplicates.isChecked = true
+                    isLoadingSettings = false
+                }
                 binding.tvSmartChannelsValue.text = com.iptvapp.util.SmartChannels.displayLabel(prefs.smartChannelDisplay.first())
             }
         } }
@@ -4634,24 +4494,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
             if (isLoadingSettings) return@setOnCheckedChangeListener
             lifecycleScope.launch { prefs.setLiveScores(enabled) }
         }
-        binding.rowLiveReconnectSpeed.setOnClickListener { showLiveReconnectSpeedDialog() }
-        binding.rowTurboTune.setOnClickListener {
-            lifecycleScope.launch {
-                val values = arrayOf("off", "automatic", "performance")
-                val labels = arrayOf("Off", "Automatic (recommended)", "Performance")
-                AlertDialog.Builder(this@SettingsActivity)
-                    .setTitle("Turbo Tune")
-                    .setSingleChoiceItems(labels, values.indexOf(prefs.turboTune.first()).coerceAtLeast(0)) { dialog, which ->
-                        lifecycleScope.launch {
-                            prefs.setTurboTune(values[which])
-                            binding.tvTurboTuneValue.text = labels[which]
-                        }
-                        dialog.dismiss()
-                    }
-                    .setNegativeButton("Cancel", null).show()
-            }
-        }
-        binding.rowChannelZapSpeed.setOnClickListener { showChannelZapSpeedDialog() }
+        binding.rowTuningEngine.setOnClickListener { showTuningEngineDialog() }
         binding.rowHiddenChannels.setOnClickListener { showHiddenChannelsDialog() }
         refreshHiddenChannelsCount()
         binding.rowReminderLeadTime.setOnClickListener { showReminderLeadTimeDialog() }
@@ -4699,7 +4542,7 @@ class SettingsActivity : com.iptvapp.ui.MktvActivity() {
                 .setTitle("Saved Pairing Codes")
                 .setItems(codes.toTypedArray()) { _, i ->
                     val code = codes[i]
-                    binding.etGithubToken.setText(code)
+                    binding.etPairingCode.setText(code)
                     lifecycleScope.launch {
                         syncManager.setPairingCode(code)
                         prefs.addSavedPairingCode(code)

@@ -222,12 +222,12 @@ class Prompt11ReliabilityTest {
     // ── Guide "missing only" ─────────────────────────────────────────────────────────────
 
     @Test
-    fun theAutomaticRefreshFollowsTheSavedSettingAndManualKeepsItsOwn() = runBlocking {
-        val auto = workDataOf(EpgRefreshWorker.KEY_USE_SAVED_SETTING to true)
-        assertTrue(EpgRefreshWorker.resolveMissingOnly(auto) { true })
-        assertFalse("setting off: full refresh, as the UI says", EpgRefreshWorker.resolveMissingOnly(auto) { false })
-        val manual = workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true)
-        assertTrue(EpgRefreshWorker.resolveMissingOnly(manual) { false })
+    fun theAutomaticRefreshFillsGapsAndAManualOneIsFull() {
+        assertTrue(EpgRefreshWorker.resolveMissingOnly(workDataOf(EpgRefreshWorker.KEY_USE_SAVED_SETTING to true)))
+        assertFalse("manual from Settings: full", EpgRefreshWorker.resolveMissingOnly(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to false)))
+        assertTrue(EpgRefreshWorker.resolveMissingOnly(workDataOf(EpgRefreshWorker.KEY_MISSING_ONLY to true)))
+        assertEquals(6, EpgRefreshWorker.guideHorizonHours(0))
+        assertEquals(24, EpgRefreshWorker.guideHorizonHours(24))
     }
 
     @Test

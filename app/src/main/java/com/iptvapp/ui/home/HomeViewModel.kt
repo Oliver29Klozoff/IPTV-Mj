@@ -1697,10 +1697,17 @@ class HomeViewModel @Inject constructor(
     }
 
     init {
+        // Followed, not read once: the order is chosen in Personalize MKTV while Home stays open.
         viewModelScope.launch {
-            val saved = prefs.channelSortMode.first()
-            _channelSort.value = ChannelSort.values().getOrElse(saved) { ChannelSort.DEFAULT }
-            if (_channelSort.value == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
+            var first = true
+            prefs.channelSortMode.distinctUntilChanged().collect { saved ->
+                val sort = ChannelSort.values().getOrElse(saved) { ChannelSort.DEFAULT }
+                val changed = sort != _channelSort.value
+                _channelSort.value = sort
+                if (sort == ChannelSort.MOST_RELIABLE) refreshReliabilityCache()
+                if (!first && changed) reloadCurrentLiveCategory()
+                first = false
+            }
         }
         // One-time backfill for channels favorited before v5.65's auto-numbering existed — see
         // XtreamRepository.backfillFavoriteChannelNumbers's kdoc. Flag ensures this never repeats.

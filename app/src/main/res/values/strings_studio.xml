@@ -34,6 +34,13 @@
     <string name="studio_direct_tuning_off">Type a number to tune: OFF</string>
     <string name="studio_direct_tuning_help">In the player, the remote\'s number keys tune to that channel.</string>
     <string name="studio_auto_number">Number my favorites 1, 2, 3…</string>
+    <string name="studio_sort_heading">Channel order</string>
+    <string name="studio_sort_help">How channels are listed inside a category.</string>
+    <string name="studio_sort_default">Provider order</string>
+    <string name="studio_sort_az">A to Z</string>
+    <string name="studio_sort_watched">Most watched</string>
+    <string name="studio_sort_recent">Recently watched</string>
+    <string name="studio_sort_reliable">Most reliable</string>
     <string name="studio_tv_nav_heading">TV sidebar</string>
     <string name="studio_sidebar">Sidebar order and entries…</string>
 
